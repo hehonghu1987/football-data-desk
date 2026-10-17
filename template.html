@@ -733,7 +733,7 @@ table.stats tbody tr:last-child td{border-bottom:0}
 <footer class="footer">
   <div class="row">
     <span>数据来源：ESPN 公开接口 · 仅收录已结束比赛的技术统计 · 缺失项以 — 表示</span>
-    <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 英冠 · 巴西甲</span>
+    <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
   </div>
   <div class="row">
     <span>每日更新：在项目目录运行 <code>python3 build_data.py</code> 后重新发布页面。</span>
@@ -815,14 +815,27 @@ const TEAMS = new Map((DATA.teams || []).map(t => [String(t.id), t]));
 const LEAGUE_CAT = new Map((DATA.leagues || []).map(l => [l.label, l.cat]));
 const LEAGUE_DOT = {
   "英超":"#6B2C91","西甲":"#D97706","意甲":"#2563A8","德甲":"#C0392B",
-  "法甲":"#1D4E89","欧冠":"#1B3C8C","欧联杯":"#C2650F","英冠":"#0F766E","巴西甲":"#1E8E3E"
+  "法甲":"#1D4E89","欧冠":"#1B3C8C","欧联杯":"#C2650F","英冠":"#0F766E","巴西甲":"#1E8E3E",
+  "足总杯":"#B45309","英联杯":"#8A5A2B","国王杯":"#C2410C","意大利杯":"#0E7490",
+  "德国杯":"#7C3AED","法国杯":"#2563EB","巴西杯":"#15803D"
 };
-const LEAGUE_ORDER = ["英超","西甲","意甲","德甲","法甲","欧冠","欧联杯","英冠","巴西甲"];
+const LEAGUE_ORDER = ["英超","西甲","意甲","德甲","法甲","欧冠","欧联杯",
+  "足总杯","英联杯","国王杯","意大利杯","德国杯","法国杯","英冠","巴西甲","巴西杯"];
+const CUP_LEAGUES = new Set(["足总杯","英联杯","国王杯","意大利杯","德国杯","法国杯","巴西杯"]);
 function leagueChip(label){
   const dot = LEAGUE_DOT[label] || "var(--muted)";
   return `<span class="league-chip"><span class="tdot" style="background:${dot}"></span>${esc(label)}</span>`;
 }
 function compSort(a,b){ return LEAGUE_ORDER.indexOf(a) - LEAGUE_ORDER.indexOf(b); }
+/* 杯赛按参赛球队归入分类：有五大联赛球队算 major，两支英冠算 champ，巴西杯算 brazil */
+function matchCat(m){
+  if(!CUP_LEAGUES.has(m.league)) return LEAGUE_CAT.get(m.league);
+  const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+  const cats = [h && h.cat, a && a.cat];
+  if(cats.includes("brazil")) return "brazil";
+  if(cats.includes("major")) return "major";
+  return "champ";
+}
 
 const BY_TEAM = new Map();
 for(const m of (DATA.matches || [])){
@@ -1087,7 +1100,7 @@ function renderHero(){
 function renderTabs(){
   const tabs = $("#cat-tabs");
   tabs.innerHTML = (DATA.categories || []).map(c => {
-    const teams = Array.from(TEAMS.values()).filter(t => t.cat === c.id).length;
+    const teams = indexTeams(c.id).length;
     return `<button type="button" class="cat-tab" role="tab" data-cat="${esc(c.id)}" aria-selected="${state.cat === c.id}">
       ${esc(c.label)}<span class="n">${teams}</span>
     </button>`;
@@ -1095,16 +1108,19 @@ function renderTabs(){
 }
 
 function catMatches(cat){
-  return (DATA.matches || []).filter(m => LEAGUE_CAT.get(m.league) === cat);
+  return (DATA.matches || []).filter(m => matchCat(m) === cat);
 }
 function catTeams(cat){
   return Array.from(TEAMS.values()).filter(t => t.cat === cat);
+}
+function indexTeams(cat){
+  return catTeams(cat).filter(t => (t.currentLeagues || []).length > 0 || teamMatches(t.id).length >= 3);
 }
 
 function renderFixtures(){
   const panel = $("#fixtures-panel");
   const list = (DATA.fixtures || []).filter(f =>
-    LEAGUE_CAT.get(f.league) === state.cat && new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
+    matchCat(f) === state.cat && new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
   );
   const groups = new Map();
   for(const f of list){
@@ -1178,7 +1194,7 @@ function renderIndex(){
   const wrap = $("#team-index");
   const FIVE = ["英超","西甲","意甲","德甲","法甲"];
   const cur = t => Array.isArray(t.currentLeagues) ? t.currentLeagues : [];
-  const teams = catTeams(state.cat);
+  const teams = indexTeams(state.cat);
   let groups = [];
   if(state.cat === "major"){
     groups = FIVE.map(lg => ({label:lg, teams:teams.filter(t => cur(t).includes(lg))}));

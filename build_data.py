@@ -4,6 +4,7 @@
 
 数据源：ESPN 公开站点 API（无需 key）
 覆盖：英超/西甲/意甲/德甲/法甲/英冠/欧冠/欧联杯/巴西甲
+      以及足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯/巴西杯
 产出：data/matches.json + football_database.html（单文件、可离线打开）
 
 用法：
@@ -28,6 +29,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(ROOT, "cache")
 DATA_DIR = os.path.join(ROOT, "data")
 API = "https://site.api.espn.com/apis/site/v2/sports/soccer"
+CORE = "https://sports.core.api.espn.com/v2/sports/soccer"
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 
@@ -41,6 +43,21 @@ LEAGUES = [
     {"label": "欧联杯", "code": "uefa.europa", "cat": "major", "seasons": [2026, 2025, 2024]},
     {"label": "英冠", "code": "eng.2", "cat": "champ", "seasons": [2026, 2025]},
     {"label": "巴西甲", "code": "bra.1", "cat": "brazil", "seasons": [2026]},
+    # 国内杯赛：不单独列分类，只补充到相关球队的历史里
+    {"label": "足总杯", "code": "eng.fa", "cat": "major", "seasons": [2026, 2025],
+     "support_for": ["英超", "英冠"], "core_schedule": True},
+    {"label": "英联杯", "code": "eng.league_cup", "cat": "major", "seasons": [2026, 2025],
+     "support_for": ["英超", "英冠"]},
+    {"label": "国王杯", "code": "esp.copa_del_rey", "cat": "major", "seasons": [2026, 2025],
+     "support_for": ["西甲"]},
+    {"label": "意大利杯", "code": "ita.coppa_italia", "cat": "major", "seasons": [2026, 2025],
+     "support_for": ["意甲"]},
+    {"label": "德国杯", "code": "ger.dfb_pokal", "cat": "major", "seasons": [2026, 2025],
+     "support_for": ["德甲"]},
+    {"label": "法国杯", "code": "fra.coupe_de_france", "cat": "major", "seasons": [2026, 2025],
+     "support_for": ["法甲"]},
+    {"label": "巴西杯", "code": "bra.copa_do_brazil", "cat": "brazil", "seasons": [2026, 2025],
+     "support_for": ["巴西甲"]},
 ]
 
 CATEGORIES = [
@@ -284,7 +301,161 @@ CN = {
     "Atlético Goianiense": ("戈亚尼亚竞技", []),
     "Cuiabá": ("库亚巴", []),
     "Criciúma": ("克里西乌马", []),
+    # 杯赛常见对手（英格兰低级别）
+    "AFC Wimbledon": ("AFC温布尔登", []),
+    "Barnsley": ("巴恩斯利", []),
+    "Blackpool": ("布莱克浦", []),
+    "Bradford City": ("布拉德福德城", []),
+    "Bromley": ("布罗姆利", []),
+    "Cambridge United": ("剑桥联", []),
+    "Doncaster Rovers": ("唐卡斯特流浪者", []),
+    "Exeter City": ("埃克塞特城", []),
+    "Grimsby Town": ("格里姆斯比镇", []),
+    "Huddersfield Town": ("哈德斯菲尔德", []),
+    "Luton Town": ("卢顿", []),
+    "Macclesfield FC": ("麦克尔斯菲尔德", []),
+    "Mansfield Town": ("曼斯菲尔德镇", []),
+    "Oxford United": ("牛津联", []),
+    "Plymouth Argyle": ("普利茅斯", []),
+    "Port Vale": ("维尔港", []),
+    "Reading": ("雷丁", []),
+    "Salford City": ("索尔福德城", []),
+    "Sheffield Wednesday": ("谢周三", []),
+    "Wigan Athletic": ("维冈竞技", []),
+    "Wycombe Wanderers": ("韦康比流浪者", []),
 }
+
+CN.update({
+    # ESPN 使用的名称与常见译名不同，单独映射
+    "VfL Wolfsburg": ("沃尔夫斯堡", ["狼堡"]),
+    "St. Pauli": ("圣保利", []),
+    "Nantes": ("南特", []),
+    "Metz": ("梅斯", []),
+    "1. FC Heidenheim 1846": ("海登海姆", []),
+    "Ajax Amsterdam": ("阿贾克斯", []),
+    "Braga": ("布拉加", []),
+    "Young Boys": ("年轻人", []),
+    "Ludogorets Razgrad": ("卢多戈雷茨", []),
+    "Malmö FF": ("马尔默", []),
+    "Kairat Almaty": ("阿拉木图凯拉特", []),
+    "FCSB": ("布加勒斯特星", []),
+    "Maccabi Tel-Aviv": ("特拉维夫马卡比", []),
+    "FK Qarabag": ("卡拉巴赫", []),
+    "F.C. København": ("哥本哈根", []),
+    "Dynamo Kyiv": ("基辅迪纳摩", []),
+    "Racing Genk": ("亨克", []),
+    "FC Twente": ("特温特", []),
+    "Go Ahead Eagles": ("前进之鹰", []),
+    "FC Utrecht": ("乌得勒支", []),
+    "Pafos": ("帕福斯", []),
+    "SK Brann": ("布兰", []),
+    "IF Elfsborg": ("埃尔夫斯堡", []),
+    "Rigas Futbola Skola": ("里加足球学校", []),
+    # 英格兰低级别球队
+    "AFC Wimbledon": ("温布尔登竞技", []),
+    "Barrow": ("巴罗", []),
+    "Bromley": ("布罗姆利", []),
+    "Colchester United": ("科尔切斯特联", []),
+    "Crawley Town": ("克劳利镇", []),
+    "Exeter City": ("埃克塞特城", []),
+    "Fleetwood Town": ("弗利特伍德", []),
+    "Harrogate Town": ("哈罗盖特", []),
+    "Newport County": ("纽波特郡", []),
+    "Northampton Town": ("北安普顿", []),
+    "Notts County": ("诺茨郡", []),
+    "Oldham Athletic": ("奥尔德姆", []),
+    "Rotherham United": ("罗瑟汉姆", []),
+    "Shrewsbury Town": ("什鲁斯伯里", []),
+    "Stevenage": ("斯蒂夫尼奇", []),
+    "Swindon Town": ("斯温登", []),
+    "Walsall": ("沃尔索尔", []),
+    "Burton Albion": ("伯顿阿尔比恩", []),
+    # 德国低级别球队
+    "Arminia Bielefeld": ("比勒费尔德", []),
+    "VfL Bochum": ("波鸿", []),
+    "VfL Osnabruck": ("奥斯纳布吕克", []),
+    "TSV Eintracht Braunschweig": ("不伦瑞克", []),
+    "SV Darmstadt 98": ("达姆施塔特", []),
+    "SV Wehen Wiesbaden": ("韦恩威斯巴登", []),
+    "SV Sandhausen": ("桑德豪森", []),
+    "SSV Ulm 1846": ("乌尔姆", []),
+    "SSV Jahn Regensburg": ("雷根斯堡", []),
+    "Hertha Berlin": ("柏林赫塔", []),
+    "Hansa Rostock": ("汉莎罗斯托克", []),
+    "Hallescher FC": ("哈勒", []),
+    "Fortuna Düsseldorf": ("杜塞尔多夫", []),
+    "Energie Cottbus": ("科特布斯", []),
+    "Dynamo Dresden": ("德累斯顿迪纳摩", []),
+    "Rot-Weiss Essen": ("红白埃森", []),
+    "Karlsruher SC": ("卡尔斯鲁厄", []),
+    "MSV Duisburg": ("杜伊斯堡", []),
+    "FC Erzgebirge Aue": ("奥厄", []),
+    "1. FC Magdeburg": ("马格德堡", []),
+    "1. FC Lokomotive Leipzig": ("莱比锡火车头", []),
+    "1. FC Phönix Lübeck": ("吕贝克凤凰", []),
+    "Viktoria Köln": ("科隆维多利亚", []),
+    # 西班牙低级别球队
+    "Albacete": ("阿尔瓦塞特", []),
+    "Burgos": ("布尔戈斯", []),
+    "Cultural Leonesa": ("莱昂内萨", []),
+    "Sporting Gijón": ("希洪竞技", []),
+    "Real Murcia": ("穆尔西亚", []),
+    "Eibar": ("埃瓦尔", []),
+    "Huesca": ("韦斯卡", []),
+    "Ponferradina": ("蓬费拉迪纳", []),
+    "CD Sabadell": ("萨瓦德尔", []),
+    "CD Extremadura": ("埃斯特雷马杜拉", []),
+    "FC Cartagena": ("卡塔赫纳", []),
+    "Eldense": ("埃尔登塞", []),
+    "Atlético Baleares": ("巴利阿里竞技", []),
+    # 意大利低级别球队
+    "Palermo": ("巴勒莫", []),
+    "Pescara": ("佩斯卡拉", []),
+    "Bari": ("巴里", []),
+    "Bastia": ("巴斯蒂亚", []),
+    "Benevento": ("贝内文托", []),
+    "Catania": ("卡塔尼亚", []),
+    "Cesena": ("切塞纳", []),
+    "Ascoli": ("阿斯科利", []),
+    "Arezzo": ("阿雷佐", []),
+    "Vicenza": ("维琴察", []),
+    "Padova": ("帕多瓦", []),
+    "Modena": ("摩德纳", []),
+    "Mantova": ("曼托瓦", []),
+    "Carrarese": ("卡拉雷塞", []),
+    "Juve Stabia": ("尤维斯塔比亚", []),
+    "Sudtirol": ("南蒂罗尔", []),
+    "Virtus Entella": ("恩特拉", []),
+    "US Avellino": ("阿韦利诺", []),
+    "Catanzaro": ("卡坦扎罗", []),
+    # 法国低级别球队
+    "SC Amiens": ("亚眠", []),
+    "Saint-Étienne": ("圣埃蒂安", []),
+    "Sochaux": ("索肖", []),
+    "Orléans": ("奥尔良", []),
+    "Avranches": ("阿夫朗什", []),
+    "Stade Laval": ("拉瓦勒", []),
+    "Dunkerque": ("敦刻尔克", []),
+    "AS Nancy Lorraine": ("南锡", []),
+    # 巴西低级别球队
+    "Paysandu": ("帕桑杜", []),
+    "Operário PR": ("巴拉那奥佩拉里奥", []),
+    "Novorizontino": ("新奥里藏特", []),
+    "Goiás": ("戈亚斯", []),
+    "CSA": ("阿拉戈阿诺", []),
+    "CRB": ("雷加塔斯", []),
+    "Náutico": ("瑙蒂科", []),
+    "Vila Nova": ("维拉诺瓦", []),
+    "Maringá": ("马林加", []),
+    "Brusque": ("布鲁斯克", []),
+    "Confiança": ("孔菲安萨", []),
+    "Botafogo PB": ("帕拉伊巴博塔弗戈", []),
+    "Aparecidense": ("阿帕雷西登塞", []),
+    "Jacuipense": ("雅库伊彭塞", []),
+    "Retró": ("雷特罗", []),
+    "Barra FC": ("巴拉", []),
+    "Athletic": ("阿蒂莱蒂克MG", []),
+})
 
 STAT_KEYS = [
     ("shots", "totalShots"),
@@ -554,16 +725,7 @@ def fetch_scoreboard(league, date_str, refresh=False):
     return rows
 
 
-def fetch_summary(league_code, event_id):
-    name = f"sum_{league_code}_{event_id}.json"
-    cached = read_cache(name)
-    if cached is not None:
-        return cached
-    try:
-        d = get_json(f"{API}/{league_code}/summary?event={event_id}")
-    except Exception as e:
-        log(f"  统计失败 {event_id}: {e}")
-        return None
+def extract_summary_stats(d):
     box = (d.get("boxscore") or {}).get("teams") or []
     stats = {}
     for t in box:
@@ -580,8 +742,166 @@ def fetch_summary(league_code, event_id):
         stats[side] = item
     if len(stats) != 2:
         return None
+    if all(v is None for item in stats.values() for v in item.values()):
+        return None
+    return stats
+
+
+def fetch_core_stats(league_code, event_id, team_id):
+    """site 接口对部分杯赛不返回 boxscore，改从核心接口取单队统计。"""
+    url = (f"{CORE}/leagues/{league_code}/events/{event_id}/competitions/{event_id}"
+           f"/competitors/{team_id}/statistics?lang=en&region=us")
+    try:
+        d = get_json(url)
+    except Exception:
+        return None
+    raw = {}
+    for cat in (d.get("splits") or {}).get("categories", []):
+        for s in cat.get("stats", []):
+            if s.get("name"):
+                raw[s["name"]] = s.get("value")
+    item = {}
+    for key, src in STAT_KEYS:
+        item[key] = to_float(raw.get(src)) if key == "possession" else to_int(raw.get(src))
+    return item
+
+
+def stats_from_core(league_code, event_id, home_id, away_id):
+    h = fetch_core_stats(league_code, event_id, home_id)
+    a = fetch_core_stats(league_code, event_id, away_id)
+    if not h or not a:
+        return None
+    if h.get("shots") is None and a.get("shots") is None:
+        return None
+    return {"home": h, "away": a}
+
+
+def stats_for_summary(league_code, event_id, d):
+    stats = extract_summary_stats(d)
+    if stats:
+        return stats
+    comps = (d.get("header") or {}).get("competitions") or []
+    if not comps:
+        return None
+    hid = aid = None
+    for t in comps[0].get("competitors", []):
+        tid = (t.get("team") or {}).get("id") or t.get("id")
+        if t.get("homeAway") == "home":
+            hid = tid
+        elif t.get("homeAway") == "away":
+            aid = tid
+    if not hid or not aid:
+        return None
+    return stats_from_core(league_code, event_id, hid, aid)
+
+
+def fetch_summary(league_code, event_id):
+    name = f"sum_{league_code}_{event_id}.json"
+    cached = read_cache(name)
+    if cached is not None and cached.get("stats"):
+        return cached
+    try:
+        d = get_json(f"{API}/{league_code}/summary?event={event_id}")
+    except Exception as e:
+        log(f"  统计失败 {event_id}: {e}")
+        return None
+    stats = stats_for_summary(league_code, event_id, d)
+    if not stats:
+        return None
     write_cache(name, {"ok": True, "stats": stats})
     return {"ok": True, "stats": stats}
+
+
+def summary_to_event(d, league, season, event_id):
+    """从 summary 的 header 还原一场比赛（足总杯球队赛程接口不可用时使用）。"""
+    h = d.get("header") or {}
+    comps = h.get("competitions") or []
+    if not comps:
+        return None, []
+    c = comps[0]
+    status = (c.get("status") or {}).get("type") or {}
+    home = away = None
+    metas = []
+    for t in c.get("competitors", []):
+        team = t.get("team") or {}
+        if team:
+            remember_team(team)
+            metas.append(team)
+        if t.get("homeAway") == "home":
+            home = t
+        elif t.get("homeAway") == "away":
+            away = t
+    if not home or not away:
+        return None, metas
+    hid = (home.get("team") or {}).get("id") or home.get("id")
+    aid = (away.get("team") or {}).get("id") or away.get("id")
+    if not hid or not aid:
+        return None, metas
+    ev = {
+        "id": str(event_id),
+        "date": c.get("date") or h.get("gameDate"),
+        "league": league["label"],
+        "leagueCode": league["code"],
+        "season": season,
+        "completed": bool(status.get("completed")),
+        "state": status.get("state") or "",
+        "home": str(hid),
+        "away": str(aid),
+        "hs": score_value(home),
+        "as": score_value(away),
+        "so": None,
+        "neutral": bool(c.get("neutralSite")),
+        "venue": ((c.get("venue") or {}).get("fullName")) or "",
+        "attendance": to_int(c.get("attendance")),
+    }
+    return ev, metas
+
+
+def fetch_cup_schedule(league, team_id, season, refresh=False):
+    """足总杯专用：核心接口列赛事 ID，再取 summary 还原比分与统计。"""
+    name = f"fasched_{league['code']}_{team_id}_{season}.json"
+    current = season >= 2026
+    cached = None if refresh else read_cache(name, max_age=(6 * 3600 if current else None))
+    if cached is not None:
+        for t in cached.get("teams", []):
+            remember_team(t)
+        return cached.get("rows", [])
+    url = f"{CORE}/leagues/{league['code']}/seasons/{season}/teams/{team_id}/events?limit=100"
+    try:
+        d = get_json(url)
+    except Exception as e:
+        log(f"  赛程失败 {league['label']} {team_id} {season}: {e}")
+        return []
+    ids = []
+    for item in d.get("items", []):
+        ref = item.get("$ref") or ""
+        if "/events/" in ref:
+            eid = ref.split("/events/")[1].split("?")[0]
+            if eid:
+                ids.append(eid)
+    rows, metas = [], []
+    for eid in ids:
+        cache_name = f"faev_{eid}.json"
+        evd = read_cache(cache_name)
+        if evd is None:
+            try:
+                full = get_json(f"{API}/{league['code']}/summary?event={eid}")
+            except Exception as e:
+                log(f"  杯赛详情失败 {eid}: {e}")
+                continue
+            ev, ms = summary_to_event(full, league, season, eid)
+            stats = stats_for_summary(league["code"], eid, full)
+            evd = {"event": ev, "teams": ms, "stats": stats}
+            write_cache(cache_name, evd)
+            if stats:
+                write_cache(f"sum_{league['code']}_{eid}.json", {"ok": True, "stats": stats})
+        for t in evd.get("teams", []):
+            remember_team(t)
+            metas.append(t)
+        if evd.get("event"):
+            rows.append(evd["event"])
+    write_cache(name, {"rows": rows, "teams": metas})
+    return rows
 
 
 def main():
@@ -596,15 +916,23 @@ def main():
     ensure_dirs()
     wanted = [s.strip() for s in args.leagues.split(",") if s.strip()]
     leagues = [l for l in LEAGUES if not wanted or l["label"] in wanted]
+    if wanted:
+        selected_labels = {l["label"] for l in leagues}
+        for l in LEAGUES:
+            if l.get("support_for") and any(x in selected_labels for x in l["support_for"]):
+                if l not in leagues:
+                    leagues.append(l)
     if not leagues:
         log("没有匹配的联赛")
         return
 
     log(f"开始采集：{', '.join(l['label'] for l in leagues)}")
 
-    # 1) 球队
+    # 1) 球队（杯赛不拉球队名单，只借用已收录球队）
     teams = {}
     for lg in leagues:
+        if lg.get("support_for"):
+            continue
         rows = fetch_teams(lg, refresh=args.refresh)
         for t in rows:
             cur = teams.setdefault(t["id"], dict(t))
@@ -617,15 +945,22 @@ def main():
     # 2) 赛程
     jobs = []
     for lg in leagues:
-        for t in [x for x in teams.values() if lg["label"] in x.get("currentLeagues", [])]:
-            for s in lg["seasons"]:
-                jobs.append((lg, t["id"], s))
+        if lg.get("support_for"):
+            for t in teams.values():
+                if any(x in t.get("currentLeagues", []) for x in lg["support_for"]):
+                    for s in lg["seasons"]:
+                        jobs.append((lg, t["id"], s))
+        else:
+            for t in [x for x in teams.values() if lg["label"] in x.get("currentLeagues", [])]:
+                for s in lg["seasons"]:
+                    jobs.append((lg, t["id"], s))
     log(f"  赛程请求 {len(jobs)} 个")
 
     events = {}
     done = 0
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
-        futs = {ex.submit(fetch_schedule, lg, tid, s, args.refresh): (lg, tid, s)
+        futs = {ex.submit(fetch_cup_schedule if lg.get("core_schedule") else fetch_schedule,
+                          lg, tid, s, args.refresh): (lg, tid, s)
                 for lg, tid, s in jobs}
         for fut in as_completed(futs):
             rows = fut.result()
