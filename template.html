@@ -579,8 +579,14 @@ table.stats tbody tr:last-child td{border-bottom:0}
 }
 .h2h-link:hover{text-decoration:underline}
 .detail-grid .h2h-link{grid-column:1/-1;margin-top:0}
-.tscore a{color:inherit;text-decoration:none}
-.tscore a:hover{color:var(--accent);text-decoration:underline}
+button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:inherit}
+.h2h-inline{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}
+.h2h-opps{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:14px 0 0}
+.h2h-opps-label{font-size:11px;color:var(--muted);margin-right:2px}
+.h2h-inline .filters{margin-top:12px}
+.tscore a,.tscore .score-btn{color:inherit;text-decoration:none}
+.tscore a:hover,.tscore .score-btn:hover{color:var(--accent);text-decoration:underline}
+.score-btn{background:none;border:0;padding:0;font:inherit;font-variant-numeric:tabular-nums;cursor:pointer}
 .fix-row[data-mid],.res-row[data-mid],.h2h-empty{cursor:pointer}
 .res-row[data-mid]{cursor:pointer}
 .h2h-empty{
@@ -768,6 +774,7 @@ table.stats tbody tr:last-child td{border-bottom:0}
         <button type="button" data-side="away" aria-pressed="false">客场</button>
       </div>
       <div id="comp-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <button type="button" class="chip-btn" id="h2h-toggle" aria-pressed="false" aria-controls="team-h2h">历史交锋数据</button>
       <span class="table-note" id="team-table-count"></span>
     </div>
 
@@ -794,6 +801,49 @@ table.stats tbody tr:last-child td{border-bottom:0}
       </table>
     </div>
     <div class="table-hint">左右滑动表格可查看完整数据；点击任意一行展开犯规、封堵、场地等详细数据。</div>
+
+    <section class="section h2h-inline" id="team-h2h" hidden>
+      <div class="section-head">
+        <h2 class="section-title">双方历史交锋</h2>
+        <span class="section-note" id="team-h2h-note">—</span>
+      </div>
+      <div class="h2h-opps" id="team-h2h-opps"></div>
+
+      <div class="filters">
+        <div class="seg" id="h2h-side-seg" role="group" aria-label="交锋主客场筛选">
+          <button type="button" data-hside="all" aria-pressed="true">全部</button>
+          <button type="button" data-hside="home" aria-pressed="false">主场</button>
+          <button type="button" data-hside="away" aria-pressed="false">客场</button>
+        </div>
+        <div id="h2h-comp-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <span class="table-note" id="team-h2h-count"></span>
+      </div>
+
+      <div class="sum-grid" id="team-h2h-summary"></div>
+      <div class="table-wrap">
+        <table class="stats">
+          <caption class="sr-only">双方历史交锋技术统计，数据为主队–客队</caption>
+          <thead>
+            <tr>
+              <th scope="col">日期</th>
+              <th scope="col">赛事</th>
+              <th scope="col">主队</th>
+              <th scope="col">比分</th>
+              <th scope="col">客队</th>
+              <th scope="col">射门</th>
+              <th scope="col">射正</th>
+              <th scope="col">角球</th>
+              <th scope="col">越位</th>
+              <th scope="col">黄牌</th>
+              <th scope="col">红牌</th>
+              <th scope="col">控球%</th>
+            </tr>
+          </thead>
+          <tbody id="team-h2h-body"></tbody>
+        </table>
+      </div>
+      <div class="table-hint">交锋取自本站已收录的比赛（2024 赛季以来）；点击任意一行可展开犯规、封堵、场地等详细数据。</div>
+    </section>
   </section>
 
   <!-- ============ MATCH ============ -->
@@ -1049,6 +1099,10 @@ const state = {
   q: "",
   side: "all",
   comp: "all",
+  h2hOpen: false,
+  h2hOpp: null,
+  h2hSide: "all",
+  h2hComp: "all",
   id: null,
   all: [],
   activeResult: -1,
@@ -1383,9 +1437,13 @@ function detailItem(label, h, a){
   return `<div class="dg-item"><div class="l">${label}</div><div class="v"><b>${f(h)}</b> – <b>${f(a)}</b></div></div>`;
 }
 
-function rowHtml(m, tid){
+function rowHtml(m, tid, inlineH2H){
   const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
   if(!h || !a) return "";
+  const oppId = String(m.home) === String(tid) ? String(m.away) : String(m.home);
+  const scoreEl = inlineH2H
+    ? `<button type="button" class="score-btn" data-h2h-opp="${esc(oppId)}" title="查看双方历史交锋">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}</button>`
+    : `<a href="#/match/${esc(m.id)}" title="查看双方历史交锋">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}</a>`;
   const o = outcome(m, tid);
   const cls = o === "W" ? "r-w" : o === "D" ? "r-d" : o === "L" ? "r-l" : "";
   const so = m.so && m.so[0] != null && m.so[1] != null
@@ -1399,7 +1457,7 @@ function rowHtml(m, tid){
     <td><span class="chev">▾</span> <span class="tdate">${fmtDate(m.date)}</span></td>
     <td>${leagueChip(m.league)}</td>
     <td class="tteam ${String(m.home) === String(tid) ? "me" : ""}"><span title="${esc(h.name)}">${esc(h.cn || h.name)}</span></td>
-    <td class="tscore"><a href="#/match/${esc(m.id)}" title="查看双方历史交锋">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}</a>${so}</td>
+    <td class="tscore">${scoreEl}${so}</td>
     <td class="tteam ${String(m.away) === String(tid) ? "me" : ""}"><span title="${esc(a.name)}">${esc(a.cn || a.name)}</span></td>
     <td>${pairCell(m, "shots", tid)}</td>
     <td>${pairCell(m, "sot", tid)}</td>
@@ -1418,7 +1476,9 @@ function rowHtml(m, tid){
         ${detailItem("扑救", savH, savA)}
         <div class="dg-item"><div class="l">场地</div><div class="v">${esc(m.venue || "—")}</div></div>
         <div class="dg-item"><div class="l">完整时间</div><div class="v">${esc(fullTime(m.date))}</div></div>
-        <a class="h2h-link" href="#/match/${esc(m.id)}">双方历史交锋 →</a>
+        ${inlineH2H
+          ? `<button type="button" class="h2h-link" data-h2h-opp="${esc(oppId)}">双方历史交锋 →</button><a class="h2h-link" href="#/match/${esc(m.id)}">比赛详情 →</a>`
+          : `<a class="h2h-link" href="#/match/${esc(m.id)}">双方历史交锋 →</a>`}
       </div>
     </td>
   </tr>`;
@@ -1431,10 +1491,97 @@ function drawTable(){
     if(state.comp !== "all" && m.league !== state.comp) return false;
     return true;
   });
-  $("#team-table-body").innerHTML = rows.map(m => rowHtml(m, state.id)).join("");
+  $("#team-table-body").innerHTML = rows.map(m => rowHtml(m, state.id, true)).join("");
   $("#team-table-count").textContent = `${rows.length} / ${state.all.length} 场`;
   $$(".seg button", $("#side-seg")).forEach(b => b.setAttribute("aria-pressed", b.dataset.side === state.side ? "true" : "false"));
   $$("#comp-filters [data-comp]").forEach(b => b.setAttribute("aria-pressed", b.dataset.comp === state.comp ? "true" : "false"));
+}
+
+function h2hOpponents(tid){
+  const seen = new Set(), out = [];
+  for(const m of state.all){
+    const oid = String(m.home) === String(tid) ? String(m.away) : String(m.home);
+    if(seen.has(oid)) continue;
+    seen.add(oid); out.push(oid);
+  }
+  return out;
+}
+
+function h2hFiltered(tid){
+  let list = h2hMatches(tid, state.h2hOpp);
+  if(state.h2hSide === "home") list = list.filter(m => String(m.home) === String(tid));
+  else if(state.h2hSide === "away") list = list.filter(m => String(m.away) === String(tid));
+  if(state.h2hComp !== "all") list = list.filter(m => m.league === state.h2hComp);
+  return list;
+}
+
+function renderH2H(){
+  const tid = state.id;
+  const t = TEAMS.get(String(tid));
+  const opps = h2hOpponents(tid);
+  if(!opps.length){
+    $("#team-h2h-note").textContent = "暂无可选对手";
+    $("#team-h2h-opps").innerHTML = "";
+    $("#team-h2h-summary").innerHTML = "";
+    $("#team-h2h-count").textContent = "";
+    $("#team-h2h-body").innerHTML = "";
+    return;
+  }
+  if(!state.h2hOpp || !opps.includes(String(state.h2hOpp))) state.h2hOpp = opps[0];
+
+  $("#team-h2h-opps").innerHTML = `<span class="h2h-opps-label">对手</span>` + opps.map(oid => {
+    const o = TEAMS.get(oid);
+    return `<button type="button" class="chip-btn" data-opp="${esc(oid)}" aria-pressed="${oid === String(state.h2hOpp)}">${esc(o ? (o.cn || o.name) : oid)}</button>`;
+  }).join("");
+
+  const all = h2hMatches(tid, state.h2hOpp);
+  const comps = Array.from(new Set(all.map(m => m.league))).sort(compSort);
+  if(state.h2hComp !== "all" && !comps.includes(state.h2hComp)) state.h2hComp = "all";
+  $("#h2h-comp-filters").innerHTML = `<button type="button" class="chip-btn" data-hcomp="all" aria-pressed="${state.h2hComp === "all"}">全部赛事</button>` +
+    comps.map(c => `<button type="button" class="chip-btn" data-hcomp="${esc(c)}" aria-pressed="${state.h2hComp === c}">${esc(c)}</button>`).join("");
+
+  const list = h2hFiltered(tid);
+  const opp = TEAMS.get(String(state.h2hOpp));
+  const rec = recordOf(list, tid);
+  const goalsH = list.reduce((n, x) => n + (String(x.home) === String(tid) ? (x.hs || 0) : (x.as || 0)), 0);
+  const goalsA = list.reduce((n, x) => n + (String(x.home) === String(tid) ? (x.as || 0) : (x.hs || 0)), 0);
+  const last = list[0];
+
+  $("#team-h2h-note").textContent = list.length
+    ? `${t.cn || t.name} vs ${opp.cn || opp.name} · ${list.length} 场 · 最早 ${fmtDate(list[list.length - 1].date)}`
+    : `${t.cn || t.name} vs ${opp.cn || opp.name} · 该筛选下暂无交锋`;
+  $("#team-h2h-count").textContent = `${list.length} / ${all.length} 场`;
+
+  $("#team-h2h-summary").innerHTML = list.length ? [
+    `<div class="sum-tile wide"><div class="l">历史交锋</div><div class="v">${all.length} 场</div><div class="s">当前筛选 ${list.length} 场 · 基于已收录比赛</div></div>`,
+    `<div class="sum-tile"><div class="l">${esc(t.cn || t.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`,
+    `<div class="sum-tile"><div class="l">最近一次交锋</div><div class="v">${last ? fmtDate(last.date) : "—"}</div><div class="s">${last ? `${last.hs}–${last.as} · ${esc(last.league)}` : "暂无"}</div></div>`
+  ].join("") : "";
+
+  $("#team-h2h-body").innerHTML = list.length
+    ? list.map(x => rowHtml(x, tid)).join("")
+    : `<tr><td colspan="12"><div class="h2h-empty" style="margin:18px 0">该筛选条件下暂无交锋记录。</div></td></tr>`;
+
+  $$("#h2h-side-seg [data-hside]").forEach(b => b.setAttribute("aria-pressed", b.dataset.hside === state.h2hSide ? "true" : "false"));
+  $$("#h2h-comp-filters [data-hcomp]").forEach(b => b.setAttribute("aria-pressed", b.dataset.hcomp === state.h2hComp ? "true" : "false"));
+}
+
+function openH2H(oppId){
+  state.h2hOpen = true;
+  if(oppId != null) state.h2hOpp = String(oppId);
+  state.h2hSide = "all";
+  state.h2hComp = "all";
+  $("#team-h2h").hidden = false;
+  $("#h2h-toggle").setAttribute("aria-pressed", "true");
+  renderH2H();
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  $("#team-h2h").scrollIntoView({behavior: reduce ? "auto" : "smooth", block: "start"});
+}
+
+function closeH2H(){
+  state.h2hOpen = false;
+  $("#team-h2h").hidden = true;
+  $("#h2h-toggle").setAttribute("aria-pressed", "false");
 }
 
 function renderTeam(id){
@@ -1443,7 +1590,13 @@ function renderTeam(id){
   state.id = String(id);
   state.side = "all";
   state.comp = "all";
+  state.h2hOpen = false;
+  state.h2hOpp = null;
+  state.h2hSide = "all";
+  state.h2hComp = "all";
   state.all = teamMatches(id);
+  $("#team-h2h").hidden = true;
+  $("#h2h-toggle").setAttribute("aria-pressed", "false");
   $("#home-view").hidden = true;
   $("#team-view").hidden = false;
   $("#match-view").hidden = true;
@@ -1613,6 +1766,34 @@ function recTextFor(m, tid){
 }
 
 $("#team-view").addEventListener("click", e => {
+  const h2hBtn = e.target.closest("[data-h2h-opp]");
+  if(h2hBtn){
+    openH2H(h2hBtn.dataset.h2hOpp);
+    return;
+  }
+  if(e.target.closest("#h2h-toggle")){
+    if(state.h2hOpen) closeH2H(); else openH2H(null);
+    return;
+  }
+  const oppBtn = e.target.closest("#team-h2h-opps [data-opp]");
+  if(oppBtn){
+    state.h2hOpp = oppBtn.dataset.opp;
+    state.h2hComp = "all";
+    renderH2H();
+    return;
+  }
+  const hSideBtn = e.target.closest("#h2h-side-seg [data-hside]");
+  if(hSideBtn){
+    state.h2hSide = hSideBtn.dataset.hside;
+    renderH2H();
+    return;
+  }
+  const hCompBtn = e.target.closest("#h2h-comp-filters [data-hcomp]");
+  if(hCompBtn){
+    state.h2hComp = hCompBtn.dataset.hcomp;
+    renderH2H();
+    return;
+  }
   const sideBtn = e.target.closest("[data-side]");
   if(sideBtn){
     state.side = sideBtn.dataset.side;
