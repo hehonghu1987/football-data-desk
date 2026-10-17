@@ -1540,7 +1540,8 @@ function renderH2H(){
   $("#h2h-comp-filters").innerHTML = `<button type="button" class="chip-btn" data-hcomp="all" aria-pressed="${state.h2hComp === "all"}">全部赛事</button>` +
     comps.map(c => `<button type="button" class="chip-btn" data-hcomp="${esc(c)}" aria-pressed="${state.h2hComp === c}">${esc(c)}</button>`).join("");
 
-  const list = h2hFiltered(tid);
+  const filtered = h2hFiltered(tid);
+  const list = filtered.slice(0, 10);
   const opp = TEAMS.get(String(state.h2hOpp));
   const rec = recordOf(list, tid);
   const goalsH = list.reduce((n, x) => n + (String(x.home) === String(tid) ? (x.hs || 0) : (x.as || 0)), 0);
@@ -1548,12 +1549,12 @@ function renderH2H(){
   const last = list[0];
 
   $("#team-h2h-note").textContent = list.length
-    ? `${t.cn || t.name} vs ${opp.cn || opp.name} · ${list.length} 场 · 最早 ${fmtDate(list[list.length - 1].date)}`
+    ? `${t.cn || t.name} vs ${opp.cn || opp.name} · 最近 ${list.length} 次${filtered.length > list.length ? `（共 ${filtered.length} 场）` : ""} · 最早 ${fmtDate(list[list.length - 1].date)}`
     : `${t.cn || t.name} vs ${opp.cn || opp.name} · 该筛选下暂无交锋`;
   $("#team-h2h-count").textContent = `${list.length} / ${all.length} 场`;
 
   $("#team-h2h-summary").innerHTML = list.length ? [
-    `<div class="sum-tile wide"><div class="l">历史交锋</div><div class="v">${all.length} 场</div><div class="s">当前筛选 ${list.length} 场 · 基于已收录比赛</div></div>`,
+    `<div class="sum-tile wide"><div class="l">历史交锋</div><div class="v">${all.length} 场</div><div class="s">当前筛选 ${filtered.length} 场${filtered.length > list.length ? ` · 显示最近 ${list.length} 场` : ""}</div></div>`,
     `<div class="sum-tile"><div class="l">${esc(t.cn || t.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`,
     `<div class="sum-tile"><div class="l">最近一次交锋</div><div class="v">${last ? fmtDate(last.date) : "—"}</div><div class="s">${last ? `${last.hs}–${last.as} · ${esc(last.league)}` : "暂无"}</div></div>`
   ].join("") : "";
@@ -1737,18 +1738,19 @@ function renderMatch(id){
     ? `<div class="cmp-head"><span>本场技术统计</span><span>${done ? "已结束" : "未开始"}</span></div><div class="cmp-grid">${cmp}</div>`
     : `<div class="h2h-empty">本场比赛暂无可用的技术统计。</div>`;
 
-  const list = h2hMatches(h.id, a.id, m.id);
+  const allMeetings = h2hMatches(h.id, a.id, m.id);
+  const list = allMeetings.slice(0, 10);
   const rec = recordOf(list, h.id);
   const goalsH = list.reduce((n, x) => n + (String(x.home) === String(h.id) ? (x.hs || 0) : (x.as || 0)), 0);
   const goalsA = list.reduce((n, x) => n + (String(x.home) === String(h.id) ? (x.as || 0) : (x.hs || 0)), 0);
   const last = list[0];
 
   $("#h2h-note").textContent = list.length
-    ? `共 ${list.length} 场 · 最早 ${fmtDate(list[list.length - 1].date)}`
+    ? `最近 ${list.length} 次${allMeetings.length > list.length ? `（共 ${allMeetings.length} 场）` : ""} · 最早 ${fmtDate(list[list.length - 1].date)}`
     : "暂无交锋记录";
 
   $("#h2h-summary").innerHTML = list.length ? [
-    `<div class="sum-tile wide"><div class="l">历史交锋</div><div class="v">${list.length} 场</div><div class="s">不含本场 · 基于已收录比赛</div></div>`,
+    `<div class="sum-tile wide"><div class="l">历史交锋</div><div class="v">${allMeetings.length} 场</div><div class="s">不含本场 · 显示最近 ${list.length} 场</div></div>`,
     `<div class="sum-tile"><div class="l">${esc(h.cn || h.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`,
     `<div class="sum-tile"><div class="l">最近一次交锋</div><div class="v">${last ? `${fmtDate(last.date).slice(5)}` : "—"}</div><div class="s">${last ? `${TEAMS.get(String(last.home)) ? (TEAMS.get(String(last.home)).cn || TEAMS.get(String(last.home)).name) : ""} ${last.hs}–${last.as} ${TEAMS.get(String(last.away)) ? (TEAMS.get(String(last.away)).cn || TEAMS.get(String(last.away)).name) : ""}` : "暂无"}</div></div>`
   ].join("") : "";
