@@ -34,29 +34,29 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 
 LEAGUES = [
-    {"label": "英超", "code": "eng.1", "cat": "major", "seasons": [2026, 2025]},
-    {"label": "西甲", "code": "esp.1", "cat": "major", "seasons": [2026, 2025]},
-    {"label": "意甲", "code": "ita.1", "cat": "major", "seasons": [2026, 2025]},
-    {"label": "德甲", "code": "ger.1", "cat": "major", "seasons": [2026, 2025]},
-    {"label": "法甲", "code": "fra.1", "cat": "major", "seasons": [2026, 2025]},
+    {"label": "英超", "code": "eng.1", "cat": "major", "seasons": [2026, 2025, 2024]},
+    {"label": "西甲", "code": "esp.1", "cat": "major", "seasons": [2026, 2025, 2024]},
+    {"label": "意甲", "code": "ita.1", "cat": "major", "seasons": [2026, 2025, 2024]},
+    {"label": "德甲", "code": "ger.1", "cat": "major", "seasons": [2026, 2025, 2024]},
+    {"label": "法甲", "code": "fra.1", "cat": "major", "seasons": [2026, 2025, 2024]},
     {"label": "欧冠", "code": "uefa.champions", "cat": "major", "seasons": [2026, 2025, 2024]},
     {"label": "欧联杯", "code": "uefa.europa", "cat": "major", "seasons": [2026, 2025, 2024]},
-    {"label": "英冠", "code": "eng.2", "cat": "champ", "seasons": [2026, 2025]},
-    {"label": "巴西甲", "code": "bra.1", "cat": "brazil", "seasons": [2026]},
+    {"label": "英冠", "code": "eng.2", "cat": "champ", "seasons": [2026, 2025, 2024]},
+    {"label": "巴西甲", "code": "bra.1", "cat": "brazil", "seasons": [2026, 2025, 2024]},
     # 国内杯赛：不单独列分类，只补充到相关球队的历史里
-    {"label": "足总杯", "code": "eng.fa", "cat": "major", "seasons": [2026, 2025],
+    {"label": "足总杯", "code": "eng.fa", "cat": "major", "seasons": [2026, 2025, 2024],
      "support_for": ["英超", "英冠"], "core_schedule": True},
-    {"label": "英联杯", "code": "eng.league_cup", "cat": "major", "seasons": [2026, 2025],
+    {"label": "英联杯", "code": "eng.league_cup", "cat": "major", "seasons": [2026, 2025, 2024],
      "support_for": ["英超", "英冠"]},
-    {"label": "国王杯", "code": "esp.copa_del_rey", "cat": "major", "seasons": [2026, 2025],
+    {"label": "国王杯", "code": "esp.copa_del_rey", "cat": "major", "seasons": [2026, 2025, 2024],
      "support_for": ["西甲"]},
-    {"label": "意大利杯", "code": "ita.coppa_italia", "cat": "major", "seasons": [2026, 2025],
+    {"label": "意大利杯", "code": "ita.coppa_italia", "cat": "major", "seasons": [2026, 2025, 2024],
      "support_for": ["意甲"]},
-    {"label": "德国杯", "code": "ger.dfb_pokal", "cat": "major", "seasons": [2026, 2025],
+    {"label": "德国杯", "code": "ger.dfb_pokal", "cat": "major", "seasons": [2026, 2025, 2024],
      "support_for": ["德甲"]},
-    {"label": "法国杯", "code": "fra.coupe_de_france", "cat": "major", "seasons": [2026, 2025],
+    {"label": "法国杯", "code": "fra.coupe_de_france", "cat": "major", "seasons": [2026, 2025, 2024],
      "support_for": ["法甲"]},
-    {"label": "巴西杯", "code": "bra.copa_do_brazil", "cat": "brazil", "seasons": [2026, 2025],
+    {"label": "巴西杯", "code": "bra.copa_do_brazil", "cat": "brazil", "seasons": [2026, 2025, 2024],
      "support_for": ["巴西甲"]},
 ]
 
@@ -455,6 +455,16 @@ CN.update({
     "Retró": ("雷特罗", []),
     "Barra FC": ("巴拉", []),
     "Athletic": ("阿蒂莱蒂克MG", []),
+    "Sport": ("累西腓体育", []),
+    "Sousa EC": ("索萨", []),
+    "Aguia de Maraba": ("马拉巴老鹰", []),
+    "Leyton Orient": ("莱顿东方", []),
+    "Stade Briochin": ("布列塔尼体育场", []),
+    "Sampdoria": ("桑普多利亚", []),
+    "Pontevedra": ("蓬特韦德拉", []),
+    "Ourense CF": ("奥伦塞", []),
+    "Peterborough United": ("彼得堡联", []),
+    "Milton Keynes Dons": ("米尔顿凯恩斯", []),
 })
 
 STAT_KEYS = [
@@ -1018,10 +1028,15 @@ def main():
         ev = events[eid]
         for tid in (ev["home"], ev["away"]):
             counts[tid] = counts.get(tid, 0) + 1
-    log(f"  需要抓取统计的已结束比赛 {len(selected)} 场")
+    # 近两个赛季的其他比赛也抓统计，用于历史交锋页
+    h2h_recent = {eid for eid, ev in events.items()
+                  if ev["completed"] and ev["league"] in [lg["label"] for lg in leagues]
+                  and (ev["date"] or "") >= "2025-07-01"}
+    todo_ids = selected | h2h_recent
+    log(f"  需要抓取统计的已结束比赛 {len(todo_ids)} 场")
 
     # 5) 统计
-    todo = sorted(selected, key=lambda i: events[i]["date"] or "", reverse=True)
+    todo = sorted(todo_ids, key=lambda i: events[i]["date"] or "", reverse=True)
     if args.max_summaries:
         todo = todo[:args.max_summaries]
     stats_map = {}
@@ -1043,10 +1058,14 @@ def main():
         cn, aliases = CN.get(t["name"], (t["name"], []))
         return cn, aliases
 
+    league_labels = [lg["label"] for lg in leagues]
+    all_done = {eid for eid, ev in events.items()
+                if ev["completed"] and ev["league"] in league_labels}
+
     match_rows = []
-    for eid in selected:
+    for eid in all_done:
         ev = events[eid]
-        if ev["league"] in [lg["label"] for lg in leagues]:
+        if ev["league"] in league_labels:
             st = stats_map.get(eid)
             match_rows.append({
                 "id": eid,

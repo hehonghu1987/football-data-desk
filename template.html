@@ -528,6 +528,67 @@ table.stats tbody tr:last-child td{border-bottom:0}
 .dg-item .v b{font-weight:500}
 .table-hint{display:none;font-size:10.5px;color:var(--muted);margin-top:7px}
 
+/* ---------- match detail ---------- */
+.match-hero{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:clamp(18px,3vw,30px) clamp(14px,3vw,28px);margin-bottom:18px;
+}
+.match-meta{
+  display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;
+  font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:18px;
+}
+.match-teams{
+  display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  gap:clamp(10px,3vw,36px);align-items:center;
+}
+.match-side{display:flex;align-items:center;gap:12px;min-width:0}
+.match-side.away{flex-direction:row-reverse;text-align:right}
+.match-side .nm{font-size:clamp(16px,2.4vw,24px);font-weight:700;line-height:1.2;overflow-wrap:anywhere}
+.match-side .en{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px}
+.match-side .badge{flex:none}
+.match-score{
+  font-family:var(--font-display);font-size:clamp(34px,6vw,56px);font-weight:700;
+  letter-spacing:.02em;line-height:1;white-space:nowrap;
+}
+.match-score.vs{font-size:clamp(20px,3vw,28px);color:var(--muted);letter-spacing:.08em}
+.match-foot{
+  margin-top:16px;padding-top:12px;border-top:1px solid var(--line);
+  display:flex;gap:18px;flex-wrap:wrap;justify-content:center;
+  font-size:11px;color:var(--muted);text-align:center;
+}
+.cmp-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin:0 2px 10px;font-size:12px;color:var(--muted);
+}
+.cmp-grid{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:1px;background:var(--line);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;
+}
+.cmp-item{background:var(--surface);padding:11px 14px}
+.cmp-item .l{font-size:10px;color:var(--muted);letter-spacing:.04em;text-align:center}
+.cmp-item .v{
+  display:flex;justify-content:center;gap:10px;margin-top:3px;
+  font-family:var(--font-mono);font-size:14px;font-variant-numeric:tabular-nums;
+}
+.cmp-item .v b{font-weight:500}
+.cmp-item .v b.own{color:var(--accent);font-weight:700}
+.h2h-link{
+  display:inline-flex;align-items:center;gap:5px;margin-top:10px;
+  font-size:11.5px;font-weight:600;color:var(--accent);text-decoration:none;
+}
+.h2h-link:hover{text-decoration:underline}
+.detail-grid .h2h-link{grid-column:1/-1;margin-top:0}
+.tscore a{color:inherit;text-decoration:none}
+.tscore a:hover{color:var(--accent);text-decoration:underline}
+.fix-row[data-mid],.res-row[data-mid],.h2h-empty{cursor:pointer}
+.res-row[data-mid]{cursor:pointer}
+.h2h-empty{
+  border:1px dashed var(--line-strong);border-radius:var(--radius);
+  padding:26px 18px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.8;
+  margin-bottom:16px;
+}
+
 /* ---------- footer ---------- */
 .footer{
   max-width:1240px;margin:44px auto 0;
@@ -586,6 +647,13 @@ table.stats tbody tr:last-child td{border-bottom:0}
   .table-note{width:100%;margin-left:0}
   .section{margin-top:28px}
   .section-title{font-size:24px}
+  .match-side{gap:8px}
+  .match-side .badge{width:36px;height:36px;font-size:12px}
+  .match-side .nm{font-size:15px}
+  .match-side .en{display:none}
+  .match-score{font-size:32px}
+  .match-foot{gap:10px;font-size:10px}
+  .cmp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition:none!important;animation:none!important}
@@ -728,6 +796,44 @@ table.stats tbody tr:last-child td{border-bottom:0}
     <div class="table-hint">左右滑动表格可查看完整数据；点击任意一行展开犯规、封堵、场地等详细数据。</div>
   </section>
 
+  <!-- ============ MATCH ============ -->
+  <section id="match-view" hidden>
+    <a class="backlink" href="#/" id="match-back">← 返回</a>
+    <div id="match-hero"></div>
+    <div id="match-compare"></div>
+
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title">双方历史交锋</h2>
+        <span class="section-note" id="h2h-note">—</span>
+      </div>
+      <div class="sum-grid" id="h2h-summary"></div>
+      <div class="table-wrap">
+        <table class="stats">
+          <caption class="sr-only">双方历史交锋技术统计，数据为主队–客队</caption>
+          <thead>
+            <tr>
+              <th scope="col">日期</th>
+              <th scope="col">赛事</th>
+              <th scope="col">主队</th>
+              <th scope="col">比分</th>
+              <th scope="col">客队</th>
+              <th scope="col">射门</th>
+              <th scope="col">射正</th>
+              <th scope="col">角球</th>
+              <th scope="col">越位</th>
+              <th scope="col">黄牌</th>
+              <th scope="col">红牌</th>
+              <th scope="col">控球%</th>
+            </tr>
+          </thead>
+          <tbody id="h2h-table-body"></tbody>
+        </table>
+      </div>
+      <div class="table-hint">历史交锋取自本站已收录的比赛（每队最近 30 场），点击任意一行可展开犯规、封堵、场地等详细数据。</div>
+    </section>
+  </section>
+
 </main>
 
 <footer class="footer">
@@ -812,6 +918,7 @@ function teamDot(t){
 
 /* ---------- data indexes ---------- */
 const TEAMS = new Map((DATA.teams || []).map(t => [String(t.id), t]));
+const MATCH_BY_ID = new Map([...(DATA.matches || []), ...(DATA.fixtures || [])].map(m => [String(m.id), m]));
 const LEAGUE_CAT = new Map((DATA.leagues || []).map(l => [l.label, l.cat]));
 const LEAGUE_DOT = {
   "英超":"#6B2C91","西甲":"#D97706","意甲":"#2563A8","德甲":"#C0392B",
@@ -1148,7 +1255,7 @@ function renderFixtures(){
       rows.map(f => {
         const h = TEAMS.get(String(f.home)), a = TEAMS.get(String(f.away));
         if(!h || !a) return "";
-        return `<div class="fix-row">
+        return `<div class="fix-row" data-mid="${esc(f.id)}">
           <div class="fix-time">${fmtTime(f.date)}</div>
           <div>${leagueChip(f.league)}</div>
           <a class="fix-team home" href="#/team/${esc(h.id)}">${teamDot(h)}<span class="name">${esc(h.cn || h.name)}</span></a>
@@ -1175,7 +1282,7 @@ function renderRecent(){
       const p = (k) => (s.home && s.home[k] != null ? s.home[k] : "—") + "–" + (s.away && s.away[k] != null ? s.away[k] : "—");
       mini = `射门 ${p("shots")} · 射正 ${p("sot")} · 角球 ${p("corners")}`;
     }
-    return `<div class="res-row">
+    return `<div class="res-row" data-mid="${esc(m.id)}">
       <div class="res-meta">
         <span class="res-date">${fmtDate(m.date).slice(5)}</span>
         ${leagueChip(m.league)}
@@ -1236,6 +1343,7 @@ function renderHome(){
   state.id = null;
   $("#home-view").hidden = false;
   $("#team-view").hidden = true;
+  $("#match-view").hidden = true;
   document.title = "绿茵数据台";
   renderHero();
   renderTabs();
@@ -1291,7 +1399,7 @@ function rowHtml(m, tid){
     <td><span class="chev">▾</span> <span class="tdate">${fmtDate(m.date)}</span></td>
     <td>${leagueChip(m.league)}</td>
     <td class="tteam ${String(m.home) === String(tid) ? "me" : ""}"><span title="${esc(h.name)}">${esc(h.cn || h.name)}</span></td>
-    <td class="tscore">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}${so}</td>
+    <td class="tscore"><a href="#/match/${esc(m.id)}" title="查看双方历史交锋">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}</a>${so}</td>
     <td class="tteam ${String(m.away) === String(tid) ? "me" : ""}"><span title="${esc(a.name)}">${esc(a.cn || a.name)}</span></td>
     <td>${pairCell(m, "shots", tid)}</td>
     <td>${pairCell(m, "sot", tid)}</td>
@@ -1310,6 +1418,7 @@ function rowHtml(m, tid){
         ${detailItem("扑救", savH, savA)}
         <div class="dg-item"><div class="l">场地</div><div class="v">${esc(m.venue || "—")}</div></div>
         <div class="dg-item"><div class="l">完整时间</div><div class="v">${esc(fullTime(m.date))}</div></div>
+        <a class="h2h-link" href="#/match/${esc(m.id)}">双方历史交锋 →</a>
       </div>
     </td>
   </tr>`;
@@ -1337,6 +1446,7 @@ function renderTeam(id){
   state.all = teamMatches(id);
   $("#home-view").hidden = true;
   $("#team-view").hidden = false;
+  $("#match-view").hidden = true;
   document.title = (t.cn || t.name) + " · 绿茵数据台";
 
   const rec = recordOf(state.all, id);
@@ -1394,6 +1504,114 @@ function renderTeam(id){
   drawTable();
 }
 
+function h2hMatches(hid, aid, excludeId){
+  const h = String(hid), a = String(aid);
+  return (DATA.matches || []).filter(m => {
+    const mh = String(m.home), ma = String(m.away);
+    if(excludeId != null && String(m.id) === String(excludeId)) return false;
+    return (mh === h && ma === a) || (mh === a && ma === h);
+  }).sort((x, y) => String(y.date || "").localeCompare(String(x.date || "")));
+}
+
+function cmpItem(label, m, key){
+  const s = m.stats;
+  const hv = s && s.home ? s.home[key] : null;
+  const av = s && s.away ? s.away[key] : null;
+  if(hv == null && av == null) return "";
+  const f = v => v == null ? "—" : (key === "possession" ? Number(v).toFixed(1) : v);
+  return `<div class="cmp-item"><div class="l">${label}</div><div class="v"><b>${f(hv)}</b><span>–</span><b>${f(av)}</b></div></div>`;
+}
+
+function renderMatch(id){
+  const m = MATCH_BY_ID.get(String(id));
+  if(!m){ location.hash = "#/"; return; }
+  const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+  if(!h || !a){ location.hash = "#/"; return; }
+
+  $("#home-view").hidden = true;
+  $("#team-view").hidden = true;
+  $("#match-view").hidden = false;
+  $("#match-back").href = "#/team/" + encodeURIComponent(h.id);
+  $("#match-back").textContent = "← 返回 " + (h.cn || h.name);
+  document.title = `${h.cn || h.name} vs ${a.cn || a.name} · 绿茵数据台`;
+
+  const done = m.hs != null && m.as != null;
+  const score = done ? `${m.hs}–${m.as}` : "VS";
+  const so = m.so && m.so[0] != null && m.so[1] != null ? `点球 ${m.so[0]}–${m.so[1]}` : "";
+
+  $("#match-hero").innerHTML = `<div class="match-hero">
+    <div class="match-meta">
+      <span>${esc(fullTime(m.date))}</span>
+      ${leagueChip(m.league)}
+      ${m.venue ? `<span>${esc(m.venue)}</span>` : ""}
+    </div>
+    <div class="match-teams">
+      <div class="match-side home">
+        <a href="#/team/${esc(h.id)}">${badge(h, "lg")}</a>
+        <div>
+          <div class="nm"><a href="#/team/${esc(h.id)}" style="color:inherit;text-decoration:none">${esc(h.cn || h.name)}</a></div>
+          <div class="en">${esc(h.name || "")}${done ? " · 主" : ""}</div>
+        </div>
+      </div>
+      <div class="match-score ${done ? "" : "vs"}">${score}${so ? `<div class="so">${so}</div>` : ""}</div>
+      <div class="match-side away">
+        <a href="#/team/${esc(a.id)}">${badge(a, "lg")}</a>
+        <div>
+          <div class="nm"><a href="#/team/${esc(a.id)}" style="color:inherit;text-decoration:none">${esc(a.cn || a.name)}</a></div>
+          <div class="en">${esc(a.name || "")}${done ? " · 客" : ""}</div>
+        </div>
+      </div>
+    </div>
+    <div class="match-foot">
+      <span>主队技术统计在左，客队在右</span>
+      ${done ? `<span>${recTextFor(m, h.id)}</span>` : `<span>比赛尚未开始</span>`}
+    </div>
+  </div>`;
+
+  const cmp = m.stats ? [
+    cmpItem("射门", m, "shots"),
+    cmpItem("射正", m, "sot"),
+    cmpItem("角球", m, "corners"),
+    cmpItem("越位", m, "offsides"),
+    cmpItem("犯规", m, "fouls"),
+    cmpItem("黄牌", m, "yellow"),
+    cmpItem("红牌", m, "red"),
+    cmpItem("控球率 %", m, "possession"),
+    cmpItem("扑救", m, "saves"),
+    cmpItem("被封堵", m, "blocked")
+  ].join("") : "";
+  $("#match-compare").innerHTML = cmp
+    ? `<div class="cmp-head"><span>本场技术统计</span><span>${done ? "已结束" : "未开始"}</span></div><div class="cmp-grid">${cmp}</div>`
+    : `<div class="h2h-empty">本场比赛暂无可用的技术统计。</div>`;
+
+  const list = h2hMatches(h.id, a.id, m.id);
+  const rec = recordOf(list, h.id);
+  const goalsH = list.reduce((n, x) => n + (String(x.home) === String(h.id) ? (x.hs || 0) : (x.as || 0)), 0);
+  const goalsA = list.reduce((n, x) => n + (String(x.home) === String(h.id) ? (x.as || 0) : (x.hs || 0)), 0);
+  const last = list[0];
+
+  $("#h2h-note").textContent = list.length
+    ? `共 ${list.length} 场 · 最早 ${fmtDate(list[list.length - 1].date)}`
+    : "暂无交锋记录";
+
+  $("#h2h-summary").innerHTML = list.length ? [
+    `<div class="sum-tile wide"><div class="l">历史交锋</div><div class="v">${list.length} 场</div><div class="s">不含本场 · 基于已收录比赛</div></div>`,
+    `<div class="sum-tile"><div class="l">${esc(h.cn || h.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`,
+    `<div class="sum-tile"><div class="l">最近一次交锋</div><div class="v">${last ? `${fmtDate(last.date).slice(5)}` : "—"}</div><div class="s">${last ? `${TEAMS.get(String(last.home)) ? (TEAMS.get(String(last.home)).cn || TEAMS.get(String(last.home)).name) : ""} ${last.hs}–${last.as} ${TEAMS.get(String(last.away)) ? (TEAMS.get(String(last.away)).cn || TEAMS.get(String(last.away)).name) : ""}` : "暂无"}</div></div>`
+  ].join("") : "";
+
+  $("#h2h-table-body").innerHTML = list.length
+    ? list.map(x => rowHtml(x, h.id)).join("")
+    : `<tr><td colspan="12"><div class="h2h-empty" style="margin:18px 0">本站尚未收录两队的历史交锋。每队仅保留最近 30 场，若两队近年未相遇则不会出现在这里。</div></td></tr>`;
+  $("#match-view").querySelector(".table-wrap").hidden = !list.length;
+}
+
+function recTextFor(m, tid){
+  const o = outcome(m, tid);
+  if(!o) return "";
+  return `本场：${TEAMS.get(String(tid)).cn || TEAMS.get(String(tid)).name} ${o === "W" ? "胜" : o === "D" ? "平" : "负"}`;
+}
+
 $("#team-view").addEventListener("click", e => {
   const sideBtn = e.target.closest("[data-side]");
   if(sideBtn){
@@ -1417,14 +1635,42 @@ $("#team-view").addEventListener("click", e => {
   }
 });
 
+$("#match-view").addEventListener("click", e => {
+  const row = e.target.closest("tr.match-row");
+  if(row && !e.target.closest("a")){
+    const d = row.nextElementSibling;
+    if(d && d.classList.contains("detail-row")){
+      d.hidden = !d.hidden;
+      row.classList.toggle("open", !d.hidden);
+    }
+  }
+});
+
+$("#home-view").addEventListener("click", e => {
+  if(e.target.closest("a")) return;
+  const row = e.target.closest("[data-mid]");
+  if(row){
+    location.hash = "#/match/" + encodeURIComponent(row.dataset.mid);
+  }
+});
+
 /* ---------- routing ---------- */
 function route(){
   const h = location.hash || "";
-  const m = h.match(/^#\/team\/(.+)$/);
-  if(m){
-    const id = decodeURIComponent(m[1]);
+  const tm = h.match(/^#\/team\/(.+)$/);
+  if(tm){
+    const id = decodeURIComponent(tm[1]);
     if(TEAMS.has(String(id))){
       renderTeam(id);
+      window.scrollTo({top: 0, behavior: "auto"});
+      return;
+    }
+  }
+  const mm = h.match(/^#\/match\/(.+)$/);
+  if(mm){
+    const id = decodeURIComponent(mm[1]);
+    if(MATCH_BY_ID.has(String(id))){
+      renderMatch(id);
       window.scrollTo({top: 0, behavior: "auto"});
       return;
     }
