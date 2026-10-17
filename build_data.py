@@ -772,6 +772,9 @@ def extract_summary_stats(d):
         return None
     if all(v is None for item in stats.values() for v in item.values()):
         return None
+    # 部分老比赛接口只返回全零占位，视为无统计
+    if not any(item.get("shots") for item in stats.values()):
+        return None
     return stats
 
 
@@ -799,7 +802,7 @@ def stats_from_core(league_code, event_id, home_id, away_id):
     a = fetch_core_stats(league_code, event_id, away_id)
     if not h or not a:
         return None
-    if h.get("shots") is None and a.get("shots") is None:
+    if not any([h.get("shots"), a.get("shots")]):
         return None
     return {"home": h, "away": a}
 
@@ -1048,10 +1051,9 @@ def main():
         ev = events[eid]
         for tid in (ev["home"], ev["away"]):
             counts[tid] = counts.get(tid, 0) + 1
-    # 近两个赛季的其他比赛也抓统计，用于历史交锋页
+    # 所有已结束比赛都抓统计，保证历史交锋表逐场数据完整
     h2h_recent = {eid for eid, ev in events.items()
-                  if ev["completed"] and ev["league"] in [lg["label"] for lg in leagues]
-                  and (ev["date"] or "") >= "2025-07-01"}
+                  if ev["completed"] and ev["league"] in [lg["label"] for lg in leagues]}
     todo_ids = selected | h2h_recent
     log(f"  需要抓取统计的已结束比赛 {len(todo_ids)} 场")
 

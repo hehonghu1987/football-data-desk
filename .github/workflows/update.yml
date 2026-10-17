@@ -57,9 +57,11 @@ jobs:
           import json
           d = json.load(open('data/matches.json'))
           meta = d['meta']
-          print(meta['matchCount'], meta['teamCount'], meta['fixtureCount'])
+          stats = sum(1 for m in d['matches'] if m.get('stats'))
+          print(meta['matchCount'], meta['teamCount'], meta['fixtureCount'], stats)
           assert meta['matchCount'] >= 12000, '比赛数据不完整，放弃发布'
           assert meta['teamCount'] >= 600, '球队数据不完整，放弃发布'
+          assert stats >= 12000, '技术统计不完整，放弃发布'
           PY
 
       - name: 整理发布目录
