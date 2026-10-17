@@ -583,6 +583,9 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 .h2h-inline{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}
 .h2h-opps{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:14px 0 0}
 .h2h-opps-label{font-size:11px;color:var(--muted);margin-right:2px}
+.opp-n{margin-left:4px;font-family:var(--font-mono);font-size:9.5px;opacity:.7}
+.chip-btn[aria-pressed="true"] .opp-n{color:var(--accent);opacity:.9}
+.h2h-tag{margin-left:5px;font-size:9px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:0 3px;vertical-align:1px;letter-spacing:.02em}
 .h2h-inline .filters{margin-top:12px}
 .tscore a,.tscore .score-btn{color:inherit;text-decoration:none}
 .tscore a:hover,.tscore .score-btn:hover{color:var(--accent);text-decoration:underline}
@@ -778,30 +781,6 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
       <span class="table-note" id="team-table-count"></span>
     </div>
 
-    <div class="table-wrap">
-      <table class="stats">
-        <caption class="sr-only">球队最近比赛技术统计，数据为主队–客队</caption>
-        <thead>
-          <tr>
-            <th scope="col">日期</th>
-            <th scope="col">赛事</th>
-            <th scope="col">主队</th>
-            <th scope="col">比分</th>
-            <th scope="col">客队</th>
-            <th scope="col">射门</th>
-            <th scope="col">射正</th>
-            <th scope="col">角球</th>
-            <th scope="col">越位</th>
-            <th scope="col">黄牌</th>
-            <th scope="col">红牌</th>
-            <th scope="col">控球%</th>
-          </tr>
-        </thead>
-        <tbody id="team-table-body"></tbody>
-      </table>
-    </div>
-    <div class="table-hint">左右滑动表格可查看完整数据；点击任意一行展开犯规、封堵、场地等详细数据。</div>
-
     <section class="section h2h-inline" id="team-h2h" hidden>
       <div class="section-head">
         <h2 class="section-title">双方历史交锋</h2>
@@ -844,6 +823,31 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
       </div>
       <div class="table-hint">交锋取自本站已收录的比赛（2024 赛季以来）；点击任意一行可展开犯规、封堵、场地等详细数据。</div>
     </section>
+
+    <div class="table-wrap">
+      <table class="stats">
+        <caption class="sr-only">球队最近比赛技术统计，数据为主队–客队</caption>
+        <thead>
+          <tr>
+            <th scope="col">日期</th>
+            <th scope="col">赛事</th>
+            <th scope="col">主队</th>
+            <th scope="col">比分</th>
+            <th scope="col">客队</th>
+            <th scope="col">射门</th>
+            <th scope="col">射正</th>
+            <th scope="col">角球</th>
+            <th scope="col">越位</th>
+            <th scope="col">黄牌</th>
+            <th scope="col">红牌</th>
+            <th scope="col">控球%</th>
+          </tr>
+        </thead>
+        <tbody id="team-table-body"></tbody>
+      </table>
+    </div>
+    <div class="table-hint">左右滑动表格可查看完整数据；点击任意一行展开犯规、封堵、场地等详细数据。</div>
+
   </section>
 
   <!-- ============ MATCH ============ -->
@@ -1442,7 +1446,7 @@ function rowHtml(m, tid, inlineH2H){
   if(!h || !a) return "";
   const oppId = String(m.home) === String(tid) ? String(m.away) : String(m.home);
   const scoreEl = inlineH2H
-    ? `<button type="button" class="score-btn" data-h2h-opp="${esc(oppId)}" title="查看双方历史交锋">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}</button>`
+    ? `<button type="button" class="score-btn" data-h2h-opp="${esc(oppId)}" title="查看双方历史交锋">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}<span class="h2h-tag">交锋</span></button>`
     : `<a href="#/match/${esc(m.id)}" title="查看双方历史交锋">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}</a>`;
   const o = outcome(m, tid);
   const cls = o === "W" ? "r-w" : o === "D" ? "r-d" : o === "L" ? "r-l" : "";
@@ -1498,13 +1502,13 @@ function drawTable(){
 }
 
 function h2hOpponents(tid){
-  const seen = new Set(), out = [];
+  const latest = new Map();
   for(const m of state.all){
     const oid = String(m.home) === String(tid) ? String(m.away) : String(m.home);
-    if(seen.has(oid)) continue;
-    seen.add(oid); out.push(oid);
+    if(!latest.has(oid)) latest.set(oid, m.date || "");
   }
-  return out;
+  return Array.from(latest, ([id, d]) => ({id, n: h2hMatches(tid, id).length, d}))
+    .sort((a, b) => b.n - a.n || String(b.d).localeCompare(String(a.d)));
 }
 
 function h2hFiltered(tid){
@@ -1527,11 +1531,12 @@ function renderH2H(){
     $("#team-h2h-body").innerHTML = "";
     return;
   }
-  if(!state.h2hOpp || !opps.includes(String(state.h2hOpp))) state.h2hOpp = opps[0];
+  const ids = opps.map(o => o.id);
+  if(!state.h2hOpp || !ids.includes(String(state.h2hOpp))) state.h2hOpp = ids[0];
 
-  $("#team-h2h-opps").innerHTML = `<span class="h2h-opps-label">对手</span>` + opps.map(oid => {
-    const o = TEAMS.get(oid);
-    return `<button type="button" class="chip-btn" data-opp="${esc(oid)}" aria-pressed="${oid === String(state.h2hOpp)}">${esc(o ? (o.cn || o.name) : oid)}</button>`;
+  $("#team-h2h-opps").innerHTML = `<span class="h2h-opps-label">对手</span>` + opps.map(({id, n}) => {
+    const o = TEAMS.get(id);
+    return `<button type="button" class="chip-btn" data-opp="${esc(id)}" aria-pressed="${id === String(state.h2hOpp)}">${esc(o ? (o.cn || o.name) : id)}<span class="opp-n">${n}</span></button>`;
   }).join("");
 
   const all = h2hMatches(tid, state.h2hOpp);
