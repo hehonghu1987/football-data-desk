@@ -535,10 +535,28 @@ def write_cache(name, obj):
     os.replace(tmp, path)
 
 
-def get_json(url, tries=5, timeout=30):
+RATE_LOCK = threading.Lock()
+RATE_STATE = {"interval": 0.0, "last": 0.0}
+
+
+def throttle():
+    interval = RATE_STATE["interval"]
+    if interval <= 0:
+        return
+    with RATE_LOCK:
+        now = time.time()
+        wait = RATE_STATE["last"] + interval - now
+        if wait > 0:
+            time.sleep(wait)
+            now = time.time()
+        RATE_STATE["last"] = now
+
+
+def get_json(url, tries=6, timeout=30):
     last = None
     for i in range(tries):
         try:
+            throttle()
             req = urllib.request.Request(url, headers={
                 "User-Agent": UA,
                 "Accept": "application/json,text/plain,*/*",
@@ -548,8 +566,8 @@ def get_json(url, tries=5, timeout=30):
                 return json.load(r)
         except urllib.error.HTTPError as e:
             last = e
-            if e.code in (429, 500, 502, 503, 504):
-                time.sleep(1.5 * (i + 1))
+            if e.code in (403, 429, 500, 502, 503, 504):
+                time.sleep(3 * (i + 1))
                 continue
             raise
         except Exception as e:
@@ -921,7 +939,9 @@ def main():
     ap.add_argument("--no-html", action="store_true")
     ap.add_argument("--refresh", action="store_true", help="忽略赛程/比分板缓存")
     ap.add_argument("--workers", type=int, default=10)
+    ap.add_argument("--rate", type=float, default=0.0, help="请求最小间隔秒数，0 表示不限速")
     args = ap.parse_args()
+    RATE_STATE["interval"] = max(0.0, args.rate)
 
     ensure_dirs()
     wanted = [s.strip() for s in args.leagues.split(",") if s.strip()]

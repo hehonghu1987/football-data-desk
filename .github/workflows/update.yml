@@ -5,6 +5,11 @@ on:
     # 每天 04:17 UTC（北京时间 12:17），覆盖前一晚欧洲与当天上午巴西的比赛
     - cron: "17 4 * * *"
   workflow_dispatch:
+    inputs:
+      deploy_only:
+        description: "仅部署已提交的页面，不重新采集"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -25,8 +30,37 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: 恢复采集缓存
+        if: ${{ !inputs.deploy_only }}
+        uses: actions/cache/restore@v4
+        with:
+          path: cache
+          key: espn-cache-${{ github.run_id }}
+          restore-keys: |
+            espn-cache-
+
       - name: 采集数据并生成页面
-        run: python3 build_data.py --workers 12
+        if: ${{ !inputs.deploy_only }}
+        run: python3 build_data.py --workers 6 --rate 0.1
+
+      - name: 保存采集缓存
+        if: ${{ always() && !inputs.deploy_only }}
+        uses: actions/cache/save@v4
+        with:
+          path: cache
+          key: espn-cache-${{ github.run_id }}
+
+      - name: 校验数据完整性
+        if: ${{ !inputs.deploy_only }}
+        run: |
+          python3 - <<'PY'
+          import json
+          d = json.load(open('data/matches.json'))
+          meta = d['meta']
+          print(meta['matchCount'], meta['teamCount'], meta['fixtureCount'])
+          assert meta['matchCount'] >= 5500, '比赛数据不完整，放弃发布'
+          assert meta['teamCount'] >= 450, '球队数据不完整，放弃发布'
+          PY
 
       - name: 整理发布目录
         run: |
