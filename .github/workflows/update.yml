@@ -1,0 +1,40 @@
+name: 每日更新数据
+
+on:
+  schedule:
+    # 每天 04:17 UTC（北京时间 12:17），覆盖前一晚欧洲与当天上午巴西的比赛
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 采集数据并生成页面
+        run: python3 build_data.py --workers 12
+
+      - name: 整理发布目录
+        run: |
+          mkdir -p dist
+          cp football_database.html dist/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4
