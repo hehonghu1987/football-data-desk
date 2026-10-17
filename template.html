@@ -1,0 +1,1424 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>绿茵数据台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: light;
+  --bg:#F2F5EF;
+  --surface:#FFFFFF;
+  --surface-2:#E9EFE8;
+  --surface-3:#DEE7DF;
+  --ink:#12211A;
+  --ink-2:#33463C;
+  --muted:#5E7065;
+  --line:#D3DDD5;
+  --line-strong:#B9C8BE;
+  --accent:#0E7A49;
+  --accent-2:#0A5C37;
+  --accent-soft:#DFF1E6;
+  --accent-ink:#FFFFFF;
+  --win:#0E7A49;
+  --draw:#A97A1F;
+  --loss:#B24A38;
+  --shadow:0 18px 50px -20px rgba(18,33,26,.35);
+  --radius:14px;
+  --font-display:'Barlow Condensed','Noto Sans SC',sans-serif;
+  --font-body:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --topbar-h:64px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#0B1310;
+    --surface:#111C17;
+    --surface-2:#16241D;
+    --surface-3:#1D2E25;
+    --ink:#E8F0EA;
+    --ink-2:#C3D2C9;
+    --muted:#8FA398;
+    --line:#24362C;
+    --line-strong:#33493C;
+    --accent:#45CE8C;
+    --accent-2:#6FE3AC;
+    --accent-soft:#123326;
+    --accent-ink:#04150D;
+    --win:#45CE8C;
+    --draw:#D8B25E;
+    --loss:#E58A72;
+    --shadow:0 20px 60px -24px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#0B1310;
+  --surface:#111C17;
+  --surface-2:#16241D;
+  --surface-3:#1D2E25;
+  --ink:#E8F0EA;
+  --ink-2:#C3D2C9;
+  --muted:#8FA398;
+  --line:#24362C;
+  --line-strong:#33493C;
+  --accent:#45CE8C;
+  --accent-2:#6FE3AC;
+  --accent-soft:#123326;
+  --accent-ink:#04150D;
+  --win:#45CE8C;
+  --draw:#D8B25E;
+  --loss:#E58A72;
+  --shadow:0 20px 60px -24px rgba(0,0,0,.7);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-body);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+[hidden]{display:none!important}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit}
+::selection{background:var(--accent-soft);color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ---------- topbar ---------- */
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:40;
+  background:var(--bg);
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-inner{
+  max-width:1240px;
+  margin:0 auto;
+  padding:10px clamp(16px,3vw,28px);
+  display:flex;
+  align-items:center;
+  gap:18px;
+}
+.brand{display:flex;align-items:center;gap:10px;flex:none;min-width:0}
+.brand svg{flex:none;display:block}
+.brand-text{min-width:0}
+.brand-title{
+  font-weight:900;
+  font-size:19px;
+  line-height:1.1;
+  letter-spacing:.02em;
+  white-space:nowrap;
+}
+.brand-sub{
+  font-family:var(--font-mono);
+  font-size:9px;
+  letter-spacing:.16em;
+  color:var(--muted);
+  margin-top:2px;
+  white-space:nowrap;
+}
+.search-wrap{position:relative;flex:1;max-width:560px;min-width:200px;margin-inline:auto}
+.search-box{
+  display:flex;align-items:center;gap:9px;
+  height:40px;padding:0 12px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:10px;
+  transition:border-color .15s,box-shadow .15s,background .15s;
+}
+.search-box:focus-within{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+  background:var(--surface);
+}
+.search-box svg{flex:none;color:var(--muted)}
+#team-search{
+  flex:1;min-width:0;border:0;outline:0;background:transparent;
+  color:var(--ink);font-size:13px;height:100%;
+}
+#team-search::placeholder{color:var(--muted);opacity:.85}
+.search-kbd{
+  font-family:var(--font-mono);font-size:10px;color:var(--muted);
+  border:1px solid var(--line-strong);border-radius:4px;
+  padding:1px 5px;background:var(--surface);flex:none;
+}
+.topbar-meta{display:flex;align-items:center;gap:10px;flex:none}
+.update-chip{
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--font-mono);font-size:10px;color:var(--muted);
+  white-space:nowrap;
+}
+.update-chip .dot{
+  width:6px;height:6px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+.icon-btn{
+  width:34px;height:34px;display:grid;place-items:center;
+  border:1px solid var(--line);border-radius:9px;
+  background:var(--surface);color:var(--muted);
+  transition:color .15s,border-color .15s;
+}
+.icon-btn:hover{color:var(--ink);border-color:var(--line-strong)}
+.theme-btn .sun{display:none}
+.theme-btn .moon{display:block}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .theme-btn .sun{display:block}
+  :root:not([data-theme="light"]) .theme-btn .moon{display:none}
+}
+:root[data-theme="dark"] .theme-btn .sun{display:block}
+:root[data-theme="dark"] .theme-btn .moon{display:none}
+:root[data-theme="light"] .theme-btn .sun{display:none}
+:root[data-theme="light"] .theme-btn .moon{display:block}
+
+/* ---------- search results ---------- */
+.search-results{
+  position:absolute;top:calc(100% + 8px);left:0;right:0;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow:var(--shadow);
+  max-height:min(62vh,520px);
+  overflow:auto;
+  z-index:60;
+  padding:6px;
+}
+.sr-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:8px;cursor:pointer;
+}
+.sr-item:hover,.sr-item.active{background:var(--surface-2)}
+.sr-main{min-width:0;flex:1}
+.sr-name{font-size:13px;font-weight:700;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.sr-en{font-family:var(--font-mono);font-size:10px;color:var(--muted);font-weight:400}
+.sr-meta{font-size:10.5px;color:var(--muted);margin-top:2px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.sr-rec{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);white-space:nowrap;flex:none}
+.sr-arrow{color:var(--muted);font-family:var(--font-mono);font-size:12px;flex:none}
+.sr-empty{padding:24px 14px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.7}
+
+/* ---------- shell / hero ---------- */
+.shell{
+  max-width:1240px;
+  margin:0 auto;
+  padding:0 clamp(16px,3vw,28px) 56px;
+}
+.hero{
+  display:flex;justify-content:space-between;align-items:flex-end;gap:24px;
+  padding-block:28px 22px;
+  border-bottom:1px solid var(--line);
+}
+.eyebrow{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;
+  color:var(--muted);text-transform:uppercase;
+}
+.hero-date{display:flex;align-items:baseline;gap:10px;margin-top:5px}
+.hero-date .d{
+  font-family:var(--font-display);font-size:54px;line-height:.92;
+  font-weight:600;letter-spacing:-.01em;
+}
+.hero-date .w{font-size:18px;font-weight:700;color:var(--ink-2)}
+.hero-sub{font-size:12.5px;color:var(--muted);margin-top:8px}
+.hero-sub b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+.hero-stats{display:grid;grid-template-columns:repeat(3,auto);gap:24px;text-align:right}
+.hero-stat .n{font-family:var(--font-display);font-size:27px;font-weight:600;line-height:1}
+.hero-stat .l{font-size:10.5px;color:var(--muted);margin-top:3px;letter-spacing:.04em;white-space:nowrap}
+
+/* ---------- quick + tabs ---------- */
+.quick{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px}
+.quick .lbl{font-size:10.5px;color:var(--muted);letter-spacing:.04em;flex:none}
+.quick button{
+  border:1px solid var(--line);border-radius:999px;
+  padding:5px 11px;font-size:11.5px;color:var(--ink-2);
+  background:var(--surface);transition:border-color .15s,color .15s,background .15s;
+}
+.quick button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.cat-tabs{
+  display:flex;gap:5px;margin-top:20px;padding:5px;
+  background:var(--surface-2);border-radius:12px;
+  width:max-content;max-width:100%;overflow-x:auto;
+  scrollbar-width:none;
+}
+.cat-tabs::-webkit-scrollbar{display:none}
+.cat-tab{
+  display:flex;align-items:center;gap:7px;
+  padding:9px 14px;border-radius:8px;
+  font-size:13px;font-weight:700;color:var(--muted);
+  white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s;
+}
+.cat-tab:hover{color:var(--ink)}
+.cat-tab[aria-selected="true"]{
+  background:var(--surface);color:var(--ink);
+  box-shadow:0 1px 3px rgba(18,33,26,.12);
+}
+.cat-tab .n{font-family:var(--font-mono);font-size:10px;font-weight:400;color:var(--muted)}
+
+/* ---------- sections ---------- */
+.section{margin-top:34px}
+.section-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;margin-bottom:12px;flex-wrap:wrap;
+}
+.section-title{
+  font-family:var(--font-display);font-size:27px;font-weight:600;
+  letter-spacing:.01em;line-height:1.1;
+}
+.section-note{font-size:11.5px;color:var(--muted)}
+.panel{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.empty{
+  padding:34px 20px;text-align:center;color:var(--muted);
+  font-size:12.5px;line-height:1.8;
+}
+
+/* ---------- fixtures ---------- */
+.day-head{
+  display:flex;align-items:center;gap:9px;
+  padding:10px 16px;background:var(--surface-2);
+  border-bottom:1px solid var(--line);
+  border-top:1px solid var(--line);
+  font-size:12px;
+}
+.day-head:first-child{border-top:0}
+.day-head b{font-size:13px}
+.day-head .wd{color:var(--muted);font-size:11px}
+.day-head .cnt{
+  margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--muted);
+}
+.fix-row{
+  display:grid;
+  grid-template-columns:52px 62px minmax(0,1fr) 30px minmax(0,1fr);
+  align-items:center;gap:10px;
+  padding:11px 16px;border-bottom:1px solid var(--line);
+  transition:background .12s;
+}
+.fix-row:last-child{border-bottom:0}
+.fix-row:hover{background:var(--surface-2)}
+.fix-time{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.fix-team{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;min-width:0}
+.fix-team.home{justify-content:flex-end;text-align:right}
+.fix-team .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fix-team:hover .name{color:var(--accent)}
+.fix-vs{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-align:center}
+.league-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);white-space:nowrap}
+.league-chip.pill{border:1px solid var(--line);padding:3px 9px;border-radius:999px;background:var(--surface)}
+.tdot{
+  width:7px;height:7px;border-radius:50%;flex:none;
+  box-shadow:inset 0 0 0 1px rgba(127,127,127,.35);
+  background:#888;
+}
+
+/* ---------- recent results ---------- */
+.res-row{
+  display:grid;
+  grid-template-columns:98px minmax(0,1fr) 236px;
+  gap:14px;align-items:center;
+  padding:12px 16px;border-bottom:1px solid var(--line);
+  transition:background .12s;
+}
+.res-row:last-child{border-bottom:0}
+.res-row:hover{background:var(--surface-2)}
+.res-meta{display:flex;align-items:center;gap:8px;min-width:0}
+.res-date{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.res-main{
+  display:grid;grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr);
+  align-items:center;gap:8px;min-width:0;
+}
+.res-team{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-team.home{text-align:right}
+.res-team:hover{color:var(--accent)}
+.res-score{
+  font-family:var(--font-display);font-size:24px;font-weight:600;
+  text-align:center;white-space:nowrap;line-height:1;
+}
+.res-mini{
+  font-family:var(--font-mono);font-size:10px;color:var(--muted);
+  text-align:right;line-height:1.55;
+}
+
+/* ---------- team index ---------- */
+.idx-group{margin-top:20px}
+.idx-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.idx-head h3{font-size:13px;font-weight:700;margin:0;display:flex;align-items:baseline;gap:7px}
+.idx-head .note{font-family:var(--font-mono);font-size:10px;font-weight:400;color:var(--muted);letter-spacing:.02em}
+.idx-head .cnt{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.idx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:8px}
+.team-chip{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 11px;background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;
+  transition:border-color .15s,transform .15s,background .15s;
+  min-width:0;
+}
+.team-chip:hover{border-color:var(--accent);transform:translateY(-1px)}
+.team-chip .nm{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.team-chip .c{
+  margin-left:auto;font-family:var(--font-mono);font-size:9.5px;
+  color:var(--muted);flex:none;
+}
+.badge{
+  width:26px;height:26px;border-radius:50%;
+  display:grid;place-items:center;flex:none;
+  font-family:var(--font-display);font-size:10px;font-weight:700;
+  letter-spacing:.02em;
+  background:var(--badge,#0E7A49);
+  color:var(--badge-fg,#fff);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
+}
+.badge.lg{width:64px;height:64px;font-size:22px;letter-spacing:.01em}
+.badge.sm{width:30px;height:30px;font-size:10px}
+
+/* ---------- team view ---------- */
+.backlink{
+  display:inline-flex;align-items:center;gap:6px;
+  margin-top:22px;font-size:12px;color:var(--muted);
+  transition:color .15s;
+}
+.backlink:hover{color:var(--accent)}
+.team-hero{
+  position:relative;margin-top:14px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  overflow:hidden;
+}
+.team-hero::before{
+  content:"";position:absolute;inset:0 0 auto 0;height:6px;
+  background:var(--team-color,var(--accent));
+}
+.team-hero::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--team-color,var(--accent)) 15%,transparent),transparent 55%);
+}
+.team-hero-inner{
+  position:relative;z-index:1;
+  padding:26px 24px 22px;
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+}
+.team-id{min-width:0;flex:1}
+.team-name{font-size:30px;font-weight:900;line-height:1.15;letter-spacing:-.01em;text-wrap:balance}
+.team-en{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:3px}
+.team-leagues{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.team-count{margin-left:auto;text-align:right;flex:none}
+.team-count .n{font-family:var(--font-display);font-size:48px;font-weight:600;line-height:.95}
+.team-count .l{font-size:10.5px;color:var(--muted);margin-top:2px;letter-spacing:.04em}
+
+.sum-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;margin-top:10px;
+}
+.sum-tile{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:12px 14px;min-width:0;
+}
+.sum-tile.wide{grid-column:span 2}
+.sum-tile .l{font-size:10.5px;color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+.sum-tile .v{
+  font-family:var(--font-display);font-size:27px;font-weight:600;
+  line-height:1.2;margin-top:2px;white-space:nowrap;
+}
+.sum-tile .s{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap}
+.rec-w{color:var(--win)}.rec-d{color:var(--draw)}.rec-l{color:var(--loss)}
+.form-strip{display:flex;align-items:center;gap:7px;margin-top:13px;flex-wrap:wrap}
+.form-strip .lbl{font-size:10.5px;color:var(--muted);letter-spacing:.04em;margin-right:2px}
+.form-pill{
+  width:30px;height:30px;border-radius:50%;
+  display:grid;place-items:center;
+  font-family:var(--font-mono);font-size:11px;font-weight:600;
+  color:#fff;flex:none;
+}
+.form-pill.W{background:var(--win);color:#fff}
+.form-pill.D{background:var(--draw);color:#1c1505}
+.form-pill.L{background:var(--loss);color:#fff}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .form-pill.W,
+  :root:not([data-theme="light"]) .form-pill.L{color:#08130d}
+}
+:root[data-theme="dark"] .form-pill.W,
+:root[data-theme="dark"] .form-pill.L{color:#08130d}
+
+/* ---------- filters ---------- */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:20px 0 10px}
+.seg{
+  display:flex;background:var(--surface-2);border-radius:9px;
+  padding:3px;gap:2px;flex:none;
+}
+.seg button{
+  padding:6px 12px;border-radius:7px;font-size:11.5px;font-weight:600;
+  color:var(--muted);transition:background .15s,color .15s;
+}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(18,33,26,.12)}
+.chip-btn{
+  border:1px solid var(--line);border-radius:999px;
+  padding:5px 11px;font-size:11px;color:var(--muted);
+  background:transparent;transition:border-color .15s,color .15s,background .15s;
+}
+.chip-btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.table-note{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-left:auto}
+
+/* ---------- table ---------- */
+.table-wrap{
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  border:1px solid var(--line);border-radius:12px;
+  background:var(--surface);
+}
+table.stats{
+  width:100%;min-width:1080px;border-collapse:separate;border-spacing:0;
+  font-size:12px;
+}
+table.stats th{
+  background:var(--surface-2);color:var(--muted);
+  font-size:10.5px;font-weight:500;letter-spacing:.04em;
+  text-align:center;padding:9px 8px;white-space:nowrap;
+  border-bottom:1px solid var(--line);
+}
+table.stats td{
+  padding:9px 8px;text-align:center;white-space:nowrap;
+  border-bottom:1px solid var(--line);
+  font-variant-numeric:tabular-nums;
+}
+table.stats tbody tr:last-child td{border-bottom:0}
+.match-row{cursor:pointer;transition:background .12s}
+.match-row:hover{background:var(--surface-2)}
+.match-row td:first-child{border-left:3px solid transparent}
+.match-row.r-w td:first-child{border-left-color:var(--win)}
+.match-row.r-d td:first-child{border-left-color:var(--draw)}
+.match-row.r-l td:first-child{border-left-color:var(--loss)}
+.tdate{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.tscore{
+  font-family:var(--font-display);font-size:20px;font-weight:600;
+  letter-spacing:.02em;line-height:1.1;
+}
+.so{display:block;font-family:var(--font-mono);font-size:9px;color:var(--muted);font-weight:400;letter-spacing:0}
+.tteam{font-size:12.5px;max-width:180px}
+.tteam span{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+.tteam.me span{font-weight:700;color:var(--accent)}
+.pair{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.pair b{font-weight:500}
+.pair b.own{color:var(--ink);font-weight:600}
+.na{color:var(--muted)}
+.chev{display:inline-block;color:var(--muted);font-size:9px;transition:transform .15s}
+.match-row.open .chev{transform:rotate(180deg)}
+.detail-row td{
+  background:var(--surface-2);padding:0;text-align:left;
+  border-bottom:1px solid var(--line);
+}
+.detail-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:14px;padding:14px 18px;
+}
+.dg-item .l{font-size:10px;color:var(--muted);letter-spacing:.04em}
+.dg-item .v{font-family:var(--font-mono);font-size:12px;margin-top:2px}
+.dg-item .v b{font-weight:500}
+.table-hint{display:none;font-size:10.5px;color:var(--muted);margin-top:7px}
+
+/* ---------- footer ---------- */
+.footer{
+  max-width:1240px;margin:44px auto 0;
+  padding:18px clamp(16px,3vw,28px) 0;
+  border-top:1px solid var(--line);
+  font-size:11px;color:var(--muted);line-height:1.9;
+}
+.footer code{font-family:var(--font-mono);font-size:10.5px;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+.footer .row{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+
+/* ---------- responsive ---------- */
+@media (max-width:920px){
+  .res-row{grid-template-columns:86px minmax(0,1fr);gap:6px 12px}
+  .res-mini{grid-column:1/-1;text-align:left}
+}
+@media (max-width:820px){
+  :root{--topbar-h:112px}
+  .topbar-inner{flex-wrap:wrap;gap:9px}
+  .brand{flex:1}
+  .topbar-meta{order:2}
+  .search-wrap{order:3;flex-basis:100%;max-width:none;min-width:0}
+  .search-kbd{display:none}
+  .search-results{max-height:min(64vh,480px)}
+  .hero{padding-block:22px 18px;flex-direction:column;align-items:flex-start;gap:18px}
+  .hero-stats{grid-template-columns:repeat(3,1fr);gap:12px;text-align:left;width:100%;border-top:1px solid var(--line);padding-top:14px}
+  .cat-tabs{width:100%;overflow-x:auto}
+  .cat-tab{flex:none}
+  .table-hint{display:block}
+}
+@media (max-width:640px){
+  .brand-sub{display:none}
+  .update-chip .txt{display:none}
+  .hero-date .d{font-size:46px}
+  .hero-stats{gap:8px}
+  .hero-stat .n{font-size:23px}
+  .hero-stat .l{font-size:9.5px;white-space:normal}
+  .fix-row{grid-template-columns:44px 46px minmax(0,1fr) 24px minmax(0,1fr);gap:7px;padding:10px 12px}
+  .fix-team{font-size:12px;gap:5px}
+  .fix-time{font-size:11px}
+  .league-chip{font-size:9.5px;gap:4px}
+  .day-head{padding:9px 12px}
+  .res-row{padding:11px 12px;grid-template-columns:minmax(0,1fr);gap:7px}
+  .res-meta{justify-content:space-between}
+  .res-main{grid-template-columns:minmax(0,1fr) 52px minmax(0,1fr)}
+  .res-score{font-size:21px}
+  .res-mini{text-align:left;font-size:9.5px}
+  .idx-grid{grid-template-columns:repeat(auto-fill,minmax(142px,1fr))}
+  .team-chip{padding:8px 9px}
+  .team-hero-inner{padding:22px 16px 18px;gap:14px}
+  .team-name{font-size:24px}
+  .badge.lg{width:54px;height:54px;font-size:19px}
+  .team-count .n{font-size:38px}
+  .sum-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sum-tile .v{font-size:24px}
+  .filters{gap:7px}
+  .table-note{width:100%;margin-left:0}
+  .section{margin-top:28px}
+  .section-title{font-size:24px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#/" aria-label="绿茵数据台首页">
+      <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+        <rect x="1" y="1" width="30" height="30" rx="8" fill="#0E7A49"/>
+        <rect x="6.5" y="8.5" width="19" height="15" rx="1.5" fill="none" stroke="#fff" stroke-width="1.3" opacity=".92"/>
+        <line x1="16" y1="8.5" x2="16" y2="23.5" stroke="#fff" stroke-width="1.3" opacity=".92"/>
+        <circle cx="16" cy="16" r="2.7" fill="none" stroke="#fff" stroke-width="1.3" opacity=".92"/>
+      </svg>
+      <span class="brand-text">
+        <span class="brand-title">绿茵数据台</span>
+        <span class="brand-sub">MATCH DATA DESK</span>
+      </span>
+    </a>
+
+    <div class="search-wrap" id="search-wrap">
+      <div class="search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+        </svg>
+        <input id="team-search" type="search" placeholder="搜索球队，例如 皇家马德里 / Arsenal / 弗拉门戈" autocomplete="off" spellcheck="false" aria-label="搜索球队" role="combobox" aria-expanded="false" aria-controls="search-results">
+        <span class="search-kbd">/</span>
+      </div>
+      <div class="search-results" id="search-results" role="listbox" aria-label="球队搜索结果" hidden></div>
+    </div>
+
+    <div class="topbar-meta">
+      <span class="update-chip" id="update-chip"><span class="dot"></span><span class="txt">更新</span><span id="update-time">—</span></span>
+      <button class="icon-btn theme-btn" id="theme-toggle" type="button" aria-label="切换深浅色">
+        <svg class="moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+        <svg class="sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="shell">
+
+  <!-- ============ HOME ============ -->
+  <section id="home-view">
+    <div class="hero">
+      <div>
+        <div class="eyebrow">TODAY&rsquo;S MATCHES</div>
+        <div class="hero-date"><span class="d" id="hero-date">—</span><span class="w" id="hero-weekday"></span></div>
+        <div class="hero-sub" id="hero-sub">—</div>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="n" id="stat-leagues">—</div><div class="l">项赛事</div></div>
+        <div class="hero-stat"><div class="n" id="stat-matches">—</div><div class="l">场已结束</div></div>
+        <div class="hero-stat"><div class="n" id="stat-teams">—</div><div class="l">支球队</div></div>
+      </div>
+    </div>
+
+    <div class="quick">
+      <span class="lbl">快速查看</span>
+      <button type="button" data-q="皇家马德里">皇马</button>
+      <button type="button" data-q="巴塞罗那">巴萨</button>
+      <button type="button" data-q="曼城">曼城</button>
+      <button type="button" data-q="拜仁慕尼黑">拜仁</button>
+      <button type="button" data-q="国际米兰">国米</button>
+      <button type="button" data-q="巴黎圣日耳曼">巴黎</button>
+      <button type="button" data-q="弗拉门戈">弗拉门戈</button>
+      <button type="button" data-q="阿森纳">阿森纳</button>
+    </div>
+
+    <nav class="cat-tabs" role="tablist" aria-label="赛事分类" id="cat-tabs"></nav>
+
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title" id="fixtures-title">今日赛程</h2>
+        <span class="section-note">时间为本地时区 · 仅列未来 3 个比赛日</span>
+      </div>
+      <div class="panel" id="fixtures-panel"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title">最近赛果</h2>
+        <span class="section-note">比分 · 射门 · 射正 · 角球</span>
+      </div>
+      <div class="panel" id="recent-panel"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2 class="section-title">球队索引</h2>
+        <span class="section-note">点击球队查看近 30 场逐场数据</span>
+      </div>
+      <div id="team-index"></div>
+    </section>
+  </section>
+
+  <!-- ============ TEAM ============ -->
+  <section id="team-view" hidden>
+    <a class="backlink" href="#/" id="back-link">← 返回分类</a>
+    <div id="team-hero"></div>
+    <div class="sum-grid" id="team-summary"></div>
+    <div class="form-strip" id="team-form"></div>
+
+    <div class="filters">
+      <div class="seg" id="side-seg" role="group" aria-label="主客场筛选">
+        <button type="button" data-side="all" aria-pressed="true">全部</button>
+        <button type="button" data-side="home" aria-pressed="false">主场</button>
+        <button type="button" data-side="away" aria-pressed="false">客场</button>
+      </div>
+      <div id="comp-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <span class="table-note" id="team-table-count"></span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="stats">
+        <caption class="sr-only">球队最近比赛技术统计，数据为主队–客队</caption>
+        <thead>
+          <tr>
+            <th scope="col">日期</th>
+            <th scope="col">赛事</th>
+            <th scope="col">主队</th>
+            <th scope="col">比分</th>
+            <th scope="col">客队</th>
+            <th scope="col">射门</th>
+            <th scope="col">射正</th>
+            <th scope="col">角球</th>
+            <th scope="col">越位</th>
+            <th scope="col">黄牌</th>
+            <th scope="col">红牌</th>
+            <th scope="col">控球%</th>
+          </tr>
+        </thead>
+        <tbody id="team-table-body"></tbody>
+      </table>
+    </div>
+    <div class="table-hint">左右滑动表格可查看完整数据；点击任意一行展开犯规、封堵、场地等详细数据。</div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="row">
+    <span>数据来源：ESPN 公开接口 · 仅收录已结束比赛的技术统计 · 缺失项以 — 表示</span>
+    <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 英冠 · 巴西甲</span>
+  </div>
+  <div class="row">
+    <span>每日更新：在项目目录运行 <code>python3 build_data.py</code> 后重新发布页面。</span>
+    <span id="footer-meta"></span>
+  </div>
+</footer>
+
+<script>const DATA = __DATA_JSON__;</script>
+<script>
+(function(){
+"use strict";
+
+/* ---------- tiny helpers ---------- */
+const $ = (s, el) => (el || document).querySelector(s);
+const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+}[c]));
+const norm = s => String(s == null ? "" : s).toLowerCase()
+  .normalize("NFD").replace(/[̀-ͯ]/g, "")
+  .replace(/[^a-z0-9一-鿿]/g, "");
+const pad2 = n => (n < 10 ? "0" : "") + n;
+const dayKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const TODAY_KEY = dayKey(new Date());
+const TOMORROW_KEY = dayKey(new Date(Date.now() + 86400000));
+const dtfWeek = new Intl.DateTimeFormat("zh-CN", {weekday:"short"});
+const dtfTime = new Intl.DateTimeFormat("zh-CN", {hour:"2-digit", minute:"2-digit", hour12:false});
+const dtfFull = new Intl.DateTimeFormat("zh-CN", {year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false});
+const collator = new Intl.Collator("zh-CN");
+
+function fmtDate(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  if(isNaN(d)) return "—";
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+function fmtTime(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  if(isNaN(d)) return "—";
+  return dtfTime.format(d);
+}
+function fullTime(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  if(isNaN(d)) return "—";
+  return dtfFull.format(d);
+}
+function weekday(iso){
+  const d = new Date(iso);
+  return isNaN(d) ? "" : dtfWeek.format(d);
+}
+function niceNum(n){
+  return Number(n).toLocaleString("zh-CN");
+}
+function contrast(hex){
+  const h = String(hex || "").replace("#","");
+  if(!/^[0-9a-fA-F]{6}$/.test(h)) return "#fff";
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+  return lum > 0.64 ? "#0f1a13" : "#fff";
+}
+function teamColor(t){
+  const c = String(t && t.color || "").replace("#","");
+  return /^[0-9a-fA-F]{6}$/.test(c) ? "#" + c : "#0E7A49";
+}
+function badge(t, cls){
+  const bg = teamColor(t);
+  const fg = contrast(bg);
+  const ab = (t.abbr || t.cn || "").slice(0,3);
+  return `<span class="badge ${cls||""}" style="--badge:${bg};--badge-fg:${fg}">${esc(ab)}</span>`;
+}
+function teamDot(t){
+  return `<span class="tdot" style="background:${teamColor(t)}"></span>`;
+}
+
+/* ---------- data indexes ---------- */
+const TEAMS = new Map((DATA.teams || []).map(t => [String(t.id), t]));
+const LEAGUE_CAT = new Map((DATA.leagues || []).map(l => [l.label, l.cat]));
+const LEAGUE_DOT = {
+  "英超":"#6B2C91","西甲":"#D97706","意甲":"#2563A8","德甲":"#C0392B",
+  "法甲":"#1D4E89","欧冠":"#1B3C8C","欧联杯":"#C2650F","英冠":"#0F766E","巴西甲":"#1E8E3E"
+};
+const LEAGUE_ORDER = ["英超","西甲","意甲","德甲","法甲","欧冠","欧联杯","英冠","巴西甲"];
+function leagueChip(label){
+  const dot = LEAGUE_DOT[label] || "var(--muted)";
+  return `<span class="league-chip"><span class="tdot" style="background:${dot}"></span>${esc(label)}</span>`;
+}
+function compSort(a,b){ return LEAGUE_ORDER.indexOf(a) - LEAGUE_ORDER.indexOf(b); }
+
+const BY_TEAM = new Map();
+for(const m of (DATA.matches || [])){
+  for(const tid of [String(m.home), String(m.away)]){
+    let arr = BY_TEAM.get(tid);
+    if(!arr){ arr = []; BY_TEAM.set(tid, arr); }
+    arr.push(m);
+  }
+}
+for(const arr of BY_TEAM.values()){
+  arr.sort((a,b) => String(b.date||"").localeCompare(String(a.date||"")));
+}
+function teamMatches(tid){ return (BY_TEAM.get(String(tid)) || []).slice(0, 30); }
+
+const LEAGUE_COUNT = {};
+for(const l of (DATA.leagues || [])) LEAGUE_COUNT[l.label] = 0;
+for(const t of TEAMS.values()){
+  const seen = new Set();
+  for(const lg of (t.currentLeagues && t.currentLeagues.length ? t.currentLeagues : t.leagues || [])){
+    if(seen.has(lg)) continue;
+    seen.add(lg);
+    if(LEAGUE_COUNT[lg] != null) LEAGUE_COUNT[lg]++;
+  }
+}
+
+/* ---------- result helpers ---------- */
+function outcome(m, tid){
+  const a = String(m.home) === String(tid) ? m.hs : m.as;
+  const b = String(m.home) === String(tid) ? m.as : m.hs;
+  if(a == null || b == null) return null;
+  return a > b ? "W" : a === b ? "D" : "L";
+}
+function recordOf(ms, tid){
+  let w=0,d=0,l=0;
+  for(const m of ms){
+    const o = outcome(m, tid);
+    if(o === "W") w++; else if(o === "D") d++; else if(o === "L") l++;
+  }
+  return {w,d,l,n:ms.length};
+}
+function summarize(ms, tid){
+  const keys = ["shots","sot","corners","offsides","yellow","red","possession","fouls","blocked","saves"];
+  const sums = {}, cnt = {};
+  for(const k of keys){ sums[k] = {own:0, opp:0}; cnt[k] = 0; }
+  for(const m of ms){
+    if(!m.stats) continue;
+    const own = String(m.home) === String(tid) ? m.stats.home : m.stats.away;
+    const opp = String(m.home) === String(tid) ? m.stats.away : m.stats.home;
+    if(!own || !opp) continue;
+    for(const k of keys){
+      const a = own[k], b = opp[k];
+      if(a == null || b == null) continue;
+      sums[k].own += a; sums[k].opp += b; cnt[k]++;
+    }
+  }
+  const avg = {};
+  for(const k of keys){
+    avg[k] = cnt[k] ? {own: sums[k].own / cnt[k], opp: sums[k].opp / cnt[k], n: cnt[k]} : null;
+  }
+  return {avg, rec: recordOf(ms, tid)};
+}
+function avgText(v){
+  if(!v) return "—";
+  return v >= 100 ? v.toFixed(0) : v.toFixed(1);
+}
+
+/* ---------- theme ---------- */
+(function themeInit(){
+  let saved = null;
+  try { saved = localStorage.getItem("lg-theme"); } catch(e){}
+  if(saved === "dark" || saved === "light"){
+    document.documentElement.setAttribute("data-theme", saved);
+  }
+  const btn = $("#theme-toggle");
+  if(!btn) return;
+  btn.addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    let next;
+    if(cur === "dark") next = "light";
+    else if(cur === "light") next = "dark";
+    else next = matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("lg-theme", next); } catch(e){}
+  });
+})();
+
+/* ---------- header meta ---------- */
+(function headerInit(){
+  const meta = DATA.meta || {};
+  const g = meta.generatedAt ? new Date(meta.generatedAt) : null;
+  if(g && !isNaN(g)){
+    $("#update-time").textContent = `${pad2(g.getMonth()+1)}-${pad2(g.getDate())} ${pad2(g.getHours())}:${pad2(g.getMinutes())}`;
+  } else {
+    $("#update-time").textContent = "—";
+  }
+  $("#footer-meta").textContent = meta.generatedAt
+    ? `页面生成于 ${fullTime(meta.generatedAt)}`
+    : "";
+})();
+
+/* ---------- state ---------- */
+const state = {
+  cat: "major",
+  q: "",
+  side: "all",
+  comp: "all",
+  id: null,
+  all: [],
+  activeResult: -1,
+  results: []
+};
+
+/* ---------- search ---------- */
+const SEARCH = Array.from(TEAMS.values()).map(t => ({
+  t,
+  cn: norm(t.cn || t.name),
+  en: norm(t.name || ""),
+  ab: norm(t.abbr || ""),
+  aliases: (t.aliases || []).map(norm),
+  key: norm([t.cn, t.name, t.short, t.abbr, t.location, (t.aliases||[]).join(" "), (t.leagues||[]).join(" ")].join(" "))
+}));
+const searchInput = $("#team-search");
+const searchPanel = $("#search-results");
+
+function searchTeams(q){
+  const qn = norm(q);
+  if(!qn) return [];
+  const out = [];
+  for(const s of SEARCH){
+    let score = -1;
+    if(s.cn === qn) score = 0;
+    else if(s.aliases.some(a => a === qn)) score = 1;
+    else if(s.cn.startsWith(qn)) score = 2;
+    else if(s.en.startsWith(qn)) score = 3;
+    else if(s.ab === qn) score = 3;
+    else if(s.key.includes(qn)) score = 4;
+    if(score >= 0) out.push({s, score});
+  }
+  out.sort((a,b) =>
+    a.score - b.score ||
+    (b.s.t.count || teamMatches(b.s.t.id).length) - (a.s.t.count || teamMatches(a.s.t.id).length) ||
+    collator.compare(a.s.t.cn || "", b.s.t.cn || "")
+  );
+  return out.slice(0, 12).map(x => x.s.t);
+}
+
+function renderSearch(){
+  const q = state.q;
+  if(!q){
+    searchPanel.hidden = true;
+    searchInput.setAttribute("aria-expanded", "false");
+    state.results = [];
+    state.activeResult = -1;
+    return;
+  }
+  const list = searchTeams(q);
+  state.results = list;
+  state.activeResult = list.length ? 0 : -1;
+  if(!list.length){
+    searchPanel.innerHTML = `<div class="sr-empty">没有找到「${esc(q)}」对应的球队。<br>可以试试中文名、英文名或三字缩写，例如「皇马」「Arsenal」「RMA」。</div>`;
+  } else {
+    searchPanel.innerHTML = list.map((t, i) => {
+      const rec = recordOf(teamMatches(t.id), t.id);
+      const ms = teamMatches(t.id).length;
+      const lgs = (t.leagues || []).slice().sort(compSort).map(esc).join(" · ");
+      return `<div class="sr-item ${i === 0 ? "active" : ""}" role="option" aria-selected="${i === 0}" data-team="${esc(t.id)}" data-i="${i}">
+        ${badge(t, "sm")}
+        <div class="sr-main">
+          <div class="sr-name"><span>${esc(t.cn || t.name)}</span><span class="sr-en">${esc(t.name || "")}</span></div>
+          <div class="sr-meta"><span>${lgs}</span><span>近 ${ms} 场</span></div>
+        </div>
+        <span class="sr-rec">${rec.w}-${rec.d}-${rec.l}</span>
+        <span class="sr-arrow">→</span>
+      </div>`;
+    }).join("");
+  }
+  searchPanel.hidden = false;
+  searchInput.setAttribute("aria-expanded", "true");
+}
+
+function setActiveResult(i){
+  const items = $$(".sr-item", searchPanel);
+  if(!items.length) return;
+  state.activeResult = (i + items.length) % items.length;
+  items.forEach((el, idx) => {
+    el.classList.toggle("active", idx === state.activeResult);
+    el.setAttribute("aria-selected", idx === state.activeResult ? "true" : "false");
+  });
+  items[state.activeResult].scrollIntoView({block:"nearest"});
+}
+
+function openTeam(id){
+  state.q = "";
+  searchInput.value = "";
+  searchPanel.hidden = true;
+  searchInput.setAttribute("aria-expanded", "false");
+  location.hash = "#/team/" + encodeURIComponent(id);
+}
+
+searchInput.addEventListener("input", () => {
+  state.q = searchInput.value.trim();
+  renderSearch();
+});
+searchInput.addEventListener("keydown", e => {
+  if(e.key === "ArrowDown"){ e.preventDefault(); setActiveResult(state.activeResult + 1); }
+  else if(e.key === "ArrowUp"){ e.preventDefault(); setActiveResult(state.activeResult - 1); }
+  else if(e.key === "Enter"){
+    const t = state.results[state.activeResult];
+    if(t){ e.preventDefault(); openTeam(t.id); }
+  } else if(e.key === "Escape"){
+    searchInput.value = ""; state.q = ""; renderSearch(); searchInput.blur();
+  }
+});
+searchPanel.addEventListener("click", e => {
+  const item = e.target.closest(".sr-item");
+  if(item) openTeam(item.dataset.team);
+});
+document.addEventListener("click", e => {
+  if(!$("#search-wrap").contains(e.target)){
+    searchPanel.hidden = true;
+    searchInput.setAttribute("aria-expanded", "false");
+  }
+});
+document.addEventListener("keydown", e => {
+  if(e.key === "/" && document.activeElement !== searchInput){
+    e.preventDefault(); searchInput.focus();
+  }
+});
+$$(".quick button").forEach(b => {
+  b.addEventListener("click", () => {
+    searchInput.value = b.dataset.q;
+    state.q = b.dataset.q;
+    renderSearch();
+    searchInput.focus();
+  });
+});
+
+/* ---------- home ---------- */
+function catLabel(cat){
+  const c = (DATA.categories || []).find(x => x.id === cat);
+  return c ? c.label : "";
+}
+
+function renderHero(){
+  const now = new Date();
+  $("#hero-date").textContent = `${now.getMonth()+1}.${pad2(now.getDate())}`;
+  $("#hero-weekday").textContent = dtfWeek.format(now);
+  const fixtures = (DATA.fixtures || []).filter(f => {
+    const d = new Date(f.date);
+    return !isNaN(d) && dayKey(d) >= TODAY_KEY;
+  });
+  const todayCount = fixtures.filter(f => dayKey(new Date(f.date)) === TODAY_KEY).length;
+  const weekCount = fixtures.filter(f => dayKey(new Date(f.date)) <= dayKey(new Date(Date.now()+6*86400000))).length;
+  $("#hero-sub").innerHTML = todayCount
+    ? `今日 <b>${todayCount}</b> 场 · 未来 7 天 <b>${weekCount}</b> 场`
+    : `今日暂无比赛 · 未来 7 天 <b>${weekCount}</b> 场`;
+  $("#stat-leagues").textContent = (DATA.leagues || []).length;
+  $("#stat-matches").textContent = niceNum((DATA.matches || []).length);
+  $("#stat-teams").textContent = niceNum((DATA.teams || []).length);
+}
+
+function renderTabs(){
+  const tabs = $("#cat-tabs");
+  tabs.innerHTML = (DATA.categories || []).map(c => {
+    const teams = Array.from(TEAMS.values()).filter(t => t.cat === c.id).length;
+    return `<button type="button" class="cat-tab" role="tab" data-cat="${esc(c.id)}" aria-selected="${state.cat === c.id}">
+      ${esc(c.label)}<span class="n">${teams}</span>
+    </button>`;
+  }).join("");
+}
+
+function catMatches(cat){
+  return (DATA.matches || []).filter(m => LEAGUE_CAT.get(m.league) === cat);
+}
+function catTeams(cat){
+  return Array.from(TEAMS.values()).filter(t => t.cat === cat);
+}
+
+function renderFixtures(){
+  const panel = $("#fixtures-panel");
+  const list = (DATA.fixtures || []).filter(f =>
+    LEAGUE_CAT.get(f.league) === state.cat && new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
+  );
+  const groups = new Map();
+  for(const f of list){
+    const d = new Date(f.date);
+    if(isNaN(d)) continue;
+    const k = dayKey(d);
+    if(k < TODAY_KEY) continue;
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(f);
+  }
+  const keys = Array.from(groups.keys()).sort().slice(0, 3);
+  $("#fixtures-title").textContent = groups.has(TODAY_KEY) ? "今日赛程" : "近期赛程";
+  if(!keys.length){
+    panel.innerHTML = `<div class="empty">该分类近期暂无已排定的比赛。<br>可以切换到其他分类，或直接搜索球队查看历史数据。</div>`;
+    return;
+  }
+  panel.innerHTML = keys.map(k => {
+    const rows = groups.get(k).sort((a,b) => String(a.date).localeCompare(String(b.date)));
+    const [y, mo, da] = k.split("-").map(Number);
+    const dt = new Date(y, mo-1, da);
+    let label = `${mo}月${da}日`;
+    if(k === TODAY_KEY) label = "今天";
+    else if(k === TOMORROW_KEY) label = "明天";
+    return `<div class="day-head"><b>${label}</b><span class="wd">${dtfWeek.format(dt)}</span><span class="cnt">${rows.length} 场</span></div>` +
+      rows.map(f => {
+        const h = TEAMS.get(String(f.home)), a = TEAMS.get(String(f.away));
+        if(!h || !a) return "";
+        return `<div class="fix-row">
+          <div class="fix-time">${fmtTime(f.date)}</div>
+          <div>${leagueChip(f.league)}</div>
+          <a class="fix-team home" href="#/team/${esc(h.id)}">${teamDot(h)}<span class="name">${esc(h.cn || h.name)}</span></a>
+          <div class="fix-vs">VS</div>
+          <a class="fix-team away" href="#/team/${esc(a.id)}"><span class="name">${esc(a.cn || a.name)}</span>${teamDot(a)}</a>
+        </div>`;
+      }).join("");
+  }).join("");
+}
+
+function renderRecent(){
+  const panel = $("#recent-panel");
+  const list = catMatches(state.cat).slice(0, 8);
+  if(!list.length){
+    panel.innerHTML = `<div class="empty">该分类暂无已结束的比赛数据。</div>`;
+    return;
+  }
+  panel.innerHTML = list.map(m => {
+    const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+    if(!h || !a) return "";
+    let mini = "技术统计暂无";
+    if(m.stats){
+      const s = m.stats;
+      const p = (k) => (s.home && s.home[k] != null ? s.home[k] : "—") + "–" + (s.away && s.away[k] != null ? s.away[k] : "—");
+      mini = `射门 ${p("shots")} · 射正 ${p("sot")} · 角球 ${p("corners")}`;
+    }
+    return `<div class="res-row">
+      <div class="res-meta">
+        <span class="res-date">${fmtDate(m.date).slice(5)}</span>
+        ${leagueChip(m.league)}
+      </div>
+      <div class="res-main">
+        <a class="res-team home" href="#/team/${esc(h.id)}" title="${esc(h.name)}">${esc(h.cn || h.name)}</a>
+        <div class="res-score">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}</div>
+        <a class="res-team away" href="#/team/${esc(a.id)}" title="${esc(a.name)}">${esc(a.cn || a.name)}</a>
+      </div>
+      <div class="res-mini">${mini}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderIndex(){
+  const wrap = $("#team-index");
+  const FIVE = ["英超","西甲","意甲","德甲","法甲"];
+  const cur = t => Array.isArray(t.currentLeagues) ? t.currentLeagues : [];
+  const teams = catTeams(state.cat);
+  let groups = [];
+  if(state.cat === "major"){
+    groups = FIVE.map(lg => ({label:lg, teams:teams.filter(t => cur(t).includes(lg))}));
+    const rest = teams.filter(t => !FIVE.some(lg => cur(t).includes(lg)));
+    const otherCurrent = rest.filter(t => cur(t).length > 0);
+    const historical = rest.filter(t => cur(t).length === 0);
+    if(otherCurrent.length) groups.push({label:"欧战其他球队", teams:otherCurrent});
+    if(historical.length) groups.push({label:"历史对手", note:"非本赛季收录联赛", teams:historical});
+  } else if(state.cat === "champ"){
+    groups = [
+      {label:"英冠", teams: teams.filter(t => cur(t).includes("英冠"))},
+      {label:"历史对手", note:"已降级", teams: teams.filter(t => !cur(t).includes("英冠"))}
+    ];
+  } else {
+    groups = [
+      {label:"巴西甲", teams: teams.filter(t => cur(t).includes("巴西甲"))},
+      {label:"历史对手", note:"已降级", teams: teams.filter(t => !cur(t).includes("巴西甲"))}
+    ];
+  }
+  wrap.innerHTML = groups.filter(g => g.teams.length).map(g => {
+    const sorted = g.teams.slice().sort((a,b) => collator.compare(a.cn || a.name, b.cn || b.name));
+    return `<div class="idx-group">
+      <div class="idx-head"><h3>${esc(g.label)}${g.note ? `<span class="note">${esc(g.note)}</span>` : ""}</h3><span class="cnt">${sorted.length} 支</span></div>
+      <div class="idx-grid">
+        ${sorted.map(t => {
+          const n = teamMatches(t.id).length;
+          return `<a class="team-chip" href="#/team/${esc(t.id)}" title="${esc(t.name)} · ${n} 场">
+            ${badge(t)}
+            <span class="nm">${esc(t.cn || t.name)}</span>
+            <span class="c">${n}</span>
+          </a>`;
+        }).join("")}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderHome(){
+  state.id = null;
+  $("#home-view").hidden = false;
+  $("#team-view").hidden = true;
+  document.title = "绿茵数据台";
+  renderHero();
+  renderTabs();
+  renderFixtures();
+  renderRecent();
+  renderIndex();
+}
+
+$("#cat-tabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-cat]");
+  if(!b) return;
+  state.cat = b.dataset.cat;
+  renderTabs();
+  renderFixtures();
+  renderRecent();
+  renderIndex();
+});
+
+/* ---------- team ---------- */
+function pairCell(m, key, tid, suffix){
+  if(!m.stats) return `<span class="na">—</span>`;
+  const h = m.stats.home ? m.stats.home[key] : null;
+  const a = m.stats.away ? m.stats.away[key] : null;
+  if(h == null && a == null) return `<span class="na">—</span>`;
+  const f = v => {
+    if(v == null) return "—";
+    if(key === "possession") return Number(v).toFixed(1);
+    return v;
+  };
+  const hc = String(m.home) === String(tid) ? "own" : "";
+  const ac = String(m.away) === String(tid) ? "own" : "";
+  return `<span class="pair"><b class="${hc}">${f(h)}</b>–<b class="${ac}">${f(a)}</b></span>`;
+}
+
+function detailItem(label, h, a){
+  const f = v => v == null ? "—" : v;
+  return `<div class="dg-item"><div class="l">${label}</div><div class="v"><b>${f(h)}</b> – <b>${f(a)}</b></div></div>`;
+}
+
+function rowHtml(m, tid){
+  const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+  if(!h || !a) return "";
+  const o = outcome(m, tid);
+  const cls = o === "W" ? "r-w" : o === "D" ? "r-d" : o === "L" ? "r-l" : "";
+  const so = m.so && m.so[0] != null && m.so[1] != null
+    ? `<span class="so">点球 ${m.so[0]}–${m.so[1]}</span>` : "";
+  const s = m.stats;
+  const dv = (k) => s && s.home && s.away ? [s.home[k], s.away[k]] : [null, null];
+  const [foulH, foulA] = dv("fouls");
+  const [blkH, blkA] = dv("blocked");
+  const [savH, savA] = dv("saves");
+  return `<tr class="match-row ${cls}" data-mid="${esc(m.id)}">
+    <td><span class="chev">▾</span> <span class="tdate">${fmtDate(m.date)}</span></td>
+    <td>${leagueChip(m.league)}</td>
+    <td class="tteam ${String(m.home) === String(tid) ? "me" : ""}"><span title="${esc(h.name)}">${esc(h.cn || h.name)}</span></td>
+    <td class="tscore">${m.hs == null ? "—" : m.hs}–${m.as == null ? "—" : m.as}${so}</td>
+    <td class="tteam ${String(m.away) === String(tid) ? "me" : ""}"><span title="${esc(a.name)}">${esc(a.cn || a.name)}</span></td>
+    <td>${pairCell(m, "shots", tid)}</td>
+    <td>${pairCell(m, "sot", tid)}</td>
+    <td>${pairCell(m, "corners", tid)}</td>
+    <td>${pairCell(m, "offsides", tid)}</td>
+    <td>${pairCell(m, "yellow", tid)}</td>
+    <td>${pairCell(m, "red", tid)}</td>
+    <td>${pairCell(m, "possession", tid)}</td>
+  </tr>
+  <tr class="detail-row" hidden>
+    <td colspan="12">
+      <div class="detail-grid">
+        ${detailItem("控球率 %", s && s.home ? s.home.possession : null, s && s.away ? s.away.possession : null)}
+        ${detailItem("犯规", foulH, foulA)}
+        ${detailItem("被封堵", blkH, blkA)}
+        ${detailItem("扑救", savH, savA)}
+        <div class="dg-item"><div class="l">场地</div><div class="v">${esc(m.venue || "—")}</div></div>
+        <div class="dg-item"><div class="l">完整时间</div><div class="v">${esc(fullTime(m.date))}</div></div>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function drawTable(){
+  const rows = state.all.filter(m => {
+    if(state.side === "home" && String(m.home) !== String(state.id)) return false;
+    if(state.side === "away" && String(m.away) !== String(state.id)) return false;
+    if(state.comp !== "all" && m.league !== state.comp) return false;
+    return true;
+  });
+  $("#team-table-body").innerHTML = rows.map(m => rowHtml(m, state.id)).join("");
+  $("#team-table-count").textContent = `${rows.length} / ${state.all.length} 场`;
+  $$(".seg button", $("#side-seg")).forEach(b => b.setAttribute("aria-pressed", b.dataset.side === state.side ? "true" : "false"));
+  $$("#comp-filters [data-comp]").forEach(b => b.setAttribute("aria-pressed", b.dataset.comp === state.comp ? "true" : "false"));
+}
+
+function renderTeam(id){
+  const t = TEAMS.get(String(id));
+  if(!t){ location.hash = "#/"; return; }
+  state.id = String(id);
+  state.side = "all";
+  state.comp = "all";
+  state.all = teamMatches(id);
+  $("#home-view").hidden = true;
+  $("#team-view").hidden = false;
+  document.title = (t.cn || t.name) + " · 绿茵数据台";
+
+  const rec = recordOf(state.all, id);
+  const sum = summarize(state.all, id);
+  const color = teamColor(t);
+  const loc = t.location && norm(t.location) !== norm(t.name) && !norm(t.name).includes(norm(t.location))
+    ? ` · ${esc(t.location)}` : "";
+
+  $("#team-hero").innerHTML = `<div class="team-hero" style="--team-color:${color}">
+    <div class="team-hero-inner">
+      ${badge(t, "lg")}
+      <div class="team-id">
+        <div class="team-name">${esc(t.cn || t.name)}</div>
+        <div class="team-en">${esc(t.name || "")}${loc}</div>
+        <div class="team-leagues">${(t.leagues || []).slice().sort(compSort).map(l => `<span class="league-chip pill"><span class="tdot" style="background:${LEAGUE_DOT[l] || "var(--muted)"}"></span>${esc(l)}</span>`).join("")}</div>
+      </div>
+      <div class="team-count">
+        <div class="n">${state.all.length}</div>
+        <div class="l">近 30 场</div>
+      </div>
+    </div>
+  </div>`;
+
+  const a = sum.avg;
+  const recText = `<span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负`;
+  const tile = (label, val, sub, cls) => `<div class="sum-tile ${cls||""}">
+    <div class="l">${label}</div><div class="v">${val}</div><div class="s">${sub || ""}</div>
+  </div>`;
+
+  $("#team-summary").innerHTML = [
+    tile("近 30 场战绩", recText, `有效比赛 ${rec.n} 场`, "wide"),
+    tile("场均射门", avgText(a.shots && a.shots.own), a.shots ? `对手 ${avgText(a.shots.opp)} · ${a.shots.n} 场` : "暂无数据"),
+    tile("场均射正", avgText(a.sot && a.sot.own), a.sot ? `对手 ${avgText(a.sot.opp)} · ${a.sot.n} 场` : "暂无数据"),
+    tile("场均角球", avgText(a.corners && a.corners.own), a.corners ? `对手 ${avgText(a.corners.opp)} · ${a.corners.n} 场` : "暂无数据"),
+    tile("场均越位", avgText(a.offsides && a.offsides.own), a.offsides ? `对手 ${avgText(a.offsides.opp)} · ${a.offsides.n} 场` : "暂无数据"),
+    tile("场均黄牌", avgText(a.yellow && a.yellow.own), a.yellow ? `对手 ${avgText(a.yellow.opp)} · ${a.yellow.n} 场` : "暂无数据"),
+    tile("场均控球", a.possession ? avgText(a.possession.own) + "%" : "—", a.possession ? `对手 ${avgText(a.possession.opp)}% · ${a.possession.n} 场` : "暂无数据")
+  ].join("");
+
+  const last6 = state.all.slice(0, 6);
+  $("#team-form").innerHTML = `<span class="lbl">近 6 场</span>` + last6.map(m => {
+    const o = outcome(m, id) || "—";
+    const oppId = String(m.home) === String(id) ? m.away : m.home;
+    const opp = TEAMS.get(String(oppId));
+    const own = String(m.home) === String(id) ? m.hs : m.as;
+    const other = String(m.home) === String(id) ? m.as : m.hs;
+    const tip = `${fmtDate(m.date)} ${opp ? (opp.cn || opp.name) : ""} ${own}–${other}`;
+    return `<span class="form-pill ${o}" title="${esc(tip)}">${o}</span>`;
+  }).join("");
+
+  const comps = Array.from(new Set(state.all.map(m => m.league))).sort(compSort);
+  $("#comp-filters").innerHTML = `<button type="button" class="chip-btn" data-comp="all" aria-pressed="true">全部赛事</button>` +
+    comps.map(c => `<button type="button" class="chip-btn" data-comp="${esc(c)}" aria-pressed="false">${esc(c)}</button>`).join("");
+
+  drawTable();
+}
+
+$("#team-view").addEventListener("click", e => {
+  const sideBtn = e.target.closest("[data-side]");
+  if(sideBtn){
+    state.side = sideBtn.dataset.side;
+    drawTable();
+    return;
+  }
+  const compBtn = e.target.closest("[data-comp]");
+  if(compBtn){
+    state.comp = compBtn.dataset.comp;
+    drawTable();
+    return;
+  }
+  const row = e.target.closest("tr.match-row");
+  if(row && !e.target.closest("a")){
+    const d = row.nextElementSibling;
+    if(d && d.classList.contains("detail-row")){
+      d.hidden = !d.hidden;
+      row.classList.toggle("open", !d.hidden);
+    }
+  }
+});
+
+/* ---------- routing ---------- */
+function route(){
+  const h = location.hash || "";
+  const m = h.match(/^#\/team\/(.+)$/);
+  if(m){
+    const id = decodeURIComponent(m[1]);
+    if(TEAMS.has(String(id))){
+      renderTeam(id);
+      window.scrollTo({top: 0, behavior: "auto"});
+      return;
+    }
+  }
+  renderHome();
+}
+
+window.addEventListener("hashchange", route);
+route();
+})();
+</script>
+</body>
+</html>
