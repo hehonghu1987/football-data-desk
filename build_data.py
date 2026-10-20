@@ -971,6 +971,7 @@ def build_team_lineups(match_rows, team_ids, workers):
         for fut in as_completed(futs):
             fetched[futs[fut]] = fut.result()
     out = {}
+    total = named = 0
     for tid, ms in recent.items():
         weights = [1.0, 0.65, 0.4][:len(ms)]
         score = {}
@@ -990,12 +991,37 @@ def build_team_lineups(match_rows, team_ids, workers):
             continue
         picks = sorted(score, key=lambda k: -score[k])[:11]
         picks.sort(key=lambda k: (POS_ORDER.get(info[k]["p"], 2), -score[k]))
+        total += len(picks)
+        named += sum(1 for k in picks if PLAYER_CN.get(info[k]["n"]))
         out[tid] = {
             "f": formation,
-            "p": [info[k] for k in picks],
+            "p": [{
+                "n": player_cn(info[k]["n"]),
+                "en": info[k]["n"],
+                "j": info[k].get("j", ""),
+                "p": info[k].get("p", ""),
+            } for k in picks],
             "from": (ms[0]["date"] or "")[:10],
         }
+    if total:
+        log(f"  阵容译名覆盖 {named}/{total}")
     return out
+
+
+def _load_player_cn():
+    path = os.path.join(ROOT, "player_cn.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+PLAYER_CN = _load_player_cn()
+
+
+def player_cn(name):
+    return PLAYER_CN.get(name) or name
 
 
 RATING_LEAGUES = {"eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "eng.2", "bra.1"}

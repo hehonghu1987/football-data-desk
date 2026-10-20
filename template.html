@@ -600,6 +600,16 @@ table.stats tbody tr:last-child td{border-bottom:0}
 .pred-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .pred-head .t{font-size:12px;font-weight:600}
 .pred-head .s{font-size:10.5px;color:var(--muted);font-family:var(--font-mono)}
+.pred-xg{
+  display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  align-items:center;gap:12px;margin-bottom:14px;padding:12px 14px;
+  border-radius:9px;background:var(--surface-2);
+}
+.pred-xg .side{display:flex;flex-direction:column;gap:3px;min-width:0}
+.pred-xg .side.away{text-align:right;align-items:flex-end}
+.pred-xg .k{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.pred-xg b{font-family:var(--font-display);font-size:clamp(22px,4vw,30px);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.pred-xg .mid{font-size:10px;color:var(--muted);letter-spacing:.06em;text-align:center;white-space:nowrap}
 .pred-bars{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface-2);margin-bottom:8px}
 .pred-bars span{display:block;height:100%}
 .pred-bars .pb-h{background:var(--accent)}
@@ -1910,7 +1920,7 @@ function lineupBlock(tid){
   if(!lu || !(lu.p || []).length) return "";
   const rows = lu.p.map(p => `<li>
     <span class="j">${esc(p.j || "")}</span>
-    <span class="n" title="${esc(p.n)}">${esc(p.n)}</span>
+    <span class="n" title="${esc(p.en || p.n)}">${esc(p.n)}</span>
     <span class="p">${esc(p.p || "")}</span>
   </li>`).join("");
   return `<div class="lu-team">
@@ -1975,7 +1985,12 @@ function renderPreMatch(m){
     $("#pred-card").innerHTML = `
       <div class="pred-head">
         <span class="t">模型预测</span>
-        <span class="s">预期进球 ${pred.xgH.toFixed(2)} – ${pred.xgA.toFixed(2)} · 基于近三个赛季攻防</span>
+        <span class="s">基于近三个赛季攻防数据</span>
+      </div>
+      <div class="pred-xg">
+        <div class="side"><span class="k">${esc((TEAMS.get(String(m.home)) || {}).cn || (TEAMS.get(String(m.home)) || {}).name || "")}</span><b>${pred.xgH.toFixed(2)}</b></div>
+        <div class="mid">预期进球 xG</div>
+        <div class="side away"><span class="k">${esc((TEAMS.get(String(m.away)) || {}).cn || (TEAMS.get(String(m.away)) || {}).name || "")}</span><b>${pred.xgA.toFixed(2)}</b></div>
       </div>
       <div class="pred-bars">
         <span class="pb-h" style="width:${pred.ph*100}%"></span>
@@ -1997,7 +2012,8 @@ function renderPreMatch(m){
       </div>`;
     $("#pred-card").hidden = false;
   } else {
-    $("#pred-card").hidden = true;
+    $("#pred-card").hidden = false;
+    $("#pred-card").innerHTML = `<div class="h2h-empty" style="margin:0">该场缺少一方球队的联赛数据（如来自未收录的联赛），暂不提供模型预测与预期进球。</div>`;
   }
 
   $("#form-compare").innerHTML = formBlock(m.home) + formBlock(m.away);
