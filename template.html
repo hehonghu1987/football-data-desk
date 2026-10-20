@@ -642,6 +642,27 @@ table.stats tbody tr:last-child td{border-bottom:0}
   font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;
   margin:20px 0 10px;
 }
+.next-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.next-card{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+  padding:13px 15px;display:block;color:inherit;text-decoration:none;
+}
+.next-card:hover{border-color:var(--line-strong)}
+.next-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-size:10.5px;color:var(--muted);margin-bottom:8px}
+.next-vs{font-size:13px;font-weight:600;line-height:1.45;margin-bottom:10px}
+.next-vs .ha{font-size:9.5px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:1px}
+.next-probs{display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--surface-2);margin-bottom:6px}
+.next-probs span{display:block;height:100%}
+.next-probs .pb-h{background:var(--accent)}
+.next-probs .pb-d{background:var(--line-strong)}
+.next-probs .pb-a{background:var(--muted)}
+.next-nums{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;color:var(--muted);gap:6px;flex-wrap:wrap}
+.next-nums b{color:var(--ink);font-weight:600}
+.next-odds{display:flex;gap:6px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-top:8px;font-family:var(--font-mono)}
+.next-odds span{border:1px solid var(--line);border-radius:999px;padding:1px 7px}
+@media (max-width:640px){
+  .next-grid{grid-template-columns:minmax(0,1fr)}
+}
 .fix-pred b{font-family:var(--font-mono);font-weight:600;color:var(--ink)}
 .fix-pred .tag{font-size:9px;letter-spacing:.04em;border:1px solid var(--line);border-radius:4px;padding:0 4px}
 
@@ -845,6 +866,14 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
     <div id="team-hero"></div>
     <div class="sum-grid" id="team-summary"></div>
     <div class="form-strip" id="team-form"></div>
+
+    <section class="section" id="team-next" hidden>
+      <div class="section-head">
+        <h2 class="section-title">下一场</h2>
+        <span class="section-note">模型预测与赛前赔率</span>
+      </div>
+      <div class="next-grid" id="team-next-list"></div>
+    </section>
 
     <div class="filters">
       <div class="seg" id="side-seg" role="group" aria-label="主客场筛选">
@@ -1761,6 +1790,53 @@ function renderTeam(id){
     comps.map(c => `<button type="button" class="chip-btn" data-comp="${esc(c)}" aria-pressed="false">${esc(c)}</button>`).join("");
 
   drawTable();
+  renderTeamNext(id);
+}
+
+function renderTeamNext(tid){
+  const box = $("#team-next");
+  const list = (DATA.fixtures || [])
+    .filter(f => (String(f.home) === String(tid) || String(f.away) === String(tid))
+              && (f.date || "").slice(0, 10) >= TODAY_KEY)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .slice(0, 2);
+  if(!list.length){ box.hidden = true; return; }
+  box.hidden = false;
+  $("#team-next-list").innerHTML = list.map(f => {
+    const isHome = String(f.home) === String(tid);
+    const oppId = isHome ? String(f.away) : String(f.home);
+    const opp = TEAMS.get(oppId);
+    const p = f.pred;
+    let probs = "";
+    if(p){
+      const w = isHome ? p.ph : p.pa;
+      const l = isHome ? p.pa : p.ph;
+      probs = `<div class="next-probs">
+          <span class="pb-h" style="width:${w*100}%"></span>
+          <span class="pb-d" style="width:${p.pd*100}%"></span>
+          <span class="pb-a" style="width:${l*100}%"></span>
+        </div>
+        <div class="next-nums">
+          <span>本队胜 <b>${Math.round(w*100)}%</b></span>
+          <span>平 <b>${Math.round(p.pd*100)}%</b></span>
+          <span>负 <b>${Math.round(l*100)}%</b></span>
+          <span>预期进球 本队 <b>${(isHome ? p.xgH : p.xgA).toFixed(1)}</b> · 对手 <b>${(isHome ? p.xgA : p.xgH).toFixed(1)}</b></span>
+        </div>`;
+    }
+    const o = f.odds;
+    const oddsLine = o ? `<div class="next-odds">
+        <span>主 ${o.ml.h.toFixed(2)}</span>
+        <span>平 ${o.ml.d.toFixed(2)}</span>
+        <span>客 ${o.ml.a.toFixed(2)}</span>
+        ${o.ah ? `<span>${ahText(o.ah.line)}</span>` : ""}
+        ${o.ou ? `<span>${o.ou.line} 球</span>` : ""}
+      </div>` : "";
+    return `<a class="next-card" href="#/match/${esc(f.id)}">
+      <div class="next-top"><span>${fmtDate(f.date)} ${fmtTime(f.date)}</span>${leagueChip(f.league)}</div>
+      <div class="next-vs">${isHome ? "主" : "客"} 对阵 ${esc(opp ? (opp.cn || opp.name) : oppId)}<span class="ha">${isHome ? "主场" : "客场"}</span></div>
+      ${probs}${oddsLine}
+    </a>`;
+  }).join("");
 }
 
 function h2hMatches(hid, aid, excludeId){
