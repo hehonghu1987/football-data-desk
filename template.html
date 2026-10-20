@@ -573,6 +573,82 @@ table.stats tbody tr:last-child td{border-bottom:0}
 }
 .cmp-item .v b{font-weight:500}
 .cmp-item .v b.own{color:var(--accent);font-weight:700}
+
+/* ---------- pre-match ---------- */
+.odds-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:1px;background:var(--line);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;margin-bottom:16px;
+}
+.odds-cell{background:var(--surface);padding:12px 14px}
+.odds-cell .l{font-size:10px;color:var(--muted);letter-spacing:.04em;margin-bottom:8px}
+.odds-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+.odds-three .k{font-size:10px;color:var(--muted)}
+.odds-three .o{font-family:var(--font-mono);font-size:15px;font-variant-numeric:tabular-nums}
+.odds-three .p{font-size:9.5px;color:var(--muted);font-family:var(--font-mono)}
+.odds-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;text-align:center}
+.odds-two .k{font-size:10px;color:var(--muted)}
+.odds-two .o{font-family:var(--font-mono);font-size:15px;font-variant-numeric:tabular-nums}
+.odds-line{font-family:var(--font-mono);font-size:11.5px;color:var(--ink);margin-bottom:8px}
+.odds-line b{font-weight:600}
+.odds-src{font-size:9.5px;color:var(--muted);margin-top:2px}
+
+.pred-card{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
+  padding:16px clamp(12px,2.4vw,20px);margin-bottom:16px;
+}
+.pred-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.pred-head .t{font-size:12px;font-weight:600}
+.pred-head .s{font-size:10.5px;color:var(--muted);font-family:var(--font-mono)}
+.pred-bars{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface-2);margin-bottom:8px}
+.pred-bars span{display:block;height:100%}
+.pred-bars .pb-h{background:var(--accent)}
+.pred-bars .pb-d{background:var(--line-strong)}
+.pred-bars .pb-a{background:var(--muted)}
+.pred-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.pred-legend div{text-align:center}
+.pred-legend .k{font-size:10px;color:var(--muted)}
+.pred-legend .v{font-family:var(--font-mono);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.pred-facts{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.pred-facts span{border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+.pred-facts b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+
+.form-compare{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;
+}
+.fc-team{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:12px 14px}
+.fc-team .nm{font-size:12.5px;font-weight:600;margin-bottom:8px}
+.fc-row{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--muted);padding:3px 0}
+.fc-row b{color:var(--ink);font-family:var(--font-mono);font-weight:500}
+.fc-form{display:flex;gap:4px;margin-top:8px}
+
+.lineup-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.lu-team{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:12px 14px}
+.lu-team .nm{font-size:12.5px;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.lu-f{font-family:var(--font-mono);font-size:10.5px;color:var(--accent);font-weight:500}
+.lu-list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.lu-list li{display:grid;grid-template-columns:22px minmax(0,1fr) 34px;gap:7px;font-size:11px;padding:2.5px 0;border-bottom:1px solid var(--line)}
+.lu-list li:last-child{border-bottom:0}
+.lu-list .j{font-family:var(--font-mono);font-size:9.5px;color:var(--muted)}
+.lu-list .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lu-list .p{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);text-align:right}
+.lu-src{font-size:9.5px;color:var(--muted);margin-top:8px}
+.fix-pred{
+  grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  font-size:10px;color:var(--muted);margin-top:4px;
+}
+.pred-note{font-size:10px;color:var(--muted);margin-top:12px;line-height:1.7}
+.subhead{
+  font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;
+  margin:20px 0 10px;
+}
+.fix-pred b{font-family:var(--font-mono);font-weight:600;color:var(--ink)}
+.fix-pred .tag{font-size:9px;letter-spacing:.04em;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+
+@media (max-width:640px){
+  .odds-grid{grid-template-columns:minmax(0,1fr)}
+  .form-compare,.lineup-compare{grid-template-columns:minmax(0,1fr)}
+}
 .h2h-link{
   display:inline-flex;align-items:center;gap:5px;margin-top:10px;
   font-size:11.5px;font-weight:600;color:var(--accent);text-decoration:none;
@@ -856,6 +932,25 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
     <div id="match-hero"></div>
     <div id="match-compare"></div>
 
+    <section class="section pre-match" id="pre-match" hidden>
+      <div class="section-head">
+        <h2 class="section-title">赛前数据</h2>
+        <span class="section-note" id="pre-match-note">—</span>
+      </div>
+
+      <div class="odds-grid" id="odds-grid"></div>
+
+      <div class="pred-card" id="pred-card"></div>
+
+      <h3 class="subhead">近期状态</h3>
+      <div class="form-compare" id="form-compare"></div>
+
+      <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
+      <div class="lineup-compare" id="lineup-compare"></div>
+
+      <div class="pred-note">赔率来源 DraftKings（经 ESPN 接口），仅作参考；模型基于双方近三个赛季的攻防数据计算，不代表确定结果。赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+    </section>
+
     <section class="section">
       <div class="section-head">
         <h2 class="section-title">双方历史交锋</h2>
@@ -892,7 +987,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 
 <footer class="footer">
   <div class="row">
-    <span>数据来源：ESPN 公开接口 · 仅收录已结束比赛的技术统计 · 缺失项以 — 表示</span>
+    <span>数据来源：ESPN 公开接口 · 赔率来自 DraftKings（经 ESPN）· 缺失项以 — 表示</span>
     <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
   </div>
   <div class="row">
@@ -1313,12 +1408,17 @@ function renderFixtures(){
       rows.map(f => {
         const h = TEAMS.get(String(f.home)), a = TEAMS.get(String(f.away));
         if(!h || !a) return "";
+        const pd = f.pred;
+        const predLine = pd
+          ? `<div class="fix-pred"><span class="tag">模型</span><span>主胜 <b>${Math.round(pd.ph*100)}%</b></span><span>平 <b>${Math.round(pd.pd*100)}%</b></span><span>客胜 <b>${Math.round(pd.pa*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span></div>`
+          : "";
         return `<div class="fix-row" data-mid="${esc(f.id)}">
           <div class="fix-time">${fmtTime(f.date)}</div>
           <div>${leagueChip(f.league)}</div>
           <a class="fix-team home" href="#/team/${esc(h.id)}">${teamDot(h)}<span class="name">${esc(h.cn || h.name)}</span></a>
           <div class="fix-vs">VS</div>
           <a class="fix-team away" href="#/team/${esc(a.id)}"><span class="name">${esc(a.cn || a.name)}</span>${teamDot(a)}</a>
+          ${predLine}
         </div>`;
       }).join("");
   }).join("");
@@ -1681,6 +1781,157 @@ function cmpItem(label, m, key){
   return `<div class="cmp-item"><div class="l">${label}</div><div class="v"><b>${f(hv)}</b><span>–</span><b>${f(av)}</b></div></div>`;
 }
 
+function impliedProbs(ml){
+  if(!ml || !ml.h || !ml.d || !ml.a) return null;
+  const inv = [1 / ml.h, 1 / ml.d, 1 / ml.a];
+  const s = inv[0] + inv[1] + inv[2];
+  return inv.map(x => x / s);
+}
+
+function ahText(line){
+  if(line == null) return "—";
+  const v = Number(line);
+  if(!isFinite(v) || v === 0) return "平手";
+  const abs = Math.abs(v);
+  const map = {0.25:"平半",0.5:"半球",0.75:"半一",1:"一球",1.25:"一球/球半",
+               1.5:"球半",1.75:"球半/两球",2:"两球",2.25:"两球/两球半",
+               2.5:"两球半",2.75:"两球半/三球",3:"三球"};
+  const name = map[abs] || String(abs);
+  return v < 0 ? "主让" + name : "主受让" + name;
+}
+
+function pct(p){ return Math.round((p || 0) * 100) + "%"; }
+
+function formBlock(tid){
+  const t = TEAMS.get(String(tid));
+  const ms = teamMatches(tid);
+  const last5 = ms.slice(0, 5).reverse();
+  const ten = ms.slice(0, 10);
+  const rec = recordOf(ms.slice(0, 5), tid);
+  let gf = 0, ga = 0, n = 0;
+  for(const m of ten){
+    if(m.hs == null || m.as == null) continue;
+    const own = String(m.home) === String(tid) ? m.hs : m.as;
+    const opp = String(m.home) === String(tid) ? m.as : m.hs;
+    gf += own; ga += opp; n++;
+  }
+  const pills = last5.map(m => {
+    const o = outcome(m, tid) || "—";
+    return `<span class="form-pill ${o}">${o}</span>`;
+  }).join("");
+  return `<div class="fc-team">
+    <div class="nm">${esc(t ? (t.cn || t.name) : tid)}</div>
+    <div class="fc-row"><span>近 5 场</span><b>${rec.w}胜 ${rec.d}平 ${rec.l}负</b></div>
+    <div class="fc-row"><span>近 10 场场均进球</span><b>${n ? (gf / n).toFixed(1) : "—"}</b></div>
+    <div class="fc-row"><span>近 10 场场均失球</span><b>${n ? (ga / n).toFixed(1) : "—"}</b></div>
+    <div class="fc-form">${pills}</div>
+  </div>`;
+}
+
+function lineupBlock(tid){
+  const t = TEAMS.get(String(tid));
+  const lu = (DATA.lineups || {})[String(tid)];
+  if(!lu || !(lu.p || []).length) return "";
+  const rows = lu.p.map(p => `<li>
+    <span class="j">${esc(p.j || "")}</span>
+    <span class="n" title="${esc(p.n)}">${esc(p.n)}</span>
+    <span class="p">${esc(p.p || "")}</span>
+  </li>`).join("");
+  return `<div class="lu-team">
+    <div class="nm"><span>${esc(t ? (t.cn || t.name) : tid)}</span><span class="lu-f">${esc(lu.f || "")}</span></div>
+    <ol class="lu-list">${rows}</ol>
+    <div class="lu-src">参考 ${esc(lu.from || "")} 及之前比赛的首发（非官方）</div>
+  </div>`;
+}
+
+function renderPreMatch(m){
+  const sec = $("#pre-match");
+  const isUpcoming = m.hs == null && m.as == null;
+  if(!isUpcoming){ sec.hidden = true; return; }
+  const odds = m.odds, pred = m.pred;
+  const hasLineup = !!((DATA.lineups || {})[String(m.home)] || (DATA.lineups || {})[String(m.away)]);
+  if(!odds && !pred && !hasLineup){ sec.hidden = true; return; }
+  sec.hidden = false;
+  $("#pre-match-note").textContent = `${fullTime(m.date)} · ${m.venue || ""}`;
+
+  const ip = odds ? impliedProbs(odds.ml) : null;
+  const cells = [];
+  if(odds){
+    cells.push(`<div class="odds-cell">
+      <div class="l">欧赔 · 胜平负</div>
+      <div class="odds-three">
+        <div><div class="k">主胜</div><div class="o">${odds.ml.h.toFixed(2)}</div><div class="p">${pct(ip[0])}</div></div>
+        <div><div class="k">平</div><div class="o">${odds.ml.d.toFixed(2)}</div><div class="p">${pct(ip[1])}</div></div>
+        <div><div class="k">客胜</div><div class="o">${odds.ml.a.toFixed(2)}</div><div class="p">${pct(ip[2])}</div></div>
+      </div>
+      <div class="odds-src">${esc(odds.provider || "")} · 小数赔率 / 去水概率</div>
+    </div>`);
+    if(odds.ah){
+      cells.push(`<div class="odds-cell">
+        <div class="l">亚盘 · 让球</div>
+        <div class="odds-line"><b>${ahText(odds.ah.line)}</b></div>
+        <div class="odds-two">
+          <div><div class="k">主队</div><div class="o">${odds.ah.h ? odds.ah.h.toFixed(2) : "—"}</div></div>
+          <div><div class="k">客队</div><div class="o">${odds.ah.a ? odds.ah.a.toFixed(2) : "—"}</div></div>
+        </div>
+        <div class="odds-src">让球方：${Number(odds.ah.line) < 0 ? "主队" : Number(odds.ah.line) > 0 ? "客队" : "平手"}</div>
+      </div>`);
+    }
+    if(odds.ou){
+      cells.push(`<div class="odds-cell">
+        <div class="l">大小球</div>
+        <div class="odds-line"><b>${Number(odds.ou.line).toFixed(1)} 球</b></div>
+        <div class="odds-two">
+          <div><div class="k">大球</div><div class="o">${odds.ou.over ? odds.ou.over.toFixed(2) : "—"}</div></div>
+          <div><div class="k">小球</div><div class="o">${odds.ou.under ? odds.ou.under.toFixed(2) : "—"}</div></div>
+        </div>
+        <div class="odds-src">盘口线 ${odds.ou.line}</div>
+      </div>`);
+    }
+  }
+  $("#odds-grid").innerHTML = cells.length ? cells.join("")
+    : `<div class="odds-cell"><div class="l">赔率</div><div class="odds-src">该场暂无可用赔率</div></div>`;
+  $("#odds-grid").hidden = !odds;
+
+  if(pred){
+    const diff = ip ? [pred.ph - ip[0], pred.pd - ip[1], pred.pa - ip[2]] : null;
+    const market = ip ? (i) => `<div class="p">市场 ${pct(ip[i])}${diff ? ` (${diff[i] >= 0 ? "+" : ""}${Math.round(diff[i]*100)})` : ""}</div>` : () => "";
+    $("#pred-card").innerHTML = `
+      <div class="pred-head">
+        <span class="t">模型预测</span>
+        <span class="s">预期进球 ${pred.xgH.toFixed(2)} – ${pred.xgA.toFixed(2)} · 基于近三个赛季攻防</span>
+      </div>
+      <div class="pred-bars">
+        <span class="pb-h" style="width:${pred.ph*100}%"></span>
+        <span class="pb-d" style="width:${pred.pd*100}%"></span>
+        <span class="pb-a" style="width:${pred.pa*100}%"></span>
+      </div>
+      <div class="pred-legend">
+        <div><div class="k">主胜</div><div class="v">${pct(pred.ph)}</div>${market(0)}</div>
+        <div><div class="k">平</div><div class="v">${pct(pred.pd)}</div>${market(1)}</div>
+        <div><div class="k">客胜</div><div class="v">${pct(pred.pa)}</div>${market(2)}</div>
+      </div>
+      <div class="pred-facts">
+        <span>大 2.5 球 <b>${pct(pred.o25)}</b></span>
+        <span>小 2.5 球 <b>${pct(1 - pred.o25)}</b></span>
+        <span>双方进球 <b>${pct(pred.btts)}</b></span>
+        <span>最可能比分 <b>${pred.top.map(t => t[0]).join(" / ")}</b></span>
+        <span>样本 <b>${pred.nH}</b> / <b>${pred.nA}</b> 场</span>
+        ${pred.xlg ? `<span>含跨联赛数据，参考性降低</span>` : ""}
+      </div>`;
+    $("#pred-card").hidden = false;
+  } else {
+    $("#pred-card").hidden = true;
+  }
+
+  $("#form-compare").innerHTML = formBlock(m.home) + formBlock(m.away);
+
+  const lu = lineupBlock(m.home) + lineupBlock(m.away);
+  $("#lineup-compare").innerHTML = lu;
+  $("#lineup-compare").hidden = !lu;
+  $("#lineup-head").hidden = !lu;
+}
+
 function renderMatch(id){
   const m = MATCH_BY_ID.get(String(id));
   if(!m){ location.hash = "#/"; return; }
@@ -1741,7 +1992,9 @@ function renderMatch(id){
   ].join("") : "";
   $("#match-compare").innerHTML = cmp
     ? `<div class="cmp-head"><span>本场技术统计</span><span>${done ? "已结束" : "未开始"}</span></div><div class="cmp-grid">${cmp}</div>`
-    : `<div class="h2h-empty">本场比赛暂无可用的技术统计。</div>`;
+    : "";
+
+  renderPreMatch(m);
 
   const allMeetings = h2hMatches(h.id, a.id, m.id);
   const list = allMeetings.slice(0, 10);

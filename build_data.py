@@ -16,14 +16,16 @@
 
 import argparse
 import json
+import math
 import os
 import sys
 import threading
 import time
 import urllib.error
 import urllib.request
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(ROOT, "cache")
@@ -829,18 +831,302 @@ def stats_for_summary(league_code, event_id, d):
 def fetch_summary(league_code, event_id):
     name = f"sum_{league_code}_{event_id}.json"
     cached = read_cache(name)
-    if cached is not None and cached.get("stats"):
-        return cached
+    if cached is not None and "stats" in cached:
+        if cached.get("stats"):
+            return cached
+        # 无统计的场次负缓存 7 天；请求失败的只缓存 6 小时
+        path = os.path.join(CACHE_DIR, name)
+        limit = 6 * 3600 if cached.get("err") else 7 * 86400
+        if time.time() - os.path.getmtime(path) < limit:
+            return cached
     try:
         d = get_json(f"{API}/{league_code}/summary?event={event_id}")
     except Exception as e:
         log(f"  统计失败 {event_id}: {e}")
+        write_cache(name, {"ok": False, "stats": None, "err": True})
         return None
     stats = stats_for_summary(league_code, event_id, d)
-    if not stats:
+    write_cache(name, {"ok": bool(stats), "stats": stats})
+    return {"ok": bool(stats), "stats": stats}
+
+
+def american_to_decimal(ml):
+    """美式赔率转欧洲小数赔率。"""
+    try:
+        v = float(ml)
+    except (TypeError, ValueError):
         return None
-    write_cache(name, {"ok": True, "stats": stats})
-    return {"ok": True, "stats": stats}
+    if v == 0:
+        return None
+    return round(1 + (v / 100 if v > 0 else 100 / -v), 2)
+
+
+def parse_odds(d):
+    """从 summary 的 pickcenter 提取欧赔、亚盘、大小球（DraftKings）。"""
+    pc = d.get("pickcenter") or []
+    if not pc:
+        return None
+    p = pc[0]
+    home = p.get("homeTeamOdds") or {}
+    away = p.get("awayTeamOdds") or {}
+    draw = p.get("drawOdds") or {}
+    ml = {
+        "h": american_to_decimal(home.get("moneyLine")),
+        "d": american_to_decimal(draw.get("moneyLine")),
+        "a": american_to_decimal(away.get("moneyLine")),
+    }
+    if not all(ml.values()):
+        return None
+    return {
+        "provider": ((p.get("provider") or {}).get("name")) or "",
+        "ml": ml,
+        "ah": {
+            "line": p.get("spread"),
+            "h": american_to_decimal(home.get("spreadOdds")),
+            "a": american_to_decimal(away.get("spreadOdds")),
+        } if p.get("spread") is not None else None,
+        "ou": {
+            "line": p.get("overUnder"),
+            "over": american_to_decimal(p.get("overOdds")),
+            "under": american_to_decimal(p.get("underOdds")),
+        } if p.get("overUnder") is not None else None,
+        "fetchedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+
+
+def fetch_odds(league_code, event_id):
+    """赔率时效短，单独缓存 1 小时，不复用长期统计缓存。"""
+    name = f"odds_{league_code}_{event_id}.json"
+    cached = read_cache(name, max_age=3600)
+    if cached is not None:
+        return cached.get("odds")
+    try:
+        d = get_json(f"{API}/{league_code}/summary?event={event_id}")
+    except Exception as e:
+        log(f"  赔率失败 {event_id}: {e}")
+        return None
+    odds = parse_odds(d)
+    if odds:
+        write_cache(name, {"odds": odds})
+    return odds
+
+
+def fetch_lineup(league_code, event_id):
+    """抓取一场比赛的首发名单（已结束比赛才有）。"""
+    name = f"lineup_{league_code}_{event_id}.json"
+    cached = read_cache(name)
+    if cached is not None:
+        lineups = cached.get("lineups") or {}
+        if lineups:
+            return lineups
+        path = os.path.join(CACHE_DIR, name)
+        if time.time() - os.path.getmtime(path) < 86400:
+            return {}
+    try:
+        d = get_json(f"{API}/{league_code}/summary?event={event_id}")
+    except Exception:
+        return {}
+    out = {}
+    for t in d.get("rosters") or []:
+        team = t.get("team") or {}
+        tid = team.get("id") or t.get("teamId")
+        if not tid:
+            continue
+        players = []
+        for p in t.get("roster") or []:
+            if not p.get("starter"):
+                continue
+            ath = p.get("athlete") or {}
+            nm = ath.get("displayName") or p.get("displayName") or ""
+            if not nm:
+                continue
+            pos = ((p.get("position") or {}).get("abbreviation")) or ""
+            players.append({"n": nm, "j": p.get("jersey") or "", "p": pos})
+        if players:
+            out[str(tid)] = {
+                "formation": t.get("formation") or "",
+                "players": players[:11],
+            }
+    write_cache(name, {"lineups": out})
+    return out
+
+
+POS_ORDER = {"G": 0, "GK": 0, "D": 1, "CB": 1, "LB": 1, "RB": 1, "WB": 1,
+             "M": 2, "CDM": 2, "CM": 2, "CAM": 2, "LM": 2, "RM": 2,
+             "F": 3, "ST": 3, "CF": 3, "LW": 3, "RW": 3}
+
+
+def build_team_lineups(match_rows, team_ids, workers):
+    """按最近 3 场首发频率，推算每队参考阵容。"""
+    recent = defaultdict(list)
+    for m in match_rows:
+        for tid in (m["home"], m["away"]):
+            if tid in team_ids and len(recent[tid]) < 3:
+                recent[tid].append(m)
+    jobs = {(m["leagueCode"], m["id"]) for ms in recent.values() for m in ms}
+    log(f"  首发名单：{len(recent)} 队，{len(jobs)} 场近期比赛")
+    fetched = {}
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(fetch_lineup, code, eid): (code, eid) for code, eid in jobs}
+        for fut in as_completed(futs):
+            fetched[futs[fut]] = fut.result()
+    out = {}
+    for tid, ms in recent.items():
+        weights = [1.0, 0.65, 0.4][:len(ms)]
+        score = {}
+        info = {}
+        formation = ""
+        for m, w in zip(ms, weights):
+            lu = (fetched.get((m["leagueCode"], m["id"])) or {}).get(tid)
+            if not lu:
+                continue
+            if not formation:
+                formation = lu.get("formation") or ""
+            for p in lu.get("players", []):
+                key = p["n"]
+                score[key] = score.get(key, 0) + w
+                info[key] = p
+        if not score:
+            continue
+        picks = sorted(score, key=lambda k: -score[k])[:11]
+        picks.sort(key=lambda k: (POS_ORDER.get(info[k]["p"], 2), -score[k]))
+        out[tid] = {
+            "f": formation,
+            "p": [info[k] for k in picks],
+            "from": (ms[0]["date"] or "")[:10],
+        }
+    return out
+
+
+RATING_LEAGUES = {"eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "eng.2", "bra.1"}
+RATING_HALF_LIFE = 300.0
+RATING_SHRINK = 8.0
+
+
+def parse_match_date(s):
+    try:
+        return date.fromisoformat((s or "")[:10])
+    except ValueError:
+        return None
+
+
+def build_ratings(match_rows):
+    """按联赛基准计算各队主客场攻防强度（时间衰减 + 向均值收缩）。"""
+    today = date.today()
+    lg_sum = defaultdict(lambda: {"w": 0.0, "hg": 0.0, "ag": 0.0})
+    team_sum = defaultdict(lambda: defaultdict(lambda: {
+        "wh": 0.0, "wa": 0.0, "hgf": 0.0, "hga": 0.0, "agf": 0.0, "aga": 0.0,
+        "hn": 0, "an": 0,
+    }))
+    for m in match_rows:
+        if m.get("leagueCode") not in RATING_LEAGUES:
+            continue
+        if m.get("hs") is None or m.get("as") is None:
+            continue
+        d = parse_match_date(m.get("date"))
+        if not d:
+            continue
+        age = (today - d).days
+        if age < 0 or age > 1200:
+            continue
+        w = 0.5 ** (age / RATING_HALF_LIFE)
+        lg = m["leagueCode"]
+        lg_sum[lg]["w"] += w
+        lg_sum[lg]["hg"] += w * m["hs"]
+        lg_sum[lg]["ag"] += w * m["as"]
+        h = team_sum[m["home"]][lg]
+        a = team_sum[m["away"]][lg]
+        h["wh"] += w
+        h["hgf"] += w * m["hs"]
+        h["hga"] += w * m["as"]
+        h["hn"] += 1
+        a["wa"] += w
+        a["agf"] += w * m["as"]
+        a["aga"] += w * m["hs"]
+        a["an"] += 1
+
+    baselines = {}
+    for lg, s in lg_sum.items():
+        if s["w"] >= 20:
+            baselines[lg] = {
+                "bh": s["hg"] / s["w"],
+                "ba": s["ag"] / s["w"],
+            }
+
+    k = RATING_SHRINK
+    teams = {}
+    for tid, by_lg in team_sum.items():
+        lg = max(by_lg, key=lambda x: by_lg[x]["wh"] + by_lg[x]["wa"])
+        s = by_lg[lg]
+        base = baselines.get(lg)
+        if not base:
+            continue
+        bh, ba = base["bh"], base["ba"]
+        # 加权和向联赛均值收缩：分母 = 该场景的样本权重 + 先验权重 k
+        dh, da = s["wh"] + k, s["wa"] + k
+        teams[tid] = {
+            "lg": lg,
+            "bh": bh, "ba": ba,
+            "HA": ((s["hgf"] + k * bh) / dh) / bh if bh else 1.0,
+            "HD": ((s["hga"] + k * ba) / dh) / ba if ba else 1.0,
+            "AA": ((s["agf"] + k * ba) / da) / ba if ba else 1.0,
+            "AD": ((s["aga"] + k * bh) / da) / bh if bh else 1.0,
+            "n": s["hn"] + s["an"],
+        }
+    return teams
+
+
+def poisson_pmf(k, lam):
+    return math.exp(-lam) * lam ** k / math.factorial(k)
+
+
+def predict_match(home_id, away_id, league_code, ratings):
+    rh = ratings.get(str(home_id))
+    ra = ratings.get(str(away_id))
+    if not rh or not ra:
+        return None
+    if rh["lg"] == ra["lg"]:
+        bh, ba = rh["bh"], rh["ba"]
+    else:
+        bh, ba = (rh["bh"] + ra["bh"]) / 2, (rh["ba"] + ra["ba"]) / 2
+    lh = min(max(bh * rh["HA"] * ra["AD"], 0.2), 4.5)
+    la = min(max(ba * ra["AA"] * rh["HD"], 0.2), 4.5)
+
+    n = 9
+    rho = -0.06
+    grid = [[poisson_pmf(i, lh) * poisson_pmf(j, la) for j in range(n)] for i in range(n)]
+    for i in (0, 1):
+        for j in (0, 1):
+            if i == 0 and j == 0:
+                grid[i][j] *= 1 - lh * la * rho
+            elif i == 0 and j == 1:
+                grid[i][j] *= 1 + lh * rho
+            elif i == 1 and j == 0:
+                grid[i][j] *= 1 + la * rho
+            else:
+                grid[i][j] *= 1 - rho
+    total = sum(sum(r) for r in grid)
+    ph = sum(grid[i][j] for i in range(n) for j in range(n) if i > j) / total
+    pd = sum(grid[i][i] for i in range(n)) / total
+    pa = 1 - ph - pd
+    over25 = sum(grid[i][j] for i in range(n) for j in range(n) if i + j >= 3) / total
+    btts = sum(grid[i][j] for i in range(1, n) for j in range(1, n)) / total
+    tops = sorted(
+        ((f"{i}-{j}", grid[i][j] / total) for i in range(5) for j in range(5)),
+        key=lambda x: -x[1]
+    )[:3]
+    return {
+        "xgH": round(lh, 2),
+        "xgA": round(la, 2),
+        "ph": round(ph, 3),
+        "pd": round(pd, 3),
+        "pa": round(pa, 3),
+        "o25": round(over25, 3),
+        "btts": round(btts, 3),
+        "top": [[s, round(p, 3)] for s, p in tops],
+        "nH": rh["n"], "nA": ra["n"],
+        "xlg": rh["lg"] != ra["lg"],
+    }
 
 
 def summary_to_event(d, league, season, event_id):
@@ -1054,7 +1340,14 @@ def main():
     # 所有已结束比赛都抓统计，保证历史交锋表逐场数据完整
     h2h_recent = {eid for eid, ev in events.items()
                   if ev["completed"] and ev["league"] in [lg["label"] for lg in leagues]}
-    todo_ids = selected | h2h_recent
+    # 旧赛季比赛只在已有缓存时复用，不再联网重试（ESPN 对老场次多为全零或无数据）
+    def cached_stats(ev):
+        return os.path.exists(os.path.join(
+            CACHE_DIR, f"sum_{ev['leagueCode']}_{ev['id']}.json"))
+    todo_ids = {eid for eid in (selected | h2h_recent)
+                if eid in selected
+                or (events[eid]["date"] or "") >= "2025-07-01"
+                or cached_stats(events[eid])}
     log(f"  需要抓取统计的已结束比赛 {len(todo_ids)} 场")
 
     # 5) 统计
@@ -1140,15 +1433,39 @@ def main():
         })
     team_rows.sort(key=lambda t: (t["cn"], t["name"]))
 
+    ratings = build_ratings(match_rows)
+    log(f"  攻防模型：{len(ratings)} 支球队")
+
+    fixture_events = [ev for ev in fixtures.values()
+                      if ev["league"] in [lg["label"] for lg in leagues]
+                      and ev["home"] in teams and ev["away"] in teams]
+    odds_map = {}
+    odds_jobs = [ev for ev in fixture_events if not ev["completed"]]
+    if odds_jobs and not args.max_summaries:
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            futs = {ex.submit(fetch_odds, ev["leagueCode"], ev["id"]): ev["id"] for ev in odds_jobs}
+            for fut in as_completed(futs):
+                odds_map[futs[fut]] = fut.result()
+        log(f"  赔率：{sum(1 for v in odds_map.values() if v)}/{len(odds_jobs)} 场有数据")
+
     fixture_rows = []
-    for ev in fixtures.values():
-        if ev["league"] in [lg["label"] for lg in leagues] and ev["home"] in teams and ev["away"] in teams:
-            fixture_rows.append({
-                "id": ev["id"], "date": ev["date"], "league": ev["league"],
-                "home": ev["home"], "away": ev["away"], "venue": ev["venue"],
-                "state": ev["state"],
-            })
+    for ev in fixture_events:
+        fixture_rows.append({
+            "id": ev["id"], "date": ev["date"], "league": ev["league"],
+            "leagueCode": ev["leagueCode"],
+            "home": ev["home"], "away": ev["away"], "venue": ev["venue"],
+            "state": ev["state"],
+            "odds": odds_map.get(ev["id"]),
+            "pred": predict_match(ev["home"], ev["away"], ev["leagueCode"], ratings),
+        })
     fixture_rows.sort(key=lambda f: f["date"] or "")
+
+    upcoming_teams = {ev["home"] for ev in fixture_events if not ev["completed"]}
+    upcoming_teams |= {ev["away"] for ev in fixture_events if not ev["completed"]}
+    lineups = {}
+    if upcoming_teams and not args.max_summaries:
+        lineups = build_team_lineups(match_rows, upcoming_teams, args.workers)
+        log(f"  参考阵容：{len(lineups)} 支球队")
 
     dates = [m["date"] for m in match_rows if m["date"]]
     meta = {
@@ -1168,6 +1485,7 @@ def main():
         "teams": team_rows,
         "matches": match_rows,
         "fixtures": fixture_rows,
+        "lineups": lineups,
     }
     out_json = os.path.join(DATA_DIR, "matches.json")
     with open(out_json, "w", encoding="utf-8") as f:
