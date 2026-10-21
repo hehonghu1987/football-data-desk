@@ -904,20 +904,46 @@ def parse_odds(d):
 
 
 def fetch_odds(league_code, event_id):
-    """赔率时效短，单独缓存 1 小时，不复用长期统计缓存。"""
+    """赔率时效短，单独缓存 1 小时；同时保留赛前快照用于赛后回测。"""
     name = f"odds_{league_code}_{event_id}.json"
-    cached = read_cache(name, max_age=3600)
-    if cached is not None:
-        return cached.get("odds")
+    path = os.path.join(CACHE_DIR, name)
+    raw = read_cache(name)
+    if raw is not None and time.time() - os.path.getmtime(path) < 3600:
+        return raw.get("odds")
+    history = (raw or {}).get("history") or []
     try:
         d = get_json(f"{API}/{league_code}/summary?event={event_id}")
     except Exception as e:
         log(f"  赔率失败 {event_id}: {e}")
-        return None
+        return (raw or {}).get("odds")
     odds = parse_odds(d)
     if odds:
-        write_cache(name, {"odds": odds})
+        ml = odds.get("ml") or {}
+        if all(ml.get(k) for k in ("h", "d", "a")):
+            inv = [1 / ml["h"], 1 / ml["d"], 1 / ml["a"]]
+            total = sum(inv)
+            snap = {
+                "t": datetime.now().astimezone().isoformat(timespec="minutes"),
+                "p": [round(x / total, 3) for x in inv],
+            }
+            if not history or history[-1].get("p") != snap["p"]:
+                history.append(snap)
+                history = history[-8:]
+        write_cache(name, {"odds": odds, "history": history})
     return odds
+
+
+def odds_market_probs(league_code, event_id):
+    """读取赛前盘口的去水概率（供已结束比赛回测综合预测）。"""
+    raw = read_cache(f"odds_{league_code}_{event_id}.json")
+    if not raw:
+        return None
+    ml = (raw.get("odds") or {}).get("ml") or {}
+    if not all(ml.get(k) for k in ("h", "d", "a")):
+        return None
+    inv = [1 / ml["h"], 1 / ml["d"], 1 / ml["a"]]
+    total = sum(inv)
+    return [round(x / total, 3) for x in inv]
 
 
 def fetch_lineup(league_code, event_id):
@@ -1545,6 +1571,7 @@ def main():
                 "neutral": ev["neutral"],
                 "venue": ev["venue"],
                 "stats": st,
+                "mkt": odds_market_probs(ev["leagueCode"], eid),
             })
     match_rows.sort(key=lambda m: m["date"] or "", reverse=True)
     pre_map = build_pre_match(match_rows)

@@ -887,7 +887,9 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
         </div>
       </div>
       <div class="sum-grid" id="perf-summary"></div>
-      <div class="table-hint">回测口径：这里评估的是纯数据模型（不含市场权重）；有盘口时线上的「综合预测」还会加入 70% 市场概率，通常会比纯模型更准。</div>
+      <h3 class="subhead" id="perf-blend-head" hidden>含市场权重的综合预测</h3>
+      <div class="sum-grid" id="perf-summary-blend"></div>
+      <div class="table-hint">回测口径：先评估纯数据模型；有赛前盘口快照的比赛会再评估「市场 70% + 模型 30%」的综合预测，样本随每日构建逐步积累。</div>
     </section>
 
     <section class="section">
@@ -1599,13 +1601,14 @@ function renderIndex(){
   }).join("");
 }
 
-function modelPerfStats(days){
+function modelPerfStats(days, blended){
   const cutoff = Date.now() - days * 86400000;
   let n = 0, hit = 0, favN = 0, favHit = 0, absErr = 0, brier = 0;
   for(const m of (DATA.matches || [])){
     if(!m.pre || m.hs == null || m.as == null) continue;
+    if(blended && !m.mkt) continue;
     if(new Date(m.date).getTime() < cutoff) continue;
-    const p = [m.pre.ph, m.pre.pd, m.pre.pa];
+    const p = blended ? blendProbs(m.pre, m.mkt, 0.7) : [m.pre.ph, m.pre.pd, m.pre.pa];
     const o = m.hs > m.as ? 0 : (m.hs === m.as ? 1 : 2);
     const pred = p[0] >= p[1] && p[0] >= p[2] ? 0 : (p[1] >= p[2] ? 1 : 2);
     n++;
@@ -1632,6 +1635,22 @@ function renderModelPerf(){
     tile("高信心命中", s.favN ? `${Math.round(s.favHit / s.favN * 100)}%` : "—", s.favN ? `概率 ≥50% 的 ${s.favN} 场` : "暂无高信心场次"),
     tile("总进球误差", `${(s.absErr / s.n).toFixed(2)} 球`, "预期总进球与实际之差"),
     tile("Brier 分数", (s.brier / s.n).toFixed(3), "越低越好")
+  ].join("");
+
+  const s2 = modelPerfStats(days, true);
+  const head = $("#perf-blend-head"), box = $("#perf-summary-blend");
+  if(!s2.n){
+    head.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+  head.hidden = false;
+  const diff = Math.round((s2.hit / s2.n - s.hit / s.n) * 100);
+  box.innerHTML = [
+    tile("综合评估", `${s2.n} 场`, "有赛前盘口快照的比赛"),
+    tile("综合方向命中", `${Math.round(s2.hit / s2.n * 100)}%`, `较纯模型 ${diff >= 0 ? "+" : ""}${diff} 个百分点`),
+    tile("综合高信心", s2.favN ? `${Math.round(s2.favHit / s2.favN * 100)}%` : "—", s2.favN ? `概率 ≥50% 的 ${s2.favN} 场` : "暂无高信心场次"),
+    tile("综合 Brier", (s2.brier / s2.n).toFixed(3), "越低越好")
   ].join("");
 }
 
@@ -2022,7 +2041,7 @@ function confidenceLabel(model, ip, xlg){
   if(!model) return "低";
   const mp = [model.ph, model.pd, model.pa];
   const max = Math.max(mp[0], mp[1], mp[2]);
-  const nMin = model.nH != null ? Math.min(model.nH, model.nA) : 10;
+  const nMin = model.nH != null ? Math.min(model.nH, model.nA) : 30;
   if(xlg || nMin < 12) return "低";
   if(ip){
     const mf = ip[0] >= ip[1] && ip[0] >= ip[2] ? 0 : (ip[2] >= ip[1] ? 2 : 1);
@@ -2089,7 +2108,7 @@ function renderPreMatch(m){
     ? `${fullTime(m.date)} · ${m.venue || ""}`
     : "赛前模型 · 基于该场开赛前的数据";
 
-  const ip = odds ? impliedProbs(odds.ml) : null;
+  const ip = odds ? impliedProbs(odds.ml) : (!isUpcoming ? (m.mkt || null) : null);
   const cells = [];
   if(odds){
     cells.push(`<div class="odds-cell">
@@ -2150,11 +2169,13 @@ function renderPreMatch(m){
         <span>信心 <b>${conf}</b></span>
         ${pred.xlg ? `<span>含跨联赛数据，参考性降低</span>` : ""}` : `
         <span>总进球 80% 区间 <b>${range[0]}–${range[1]} 球</b></span>
+        ${ip ? `<span>赛前市场 ${pct(ip[0])}/${pct(ip[1])}/${pct(ip[2])}</span>` : ""}
+        <span>信心 <b>${confidenceLabel(model, ip, false)}</b></span>
         <span>仅使用该场开赛前的数据，不含本场结果</span>`;
     $("#pred-card").innerHTML = `
       <div class="pred-head">
-        <span class="t">${pred ? (ip ? "综合预测" : "模型预测") : "赛前模型预测"}</span>
-        <span class="s">${pred ? (ip ? "市场 70% + 模型 30%" : "基于近三个赛季攻防数据") : "基于该场开赛前的数据"}</span>
+        <span class="t">${pred ? (ip ? "综合预测" : "模型预测") : (ip ? "赛前综合预测" : "赛前模型预测")}</span>
+        <span class="s">${ip ? (pred ? "市场 70% + 模型 30%" : "赛前盘口 70% + 赛前模型 30%") : (pred ? "基于近三个赛季攻防数据" : "基于该场开赛前的数据")}</span>
       </div>
       <div class="pred-xg">
         <div class="side"><span class="k">${esc(homeName)}</span><b>${model.xgH.toFixed(2)}</b></div>
@@ -2242,7 +2263,7 @@ function renderInsight(m){
   const upcoming = m.hs == null && m.as == null;
   const model = upcoming ? m.pred : m.pre;
   const odds = upcoming ? m.odds : null;
-  const ip = odds ? impliedProbs(odds.ml) : null;
+  const ip = odds ? impliedProbs(odds.ml) : (!upcoming ? (m.mkt || null) : null);
   const xh = model ? (model.xgH != null ? model.xgH : model.xh) : null;
   const xa = model ? (model.xgA != null ? model.xgA : model.xa) : null;
   const bullets = [];
@@ -2264,7 +2285,7 @@ function renderInsight(m){
       const marketFav = ip[0] >= ip[1] && ip[0] >= ip[2] ? "home" : (ip[2] >= ip[1] ? "away" : "even");
       t += marketFav === fav ? " 综合方向与市场一致。" : " 综合方向与市场存在分歧，需谨慎看待。";
     }
-    bullets.push({ k: upcoming ? "胜负天平" : "赛前模型", t });
+    bullets.push({ k: upcoming ? "胜负天平" : (ip ? "赛前预测" : "赛前模型"), t });
   } else if(ip){
     const marketFav = ip[0] >= ip[1] && ip[0] >= ip[2] ? "home" : (ip[2] >= ip[1] ? "away" : "even");
     fav = marketFav;
