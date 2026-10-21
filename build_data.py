@@ -1106,18 +1106,7 @@ def poisson_pmf(k, lam):
     return math.exp(-lam) * lam ** k / math.factorial(k)
 
 
-def predict_match(home_id, away_id, league_code, ratings):
-    rh = ratings.get(str(home_id))
-    ra = ratings.get(str(away_id))
-    if not rh or not ra:
-        return None
-    if rh["lg"] == ra["lg"]:
-        bh, ba = rh["bh"], rh["ba"]
-    else:
-        bh, ba = (rh["bh"] + ra["bh"]) / 2, (rh["ba"] + ra["ba"]) / 2
-    lh = min(max(bh * rh["HA"] * ra["AD"], 0.2), 4.5)
-    la = min(max(ba * ra["AA"] * rh["HD"], 0.2), 4.5)
-
+def poisson_probs(lh, la):
     n = 9
     rho = -0.06
     grid = [[poisson_pmf(i, lh) * poisson_pmf(j, la) for j in range(n)] for i in range(n)]
@@ -1150,9 +1139,98 @@ def predict_match(home_id, away_id, league_code, ratings):
         "o25": round(over25, 3),
         "btts": round(btts, 3),
         "top": [[s, round(p, 3)] for s, p in tops],
-        "nH": rh["n"], "nA": ra["n"],
-        "xlg": rh["lg"] != ra["lg"],
     }
+
+
+def predict_match(home_id, away_id, league_code, ratings):
+    rh = ratings.get(str(home_id))
+    ra = ratings.get(str(away_id))
+    if not rh or not ra:
+        return None
+    if rh["lg"] == ra["lg"]:
+        bh, ba = rh["bh"], rh["ba"]
+    else:
+        bh, ba = (rh["bh"] + ra["bh"]) / 2, (rh["ba"] + ra["ba"]) / 2
+    lh = min(max(bh * rh["HA"] * ra["AD"], 0.2), 4.5)
+    la = min(max(ba * ra["AA"] * rh["HD"], 0.2), 4.5)
+    out = poisson_probs(lh, la)
+    out["nH"], out["nA"] = rh["n"], ra["n"]
+    out["xlg"] = rh["lg"] != ra["lg"]
+    return out
+
+
+def _decay(item, day):
+    dt = day - item["last"]
+    if dt > 0:
+        f = 0.5 ** (dt / RATING_HALF_LIFE)
+        for key in ("w", "hg", "ag", "wh", "wa", "hgf", "hga", "agf", "aga"):
+            if key in item:
+                item[key] *= f
+        item["last"] = day
+
+
+def build_pre_match(match_rows):
+    """按时间顺序滚动计算每场比赛开赛前的模型预期进球（无未来数据泄漏）。"""
+    rows = [m for m in match_rows
+            if m.get("leagueCode") in RATING_LEAGUES and m.get("hs") is not None]
+    rows.sort(key=lambda m: m.get("date") or "")
+    lg = {}
+    tm = defaultdict(dict)
+    out = {}
+    k = RATING_SHRINK
+    for m in rows:
+        d = parse_match_date(m.get("date"))
+        if not d:
+            continue
+        day = d.toordinal()
+        code = m["leagueCode"]
+        base = lg.get(code)
+        if base is not None:
+            _decay(base, day)
+        hi = tm[m["home"]].get(code)
+        ai = tm[m["away"]].get(code)
+        if hi is not None:
+            _decay(hi, day)
+        if ai is not None:
+            _decay(ai, day)
+        if base and base["w"] >= 20 and hi and ai:
+            bh = base["hg"] / base["w"]
+            ba = base["ag"] / base["w"]
+            dh, da = hi["wh"] + k, hi["wa"] + k
+            ha = ((hi["hgf"] + k * bh) / dh) / bh if bh else 1.0
+            hd = ((hi["hga"] + k * ba) / dh) / ba if ba else 1.0
+            aa = ((ai["agf"] + k * ba) / da) / ba if ba else 1.0
+            ad = ((ai["aga"] + k * bh) / da) / bh if bh else 1.0
+            lh = min(max(bh * ha * ad, 0.2), 4.5)
+            la = min(max(ba * aa * hd, 0.2), 4.5)
+            p = poisson_probs(lh, la)
+            out[m["id"]] = {
+                "xh": p["xgH"], "xa": p["xgA"],
+                "ph": p["ph"], "pd": p["pd"], "pa": p["pa"],
+            }
+        # 记录本场结果
+        if base is None:
+            base = lg[code] = {"w": 0.0, "hg": 0.0, "ag": 0.0, "last": day}
+        for key, val in (("w", 1.0), ("hg", m["hs"]), ("ag", m["as"])):
+            base[key] = base.get(key, 0.0) + val
+        for tid, gf, ga in ((m["home"], m["hs"], m["as"]), (m["away"], m["as"], m["hs"])):
+            item = tm[tid].get(code)
+            if item is None:
+                item = tm[tid][code] = {
+                    "wh": 0.0, "wa": 0.0, "hgf": 0.0, "hga": 0.0,
+                    "agf": 0.0, "aga": 0.0, "last": day,
+                }
+            if tid == m["home"]:
+                item["wh"] += 1.0
+                item["hgf"] += gf
+                item["hga"] += ga
+            else:
+                item["wa"] += 1.0
+                item["agf"] += gf
+                item["aga"] += ga
+    return out
+
+
 
 
 def summary_to_event(d, league, season, event_id):
@@ -1424,6 +1502,10 @@ def main():
                 "stats": st,
             })
     match_rows.sort(key=lambda m: m["date"] or "", reverse=True)
+    pre_map = build_pre_match(match_rows)
+    for m in match_rows:
+        m["pre"] = pre_map.get(m["id"])
+    log(f"  赛前预期进球：{len(pre_map)} 场")
 
     FIVE = ("英超", "西甲", "意甲", "德甲", "法甲")
     team_rows = []

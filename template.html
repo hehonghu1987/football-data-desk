@@ -981,7 +981,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 
       <div class="pred-card" id="pred-card"></div>
 
-      <h3 class="subhead">近期状态</h3>
+      <h3 class="subhead" id="form-head">近期状态</h3>
       <div class="form-compare" id="form-compare"></div>
 
       <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
@@ -1933,12 +1933,15 @@ function lineupBlock(tid){
 function renderPreMatch(m){
   const sec = $("#pre-match");
   const isUpcoming = m.hs == null && m.as == null;
-  if(!isUpcoming){ sec.hidden = true; return; }
-  const odds = m.odds, pred = m.pred;
-  const hasLineup = !!((DATA.lineups || {})[String(m.home)] || (DATA.lineups || {})[String(m.away)]);
-  if(!odds && !pred && !hasLineup){ sec.hidden = true; return; }
+  const odds = isUpcoming ? m.odds : null;
+  const pred = isUpcoming ? m.pred : null;
+  const pre = isUpcoming ? null : m.pre;
+  const hasLineup = isUpcoming && !!((DATA.lineups || {})[String(m.home)] || (DATA.lineups || {})[String(m.away)]);
+  if(!odds && !pred && !pre && !hasLineup){ sec.hidden = true; return; }
   sec.hidden = false;
-  $("#pre-match-note").textContent = `${fullTime(m.date)} · ${m.venue || ""}`;
+  $("#pre-match-note").textContent = isUpcoming
+    ? `${fullTime(m.date)} · ${m.venue || ""}`
+    : "赛前模型 · 基于该场开赛前的数据";
 
   const ip = odds ? impliedProbs(odds.ml) : null;
   const cells = [];
@@ -1979,46 +1982,57 @@ function renderPreMatch(m){
     : `<div class="odds-cell"><div class="l">赔率</div><div class="odds-src">该场暂无可用赔率</div></div>`;
   $("#odds-grid").hidden = !odds;
 
-  if(pred){
-    const diff = ip ? [pred.ph - ip[0], pred.pd - ip[1], pred.pa - ip[2]] : null;
+  const homeName = (TEAMS.get(String(m.home)) || {}).cn || (TEAMS.get(String(m.home)) || {}).name || "";
+  const awayName = (TEAMS.get(String(m.away)) || {}).cn || (TEAMS.get(String(m.away)) || {}).name || "";
+  const model = pred || (pre ? {
+    xgH: pre.xh, xgA: pre.xa, ph: pre.ph, pd: pre.pd, pa: pre.pa
+  } : null);
+
+  if(model){
+    const diff = ip ? [model.ph - ip[0], model.pd - ip[1], model.pa - ip[2]] : null;
     const market = ip ? (i) => `<div class="p">市场 ${pct(ip[i])}${diff ? ` (${diff[i] >= 0 ? "+" : ""}${Math.round(diff[i]*100)})` : ""}</div>` : () => "";
-    $("#pred-card").innerHTML = `
-      <div class="pred-head">
-        <span class="t">模型预测</span>
-        <span class="s">基于近三个赛季攻防数据</span>
-      </div>
-      <div class="pred-xg">
-        <div class="side"><span class="k">${esc((TEAMS.get(String(m.home)) || {}).cn || (TEAMS.get(String(m.home)) || {}).name || "")}</span><b>${pred.xgH.toFixed(2)}</b></div>
-        <div class="mid">预期进球 xG</div>
-        <div class="side away"><span class="k">${esc((TEAMS.get(String(m.away)) || {}).cn || (TEAMS.get(String(m.away)) || {}).name || "")}</span><b>${pred.xgA.toFixed(2)}</b></div>
-      </div>
-      <div class="pred-bars">
-        <span class="pb-h" style="width:${pred.ph*100}%"></span>
-        <span class="pb-d" style="width:${pred.pd*100}%"></span>
-        <span class="pb-a" style="width:${pred.pa*100}%"></span>
-      </div>
-      <div class="pred-legend">
-        <div><div class="k">主胜</div><div class="v">${pct(pred.ph)}</div>${market(0)}</div>
-        <div><div class="k">平</div><div class="v">${pct(pred.pd)}</div>${market(1)}</div>
-        <div><div class="k">客胜</div><div class="v">${pct(pred.pa)}</div>${market(2)}</div>
-      </div>
-      <div class="pred-facts">
+    const facts = pred ? `
         <span>大 2.5 球 <b>${pct(pred.o25)}</b></span>
         <span>小 2.5 球 <b>${pct(1 - pred.o25)}</b></span>
         <span>双方进球 <b>${pct(pred.btts)}</b></span>
         <span>最可能比分 <b>${pred.top.map(t => t[0]).join(" / ")}</b></span>
         <span>样本 <b>${pred.nH}</b> / <b>${pred.nA}</b> 场</span>
-        ${pred.xlg ? `<span>含跨联赛数据，参考性降低</span>` : ""}
-      </div>`;
+        ${pred.xlg ? `<span>含跨联赛数据，参考性降低</span>` : ""}` : `
+        <span>仅使用该场开赛前的数据，不含本场结果</span>`;
+    $("#pred-card").innerHTML = `
+      <div class="pred-head">
+        <span class="t">${pred ? "模型预测" : "赛前模型预测"}</span>
+        <span class="s">${pred ? "基于近三个赛季攻防数据" : "基于该场开赛前的数据"}</span>
+      </div>
+      <div class="pred-xg">
+        <div class="side"><span class="k">${esc(homeName)}</span><b>${model.xgH.toFixed(2)}</b></div>
+        <div class="mid">预期进球 xG</div>
+        <div class="side away"><span class="k">${esc(awayName)}</span><b>${model.xgA.toFixed(2)}</b></div>
+      </div>
+      <div class="pred-bars">
+        <span class="pb-h" style="width:${model.ph*100}%"></span>
+        <span class="pb-d" style="width:${model.pd*100}%"></span>
+        <span class="pb-a" style="width:${model.pa*100}%"></span>
+      </div>
+      <div class="pred-legend">
+        <div><div class="k">主胜</div><div class="v">${pct(model.ph)}</div>${market(0)}</div>
+        <div><div class="k">平</div><div class="v">${pct(model.pd)}</div>${market(1)}</div>
+        <div><div class="k">客胜</div><div class="v">${pct(model.pa)}</div>${market(2)}</div>
+      </div>
+      <div class="pred-facts">${facts}</div>`;
     $("#pred-card").hidden = false;
-  } else {
+  } else if(isUpcoming){
     $("#pred-card").hidden = false;
     $("#pred-card").innerHTML = `<div class="h2h-empty" style="margin:0">该场缺少一方球队的联赛数据（如来自未收录的联赛），暂不提供模型预测与预期进球。</div>`;
+  } else {
+    $("#pred-card").hidden = true;
   }
 
-  $("#form-compare").innerHTML = formBlock(m.home) + formBlock(m.away);
+  $("#form-head").hidden = !isUpcoming;
+  $("#form-compare").hidden = !isUpcoming;
+  if(isUpcoming) $("#form-compare").innerHTML = formBlock(m.home) + formBlock(m.away);
 
-  const lu = lineupBlock(m.home) + lineupBlock(m.away);
+  const lu = isUpcoming ? lineupBlock(m.home) + lineupBlock(m.away) : "";
   $("#lineup-compare").innerHTML = lu;
   $("#lineup-compare").hidden = !lu;
   $("#lineup-head").hidden = !lu;
