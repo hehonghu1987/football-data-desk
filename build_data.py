@@ -27,6 +27,15 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 
+def _season_code(today=None):
+    d = today or date.today()
+    return d.year if d.month >= 7 else d.year - 1
+
+
+CURRENT_SEASON = _season_code()
+# 滚动保留最近 5 个赛季，避免页面数据无限增长
+SEASONS = list(range(CURRENT_SEASON, CURRENT_SEASON - 5, -1))
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(ROOT, "cache")
 DATA_DIR = os.path.join(ROOT, "data")
@@ -36,29 +45,29 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 
 LEAGUES = [
-    {"label": "英超", "code": "eng.1", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022]},
-    {"label": "西甲", "code": "esp.1", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022]},
-    {"label": "意甲", "code": "ita.1", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022]},
-    {"label": "德甲", "code": "ger.1", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022]},
-    {"label": "法甲", "code": "fra.1", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022]},
-    {"label": "欧冠", "code": "uefa.champions", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022]},
-    {"label": "欧联杯", "code": "uefa.europa", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022]},
-    {"label": "英冠", "code": "eng.2", "cat": "champ", "seasons": [2026, 2025, 2024, 2023, 2022]},
-    {"label": "巴西甲", "code": "bra.1", "cat": "brazil", "seasons": [2026, 2025, 2024, 2023, 2022]},
+    {"label": "英超", "code": "eng.1", "cat": "major", "seasons": SEASONS},
+    {"label": "西甲", "code": "esp.1", "cat": "major", "seasons": SEASONS},
+    {"label": "意甲", "code": "ita.1", "cat": "major", "seasons": SEASONS},
+    {"label": "德甲", "code": "ger.1", "cat": "major", "seasons": SEASONS},
+    {"label": "法甲", "code": "fra.1", "cat": "major", "seasons": SEASONS},
+    {"label": "欧冠", "code": "uefa.champions", "cat": "major", "seasons": SEASONS},
+    {"label": "欧联杯", "code": "uefa.europa", "cat": "major", "seasons": SEASONS},
+    {"label": "英冠", "code": "eng.2", "cat": "champ", "seasons": SEASONS},
+    {"label": "巴西甲", "code": "bra.1", "cat": "brazil", "seasons": SEASONS},
     # 国内杯赛：不单独列分类，只补充到相关球队的历史里
-    {"label": "足总杯", "code": "eng.fa", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022],
+    {"label": "足总杯", "code": "eng.fa", "cat": "major", "seasons": SEASONS,
      "support_for": ["英超", "英冠"], "core_schedule": True},
-    {"label": "英联杯", "code": "eng.league_cup", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022],
+    {"label": "英联杯", "code": "eng.league_cup", "cat": "major", "seasons": SEASONS,
      "support_for": ["英超", "英冠"]},
-    {"label": "国王杯", "code": "esp.copa_del_rey", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022],
+    {"label": "国王杯", "code": "esp.copa_del_rey", "cat": "major", "seasons": SEASONS,
      "support_for": ["西甲"]},
-    {"label": "意大利杯", "code": "ita.coppa_italia", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022],
+    {"label": "意大利杯", "code": "ita.coppa_italia", "cat": "major", "seasons": SEASONS,
      "support_for": ["意甲"]},
-    {"label": "德国杯", "code": "ger.dfb_pokal", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022],
+    {"label": "德国杯", "code": "ger.dfb_pokal", "cat": "major", "seasons": SEASONS,
      "support_for": ["德甲"]},
-    {"label": "法国杯", "code": "fra.coupe_de_france", "cat": "major", "seasons": [2026, 2025, 2024, 2023, 2022],
+    {"label": "法国杯", "code": "fra.coupe_de_france", "cat": "major", "seasons": SEASONS,
      "support_for": ["法甲"]},
-    {"label": "巴西杯", "code": "bra.copa_do_brazil", "cat": "brazil", "seasons": [2026, 2025, 2024, 2023, 2022],
+    {"label": "巴西杯", "code": "bra.copa_do_brazil", "cat": "brazil", "seasons": SEASONS,
      "support_for": ["巴西甲"]},
 ]
 
@@ -674,7 +683,7 @@ def parse_schedule(d, league, season):
 
 def fetch_schedule(league, team_id, season, refresh=False):
     name = f"sched_{league['code']}_{team_id}_{season}.json"
-    current = season >= 2026
+    current = season >= CURRENT_SEASON
     cached = None if refresh else read_cache(name, max_age=(6 * 3600 if current else None))
     if cached is not None:
         if isinstance(cached, dict):
@@ -1312,7 +1321,7 @@ def summary_to_event(d, league, season, event_id):
 def fetch_cup_schedule(league, team_id, season, refresh=False):
     """足总杯专用：核心接口列赛事 ID，再取 summary 还原比分与统计。"""
     name = f"fasched_{league['code']}_{team_id}_{season}.json"
-    current = season >= 2026
+    current = season >= CURRENT_SEASON
     cached = None if refresh else read_cache(name, max_age=(6 * 3600 if current else None))
     if cached is not None:
         for t in cached.get("teams", []):
@@ -1615,7 +1624,7 @@ def main():
         "dateMin": min(dates) if dates else None,
         "dateMax": max(dates) if dates else None,
         "source": "ESPN",
-        "season": "2026/27",
+        "season": f"{CURRENT_SEASON}/{(CURRENT_SEASON + 1) % 100:02d}",
     }
     payload = {
         "meta": meta,
