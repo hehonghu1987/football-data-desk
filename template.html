@@ -1076,6 +1076,27 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 
 <script>const DATA = __DATA_JSON__;</script>
 <script>
+(function expandCompact(){
+  const K = ["shots","sot","corners","offsides","yellow","red","fouls","possession","blocked","saves"];
+  const toObj = a => {
+    if(!a) return null;
+    const o = {};
+    for(let i = 0; i < K.length; i++) o[K[i]] = a[i];
+    return o;
+  };
+  for(const m of (DATA.matches || []).concat(DATA.fixtures || [])){
+    if(m.st){
+      m.stats = { home: toObj(m.st[0]), away: toObj(m.st[1]) };
+      delete m.st;
+    }
+    if(m.v != null){
+      m.venue = (DATA.venues || [])[m.v] || "";
+      delete m.v;
+    }
+  }
+})();
+</script>
+<script>
 (function(){
 "use strict";
 

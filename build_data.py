@@ -1159,6 +1159,37 @@ def predict_match(home_id, away_id, league_code, ratings):
     return out
 
 
+STAT_ORDER = ("shots", "sot", "corners", "offsides", "yellow", "red",
+              "fouls", "possession", "blocked", "saves")
+
+
+def compact_payload(payload):
+    """压缩页面体积：统计数组化、场地去重、移除前端不用的字段。"""
+    venues = []
+    seen = {}
+    for m in payload["matches"] + payload["fixtures"]:
+        st = m.get("stats")
+        if st and st.get("home") and st.get("away"):
+            m["st"] = [[st["home"].get(k) for k in STAT_ORDER],
+                       [st["away"].get(k) for k in STAT_ORDER]]
+            del m["stats"]
+        v = m.get("venue")
+        if v:
+            idx = seen.get(v)
+            if idx is None:
+                idx = len(venues)
+                seen[v] = idx
+                venues.append(v)
+            m["v"] = idx
+        m.pop("venue", None)
+        m.pop("season", None)
+        m.pop("leagueCode", None)
+        m.pop("neutral", None)
+        if m.get("so") is None:
+            m.pop("so", None)
+    payload["venues"] = venues
+
+
 def _decay(item, day):
     dt = day - item["last"]
     if dt > 0:
@@ -1595,6 +1626,7 @@ def main():
         "fixtures": fixture_rows,
         "lineups": lineups,
     }
+    compact_payload(payload)
     out_json = os.path.join(DATA_DIR, "matches.json")
     with open(out_json, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
