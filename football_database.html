@@ -877,6 +877,19 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
       <div class="panel" id="recent-panel"></div>
     </section>
 
+    <section class="section" id="model-perf">
+      <div class="section-head">
+        <h2 class="section-title">模型表现</h2>
+        <div class="seg" id="perf-seg" role="group" aria-label="回测区间">
+          <button type="button" data-days="30" aria-pressed="true">近 30 天</button>
+          <button type="button" data-days="90" aria-pressed="false">近 90 天</button>
+          <button type="button" data-days="365" aria-pressed="false">近一年</button>
+        </div>
+      </div>
+      <div class="sum-grid" id="perf-summary"></div>
+      <div class="table-hint">回测口径：用每场开赛前的模型预测与最终比分对比；方向命中指概率最高的一项与实际结果一致。</div>
+    </section>
+
     <section class="section">
       <div class="section-head">
         <h2 class="section-title">球队索引</h2>
@@ -1267,6 +1280,7 @@ const state = {
   h2hOpp: null,
   h2hSide: "all",
   h2hComp: "all",
+  perfDays: 30,
   id: null,
   all: [],
   activeResult: -1,
@@ -1562,6 +1576,42 @@ function renderIndex(){
   }).join("");
 }
 
+function modelPerfStats(days){
+  const cutoff = Date.now() - days * 86400000;
+  let n = 0, hit = 0, favN = 0, favHit = 0, absErr = 0, brier = 0;
+  for(const m of (DATA.matches || [])){
+    if(!m.pre || m.hs == null || m.as == null) continue;
+    if(new Date(m.date).getTime() < cutoff) continue;
+    const p = [m.pre.ph, m.pre.pd, m.pre.pa];
+    const o = m.hs > m.as ? 0 : (m.hs === m.as ? 1 : 2);
+    const pred = p[0] >= p[1] && p[0] >= p[2] ? 0 : (p[1] >= p[2] ? 1 : 2);
+    n++;
+    if(pred === o) hit++;
+    if(Math.max(p[0], p[1], p[2]) >= 0.5){ favN++; if(pred === o) favHit++; }
+    absErr += Math.abs((m.pre.xh + m.pre.xa) - (m.hs + m.as));
+    brier += p.reduce((s, v, i) => s + (v - (i === o ? 1 : 0)) ** 2, 0) / 3;
+  }
+  return { n, hit, favN, favHit, absErr, brier };
+}
+
+function renderModelPerf(){
+  const days = state.perfDays || 30;
+  $$("#perf-seg [data-days]").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.days) === days)));
+  const s = modelPerfStats(days);
+  if(!s.n){
+    $("#perf-summary").innerHTML = `<div class="sum-tile wide"><div class="l">暂无可回测比赛</div><div class="v">—</div><div class="s">选择更长区间试试</div></div>`;
+    return;
+  }
+  const tile = (label, val, sub) => `<div class="sum-tile"><div class="l">${label}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`;
+  $("#perf-summary").innerHTML = [
+    tile("评估场次", `${s.n} 场`, `近 ${days} 天已结束比赛`),
+    tile("方向命中", `${Math.round(s.hit / s.n * 100)}%`, `${s.hit} / ${s.n} 场`),
+    tile("高信心命中", s.favN ? `${Math.round(s.favHit / s.favN * 100)}%` : "—", s.favN ? `概率 ≥50% 的 ${s.favN} 场` : "暂无高信心场次"),
+    tile("总进球误差", `${(s.absErr / s.n).toFixed(2)} 球`, "预期总进球与实际之差"),
+    tile("Brier 分数", (s.brier / s.n).toFixed(3), "越低越好")
+  ].join("");
+}
+
 function renderHome(){
   state.id = null;
   $("#home-view").hidden = false;
@@ -1572,8 +1622,16 @@ function renderHome(){
   renderTabs();
   renderFixtures();
   renderRecent();
+  renderModelPerf();
   renderIndex();
 }
+
+$("#perf-seg").addEventListener("click", e => {
+  const b = e.target.closest("[data-days]");
+  if(!b) return;
+  state.perfDays = Number(b.dataset.days);
+  renderModelPerf();
+});
 
 $("#cat-tabs").addEventListener("click", e => {
   const b = e.target.closest("[data-cat]");
@@ -2091,6 +2149,23 @@ function sideForm(tid, side, n){
 
 function fmtRec(r){ return `${r.w}胜${r.d}平${r.l}负`; }
 
+function teamRestDays(tid, refISO){
+  const ref = refISO ? new Date(refISO).getTime() : Date.now();
+  const ms = teamMatches(tid).filter(m =>
+    m.hs != null && m.as != null && new Date(m.date).getTime() < ref);
+  if(!ms.length) return null;
+  return Math.max(0, Math.round((ref - new Date(ms[0].date).getTime()) / 86400000));
+}
+
+function teamCongestion(tid, fromISO){
+  const start = new Date(fromISO).getTime();
+  const end = start + 14 * 86400000;
+  return (DATA.fixtures || []).filter(f =>
+    (String(f.home) === String(tid) || String(f.away) === String(tid)) &&
+    new Date(f.date).getTime() >= start && new Date(f.date).getTime() <= end
+  ).length;
+}
+
 function renderInsight(m){
   const sec = $("#insight");
   const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
@@ -2192,7 +2267,23 @@ function renderInsight(m){
     bullets.push({ k: "比赛数据", t });
   }
 
-  // 6) 走势判断 / 赛后对照
+  // 6) 体能与赛程
+  const refISO = upcoming ? null : m.date;
+  const hr = teamRestDays(h.id, refISO), ar = teamRestDays(a.id, refISO);
+  if(hr != null && ar != null){
+    let t = upcoming
+      ? `距上一场比赛：${hn} ${hr} 天、${an} ${ar} 天`
+      : `本场赛前休息：${hn} ${hr} 天、${an} ${ar} 天`;
+    if(upcoming){
+      const hc = teamCongestion(h.id, m.date), ac = teamCongestion(a.id, m.date);
+      if(hc || ac) t += `；未来 14 天赛程：${hn} ${hc} 场、${an} ${ac} 场`;
+    }
+    if(Math.abs(hr - ar) >= 3) t += `，${hr > ar ? hn : an}休息更充分`;
+    t += "。";
+    bullets.push({ k: "体能与赛程", t });
+  }
+
+  // 7) 走势判断 / 赛后对照
   if(upcoming && model){
     const total = xh + xa;
     let t = `预期总进球 ${total.toFixed(1)}，${total >= 2.8 ? "节奏偏快，进球可能偏多" : total <= 2.2 ? "节奏偏慢，进球可能偏少" : "节奏中等"}。`;

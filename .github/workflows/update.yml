@@ -4,6 +4,8 @@ on:
   schedule:
     # 每天 04:17 UTC（北京时间 12:17），覆盖前一晚欧洲与当天上午巴西的比赛
     - cron: "17 4 * * *"
+    # 备用时段：GitHub 定时任务偶尔延迟或跳过，傍晚再补一次（北京时间 18:47）
+    - cron: "47 10 * * *"
   workflow_dispatch:
     inputs:
       deploy_only:
