@@ -887,7 +887,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
         </div>
       </div>
       <div class="sum-grid" id="perf-summary"></div>
-      <div class="table-hint">回测口径：用每场开赛前的模型预测与最终比分对比；方向命中指概率最高的一项与实际结果一致。</div>
+      <div class="table-hint">回测口径：这里评估的是纯数据模型（不含市场权重）；有盘口时线上的「综合预测」还会加入 70% 市场概率，通常会比纯模型更准。</div>
     </section>
 
     <section class="section">
@@ -1026,7 +1026,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
       <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
       <div class="lineup-compare" id="lineup-compare"></div>
 
-      <div class="pred-note">赔率来源 DraftKings（经 ESPN 接口），仅作参考；模型基于双方近三个赛季的攻防数据计算，不代表确定结果。赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+      <div class="pred-note">赔率来源 DraftKings（经 ESPN 接口）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
     </section>
 
     <section class="section">
@@ -1509,8 +1509,10 @@ function renderFixtures(){
         const h = TEAMS.get(String(f.home)), a = TEAMS.get(String(f.away));
         if(!h || !a) return "";
         const pd = f.pred;
-        const predLine = pd
-          ? `<div class="fix-pred"><span class="tag">模型</span><span>主胜 <b>${Math.round(pd.ph*100)}%</b></span><span>平 <b>${Math.round(pd.pd*100)}%</b></span><span>客胜 <b>${Math.round(pd.pa*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span></div>`
+        const fip = f.odds ? impliedProbs(f.odds.ml) : null;
+        const fbp = pd ? (fip ? blendProbs(pd, fip, 0.7) : [pd.ph, pd.pd, pd.pa]) : null;
+        const predLine = pd && fbp
+          ? `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span></div>`
           : "";
         return `<div class="fix-row" data-mid="${esc(f.id)}">
           <div class="fix-time">${fmtTime(f.date)}</div>
@@ -1922,18 +1924,20 @@ function renderTeamNext(tid){
     const oppId = isHome ? String(f.away) : String(f.home);
     const opp = TEAMS.get(oppId);
     const p = f.pred;
+    const ip = f.odds ? impliedProbs(f.odds.ml) : null;
+    const bp = p ? (ip ? blendProbs(p, ip, 0.7) : [p.ph, p.pd, p.pa]) : null;
     let probs = "";
-    if(p){
-      const w = isHome ? p.ph : p.pa;
-      const l = isHome ? p.pa : p.ph;
+    if(p && bp){
+      const w = isHome ? bp[0] : bp[2];
+      const l = isHome ? bp[2] : bp[0];
       probs = `<div class="next-probs">
           <span class="pb-h" style="width:${w*100}%"></span>
-          <span class="pb-d" style="width:${p.pd*100}%"></span>
+          <span class="pb-d" style="width:${bp[1]*100}%"></span>
           <span class="pb-a" style="width:${l*100}%"></span>
         </div>
         <div class="next-nums">
-          <span>本队胜 <b>${Math.round(w*100)}%</b></span>
-          <span>平 <b>${Math.round(p.pd*100)}%</b></span>
+          <span>${ip ? "综合" : "模型"} 本队胜 <b>${Math.round(w*100)}%</b></span>
+          <span>平 <b>${Math.round(bp[1]*100)}%</b></span>
           <span>负 <b>${Math.round(l*100)}%</b></span>
           <span>预期进球 本队 <b>${(isHome ? p.xgH : p.xgA).toFixed(1)}</b> · 对手 <b>${(isHome ? p.xgA : p.xgH).toFixed(1)}</b></span>
         </div>`;
@@ -1992,6 +1996,43 @@ function ahText(line){
 }
 
 function pct(p){ return Math.round((p || 0) * 100) + "%"; }
+
+function blendProbs(model, market, wMarket){
+  const w = wMarket == null ? 0.7 : wMarket;
+  const m = [model.ph, model.pd, model.pa];
+  return [0, 1, 2].map(i => w * market[i] + (1 - w) * m[i]);
+}
+
+function poissonRange(lambda, lo, hi){
+  lo = lo == null ? 0.1 : lo;
+  hi = hi == null ? 0.9 : hi;
+  let p = Math.exp(-lambda), cum = p, k = 0, low = null, high = null;
+  while(k <= 15){
+    if(low === null && cum >= lo) low = k;
+    if(high === null && cum >= hi) high = k;
+    if(cum >= 0.999 && high !== null) break;
+    k++;
+    p *= lambda / k;
+    cum += p;
+  }
+  return [low == null ? 0 : low, high == null ? 15 : high];
+}
+
+function confidenceLabel(model, ip, xlg){
+  if(!model) return "低";
+  const mp = [model.ph, model.pd, model.pa];
+  const max = Math.max(mp[0], mp[1], mp[2]);
+  const nMin = model.nH != null ? Math.min(model.nH, model.nA) : 10;
+  if(xlg || nMin < 12) return "低";
+  if(ip){
+    const mf = ip[0] >= ip[1] && ip[0] >= ip[2] ? 0 : (ip[2] >= ip[1] ? 2 : 1);
+    const pf = mp[0] >= mp[1] && mp[0] >= mp[2] ? 0 : (mp[2] >= mp[1] ? 2 : 1);
+    if(mf !== pf) return "低";
+  }
+  if(max >= 0.55 && nMin >= 25) return "高";
+  if(max >= 0.45) return "中";
+  return "低";
+}
 
 function formBlock(tid){
   const t = TEAMS.get(String(tid));
@@ -2094,20 +2135,26 @@ function renderPreMatch(m){
   } : null);
 
   if(model){
-    const diff = ip ? [model.ph - ip[0], model.pd - ip[1], model.pa - ip[2]] : null;
-    const market = ip ? (i) => `<div class="p">市场 ${pct(ip[i])}${diff ? ` (${diff[i] >= 0 ? "+" : ""}${Math.round(diff[i]*100)})` : ""}</div>` : () => "";
+    const mp = [model.ph, model.pd, model.pa];
+    const final = ip ? blendProbs(model, ip, 0.7) : mp;
+    const comp = ip ? (i) => `<div class="p">模型 ${pct(mp[i])} · 市场 ${pct(ip[i])}</div>` : () => "";
+    const conf = confidenceLabel(model, ip, pred && pred.xlg);
+    const range = poissonRange(model.xgH + model.xgA);
     const facts = pred ? `
         <span>大 2.5 球 <b>${pct(pred.o25)}</b></span>
         <span>小 2.5 球 <b>${pct(1 - pred.o25)}</b></span>
         <span>双方进球 <b>${pct(pred.btts)}</b></span>
         <span>最可能比分 <b>${pred.top.map(t => t[0]).join(" / ")}</b></span>
+        <span>总进球 80% 区间 <b>${range[0]}–${range[1]} 球</b></span>
         <span>样本 <b>${pred.nH}</b> / <b>${pred.nA}</b> 场</span>
+        <span>信心 <b>${conf}</b></span>
         ${pred.xlg ? `<span>含跨联赛数据，参考性降低</span>` : ""}` : `
+        <span>总进球 80% 区间 <b>${range[0]}–${range[1]} 球</b></span>
         <span>仅使用该场开赛前的数据，不含本场结果</span>`;
     $("#pred-card").innerHTML = `
       <div class="pred-head">
-        <span class="t">${pred ? "模型预测" : "赛前模型预测"}</span>
-        <span class="s">${pred ? "基于近三个赛季攻防数据" : "基于该场开赛前的数据"}</span>
+        <span class="t">${pred ? (ip ? "综合预测" : "模型预测") : "赛前模型预测"}</span>
+        <span class="s">${pred ? (ip ? "市场 70% + 模型 30%" : "基于近三个赛季攻防数据") : "基于该场开赛前的数据"}</span>
       </div>
       <div class="pred-xg">
         <div class="side"><span class="k">${esc(homeName)}</span><b>${model.xgH.toFixed(2)}</b></div>
@@ -2115,14 +2162,14 @@ function renderPreMatch(m){
         <div class="side away"><span class="k">${esc(awayName)}</span><b>${model.xgA.toFixed(2)}</b></div>
       </div>
       <div class="pred-bars">
-        <span class="pb-h" style="width:${model.ph*100}%"></span>
-        <span class="pb-d" style="width:${model.pd*100}%"></span>
-        <span class="pb-a" style="width:${model.pa*100}%"></span>
+        <span class="pb-h" style="width:${final[0]*100}%"></span>
+        <span class="pb-d" style="width:${final[1]*100}%"></span>
+        <span class="pb-a" style="width:${final[2]*100}%"></span>
       </div>
       <div class="pred-legend">
-        <div><div class="k">主胜</div><div class="v">${pct(model.ph)}</div>${market(0)}</div>
-        <div><div class="k">平</div><div class="v">${pct(model.pd)}</div>${market(1)}</div>
-        <div><div class="k">客胜</div><div class="v">${pct(model.pa)}</div>${market(2)}</div>
+        <div><div class="k">主胜</div><div class="v">${pct(final[0])}</div>${comp(0)}</div>
+        <div><div class="k">平</div><div class="v">${pct(final[1])}</div>${comp(1)}</div>
+        <div><div class="k">客胜</div><div class="v">${pct(final[2])}</div>${comp(2)}</div>
       </div>
       <div class="pred-facts">${facts}</div>`;
     $("#pred-card").hidden = false;
@@ -2200,18 +2247,22 @@ function renderInsight(m){
   const xa = model ? (model.xgA != null ? model.xgA : model.xa) : null;
   const bullets = [];
 
+  const mp = model ? [model.ph, model.pd, model.pa] : null;
+  const final = model ? (ip ? blendProbs(model, ip, 0.7) : mp) : null;
   let fav = "even";
-  if(model){
-    if(model.ph > model.pa + 0.08) fav = "home";
-    else if(model.pa > model.ph + 0.08) fav = "away";
+  if(final){
+    if(final[0] > final[2] + 0.08) fav = "home";
+    else if(final[2] > final[0] + 0.08) fav = "away";
   }
 
   // 1) 胜负天平 / 赛前模型
   if(model){
-    let t = `主胜 ${pct(model.ph)}、平 ${pct(model.pd)}、客胜 ${pct(model.pa)}；预期进球 ${xh.toFixed(1)}–${xa.toFixed(1)}，总进球期望 ${(xh + xa).toFixed(1)}。`;
+    let t = `${ip ? "综合概率（市场 70% + 模型 30%）" : "模型概率"}：主胜 ${pct(final[0])}、平 ${pct(final[1])}、客胜 ${pct(final[2])}`;
+    if(ip) t += `（纯模型 ${pct(mp[0])}/${pct(mp[1])}/${pct(mp[2])}，市场 ${pct(ip[0])}/${pct(ip[1])}/${pct(ip[2])}）`;
+    t += `；预期进球 ${xh.toFixed(1)}–${xa.toFixed(1)}，总进球期望 ${(xh + xa).toFixed(1)}。`;
     if(ip){
       const marketFav = ip[0] >= ip[1] && ip[0] >= ip[2] ? "home" : (ip[2] >= ip[1] ? "away" : "even");
-      t += ` 市场去水概率 ${pct(ip[0])}/${pct(ip[1])}/${pct(ip[2])}，${marketFav === fav ? "模型与市场方向一致" : "模型与市场存在分歧，需谨慎看待" }。`;
+      t += marketFav === fav ? " 综合方向与市场一致。" : " 综合方向与市场存在分歧，需谨慎看待。";
     }
     bullets.push({ k: upcoming ? "胜负天平" : "赛前模型", t });
   } else if(ip){

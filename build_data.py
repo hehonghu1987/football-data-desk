@@ -1158,10 +1158,15 @@ def predict_match(home_id, away_id, league_code, ratings):
         return None
     if rh["lg"] == ra["lg"]:
         bh, ba = rh["bh"], rh["ba"]
+        ha, hd, aa, ad = rh["HA"], rh["HD"], ra["AA"], ra["AD"]
     else:
         bh, ba = (rh["bh"] + ra["bh"]) / 2, (rh["ba"] + ra["ba"]) / 2
-    lh = min(max(bh * rh["HA"] * ra["AD"], 0.2), 4.5)
-    la = min(max(ba * ra["AA"] * rh["HD"], 0.2), 4.5)
+        # 跨联赛时向均值收缩，降低升降级/不同联赛基准带来的极端判断
+        s = 0.6
+        ha, hd = 1 + s * (rh["HA"] - 1), 1 + s * (rh["HD"] - 1)
+        aa, ad = 1 + s * (ra["AA"] - 1), 1 + s * (ra["AD"] - 1)
+    lh = min(max(bh * ha * ad, 0.2), 4.5)
+    la = min(max(ba * aa * hd, 0.2), 4.5)
     out = poisson_probs(lh, la)
     out["nH"], out["nA"] = rh["n"], ra["n"]
     out["xlg"] = rh["lg"] != ra["lg"]
