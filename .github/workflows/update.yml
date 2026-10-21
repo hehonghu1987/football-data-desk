@@ -74,6 +74,7 @@ jobs:
         run: |
           mkdir -p dist
           cp football_database.html dist/index.html
+          cp sw.js dist/sw.js
 
       - name: 记录构建时间
         run: |
