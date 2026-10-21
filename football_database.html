@@ -574,6 +574,22 @@ table.stats tbody tr:last-child td{border-bottom:0}
 .cmp-item .v b{font-weight:500}
 .cmp-item .v b.own{color:var(--accent);font-weight:700}
 
+/* ---------- insight ---------- */
+.insight-lead{
+  font-size:13.5px;line-height:1.9;color:var(--ink);
+  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);
+  border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;
+}
+.insight-list{list-style:none;margin:0;padding:0;display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.insight-list li{background:var(--surface);padding:12px 16px;display:grid;grid-template-columns:86px minmax(0,1fr);gap:14px;align-items:start}
+.insight-list .k{font-size:10.5px;font-weight:600;color:var(--accent);letter-spacing:.04em;padding-top:2px}
+.insight-list p{margin:0;font-size:12px;line-height:1.85;color:var(--ink)}
+.insight-note{font-size:10px;color:var(--muted);margin-top:10px;line-height:1.7}
+@media (max-width:640px){
+  .insight-list li{grid-template-columns:minmax(0,1fr);gap:4px;padding:11px 13px}
+  .insight-list .k{padding-top:0}
+}
+
 /* ---------- pre-match ---------- */
 .odds-grid{
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
@@ -970,6 +986,16 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
     <a class="backlink" href="#/" id="match-back">← 返回</a>
     <div id="match-hero"></div>
     <div id="match-compare"></div>
+
+    <section class="section insight" id="insight" hidden>
+      <div class="section-head">
+        <h2 class="section-title">智能分析</h2>
+        <span class="section-note">基于本站数据与模型自动生成</span>
+      </div>
+      <div class="insight-lead" id="insight-lead"></div>
+      <ul class="insight-list" id="insight-list"></ul>
+      <div class="insight-note">分析由数据规则自动生成，不含主观判断；样本不足或跨联赛时结论可靠性下降。</div>
+    </section>
 
     <section class="section pre-match" id="pre-match" hidden>
       <div class="section-head">
@@ -2038,6 +2064,194 @@ function renderPreMatch(m){
   $("#lineup-head").hidden = !lu;
 }
 
+function teamAvg(tid){
+  const s = summarize(teamMatches(tid), tid).avg;
+  const v = k => (s[k] ? s[k].own : null);
+  return {
+    shots: v("shots"), sot: v("sot"), corners: v("corners"),
+    poss: v("possession"), fouls: v("fouls"), yellow: v("yellow")
+  };
+}
+
+function sideForm(tid, side, n){
+  let ms = teamMatches(tid);
+  if(side === "home") ms = ms.filter(m => String(m.home) === String(tid));
+  else if(side === "away") ms = ms.filter(m => String(m.away) === String(tid));
+  ms = ms.slice(0, n);
+  const rec = recordOf(ms, tid);
+  let gf = 0, ga = 0, c = 0;
+  for(const m of ms){
+    if(m.hs == null || m.as == null) continue;
+    const own = String(m.home) === String(tid) ? m.hs : m.as;
+    const opp = String(m.home) === String(tid) ? m.as : m.hs;
+    gf += own; ga += opp; c++;
+  }
+  return { rec, gf: c ? gf / c : null, ga: c ? ga / c : null, n: c, ms };
+}
+
+function fmtRec(r){ return `${r.w}胜${r.d}平${r.l}负`; }
+
+function renderInsight(m){
+  const sec = $("#insight");
+  const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+  if(!h || !a){ sec.hidden = true; return; }
+  const hn = h.cn || h.name, an = a.cn || a.name;
+  const upcoming = m.hs == null && m.as == null;
+  const model = upcoming ? m.pred : m.pre;
+  const odds = upcoming ? m.odds : null;
+  const ip = odds ? impliedProbs(odds.ml) : null;
+  const xh = model ? (model.xgH != null ? model.xgH : model.xh) : null;
+  const xa = model ? (model.xgA != null ? model.xgA : model.xa) : null;
+  const bullets = [];
+
+  let fav = "even";
+  if(model){
+    if(model.ph > model.pa + 0.08) fav = "home";
+    else if(model.pa > model.ph + 0.08) fav = "away";
+  }
+
+  // 1) 胜负天平 / 赛前模型
+  if(model){
+    let t = `主胜 ${pct(model.ph)}、平 ${pct(model.pd)}、客胜 ${pct(model.pa)}；预期进球 ${xh.toFixed(1)}–${xa.toFixed(1)}，总进球期望 ${(xh + xa).toFixed(1)}。`;
+    if(ip){
+      const marketFav = ip[0] >= ip[1] && ip[0] >= ip[2] ? "home" : (ip[2] >= ip[1] ? "away" : "even");
+      t += ` 市场去水概率 ${pct(ip[0])}/${pct(ip[1])}/${pct(ip[2])}，${marketFav === fav ? "模型与市场方向一致" : "模型与市场存在分歧，需谨慎看待" }。`;
+    }
+    bullets.push({ k: upcoming ? "胜负天平" : "赛前模型", t });
+  } else if(ip){
+    const marketFav = ip[0] >= ip[1] && ip[0] >= ip[2] ? "home" : (ip[2] >= ip[1] ? "away" : "even");
+    fav = marketFav;
+    bullets.push({ k: "市场倾向", t: `本站模型缺少一方联赛数据，市场去水概率为主胜 ${pct(ip[0])}、平 ${pct(ip[1])}、客胜 ${pct(ip[2])}。` });
+  }
+
+  // 2) 近期状态
+  const h5 = sideForm(h.id, "all", 5), a5 = sideForm(a.id, "all", 5);
+  const h10 = sideForm(h.id, "all", 10), a10 = sideForm(a.id, "all", 10);
+  if(h5.ms.length && a5.ms.length){
+    let t = `${hn}近 5 场 ${fmtRec(h5.rec)}`;
+    if(h10.gf != null) t += `，近 10 场场均进 ${h10.gf.toFixed(1)} 失 ${h10.ga.toFixed(1)}`;
+    t += `；${an}近 5 场 ${fmtRec(a5.rec)}`;
+    if(a10.gf != null) t += `，近 10 场场均进 ${a10.gf.toFixed(1)} 失 ${a10.ga.toFixed(1)}`;
+    t += "。";
+    const hw = h5.rec.w - h5.rec.l, aw = a5.rec.w - a5.rec.l;
+    if(hw - aw >= 3) t += ` 主队近期状态明显更好。`;
+    else if(aw - hw >= 3) t += ` 客队近期状态明显更好。`;
+    bullets.push({ k: "近期状态", t });
+  }
+
+  // 3) 主客场表现
+  const hh = sideForm(h.id, "home", 6), aa = sideForm(a.id, "away", 6);
+  if(hh.ms.length && aa.ms.length){
+    let t = `${hn}最近 6 个主场 ${fmtRec(hh.rec)}`;
+    if(hh.gf != null) t += `（场均进 ${hh.gf.toFixed(1)} 失 ${hh.ga.toFixed(1)}）`;
+    t += `；${an}最近 6 个客场 ${fmtRec(aa.rec)}`;
+    if(aa.gf != null) t += `（场均进 ${aa.gf.toFixed(1)} 失 ${aa.ga.toFixed(1)}）`;
+    t += "。";
+    bullets.push({ k: "主客场", t });
+  }
+
+  // 4) 交锋记录
+  const meetings = h2hMatches(h.id, a.id, m.id).slice(0, 10);
+  if(meetings.length){
+    const rec = recordOf(meetings, h.id);
+    let goals = 0;
+    for(const x of meetings) goals += (x.hs || 0) + (x.as || 0);
+    const last = meetings[0];
+    const lhTeam = TEAMS.get(String(last.home)), laTeam = TEAMS.get(String(last.away));
+    let t = `近 ${meetings.length} 次交锋，${hn}${fmtRec(rec)}，场均总进球 ${(goals / meetings.length).toFixed(1)}；最近一次 ${fmtDate(last.date)} ${lhTeam ? (lhTeam.cn || lhTeam.name) : ""} ${last.hs}–${last.as} ${laTeam ? (laTeam.cn || laTeam.name) : ""}。`;
+    if(meetings.length >= 4 && rec.d / meetings.length >= 0.35) t += ` 历史交锋平局比例偏高。`;
+    bullets.push({ k: "交锋记录", t });
+  }
+
+  // 5) 战术与阵容
+  if(upcoming){
+    const lh = (DATA.lineups || {})[String(h.id)];
+    const la = (DATA.lineups || {})[String(a.id)];
+    const hav = teamAvg(h.id), aav = teamAvg(a.id);
+    let t = "";
+    if(lh && la && lh.f && la.f) t += `参考阵型：${hn} ${lh.f}，${an} ${la.f}。`;
+    if(hav.poss != null && aav.poss != null){
+      t += `近 30 场场均控球 ${hav.poss.toFixed(0)}% / ${aav.poss.toFixed(0)}%，射门 ${hav.shots ? hav.shots.toFixed(1) : "—"} / ${aav.shots ? aav.shots.toFixed(1) : "—"}，角球 ${hav.corners ? hav.corners.toFixed(1) : "—"} / ${aav.corners ? aav.corners.toFixed(1) : "—"}。`;
+      if(hav.poss - aav.poss >= 8) t += ` ${hn}更可能掌握球权，${an}需要依靠转换和反击。`;
+      else if(aav.poss - hav.poss >= 8) t += ` ${an}更可能掌握球权，${hn}需要依靠转换和反击。`;
+      else t += ` 双方控球风格接近，中场争夺可能决定走势。`;
+    }
+    if(t) bullets.push({ k: "战术阵容", t });
+  } else if(m.stats){
+    const s = m.stats, sh = s.home || {}, sa = s.away || {};
+    let t = `本场控球 ${sh.possession != null ? Number(sh.possession).toFixed(0) : "—"}%–${sa.possession != null ? Number(sa.possession).toFixed(0) : "—"}%，射门 ${sh.shots ?? "—"}–${sa.shots ?? "—"}，射正 ${sh.sot ?? "—"}–${sa.sot ?? "—"}，角球 ${sh.corners ?? "—"}–${sa.corners ?? "—"}。`;
+    if(sh.possession != null && sa.possession != null && Math.abs(sh.possession - sa.possession) >= 12){
+      t += ` ${sh.possession > sa.possession ? hn : an}掌控了更多球权。`;
+    }
+    const hEff = sh.shots ? (sh.sot / sh.shots) * 100 : null;
+    const aEff = sa.shots ? (sa.sot / sa.shots) * 100 : null;
+    if(hEff != null && aEff != null){
+      t += ` 射正率 ${hEff.toFixed(0)}% 对 ${aEff.toFixed(0)}%`;
+      t += hEff - aEff >= 15 ? `，${hn}的射门质量更高。` : aEff - hEff >= 15 ? `，${an}的射门质量更高。` : "，双方射门质量接近。";
+    }
+    bullets.push({ k: "比赛数据", t });
+  }
+
+  // 6) 走势判断 / 赛后对照
+  if(upcoming && model){
+    const total = xh + xa;
+    let t = `预期总进球 ${total.toFixed(1)}，${total >= 2.8 ? "节奏偏快，进球可能偏多" : total <= 2.2 ? "节奏偏慢，进球可能偏少" : "节奏中等"}。`;
+    if(m.pred){
+      t += ` 大 2.5 球概率 ${pct(m.pred.o25)}，双方进球概率 ${pct(m.pred.btts)}；最可能比分 ${m.pred.top.map(x => x[0]).join(" / ")}。`;
+    }
+    const hy = havYellow(h.id), ay = havYellow(a.id);
+    if(hy != null && ay != null) t += ` 两队近 30 场场均黄牌合计 ${(hy + ay).toFixed(1)} 张${hy + ay >= 5 ? "，对抗可能较激烈" : ""}。`;
+    bullets.push({ k: "走势预判", t });
+  } else if(!upcoming && m.pre){
+    const predFav = m.pre.ph > m.pre.pa + 0.08 ? hn : (m.pre.pa > m.pre.ph + 0.08 ? an : null);
+    const winner = m.hs > m.as ? hn : (m.hs < m.as ? an : null);
+    let t = `赛前模型预期进球 ${m.pre.xh.toFixed(1)}–${m.pre.xa.toFixed(1)}，实际比分 ${m.hs}–${m.as}`;
+    t += predFav ? `；赛前更看好${predFav}，${winner ? (winner === predFav ? "结果与模型方向一致" : "结果与模型方向相反") : "最终打平"}。` : "；赛前判断双方接近，最终打平。";
+    bullets.push({ k: "模型对照", t });
+  }
+
+  if(!bullets.length){ sec.hidden = true; return; }
+  sec.hidden = false;
+
+  let lead = "";
+  if(upcoming){
+    if(model){
+      const favName = fav === "home" ? hn : fav === "away" ? an : null;
+      lead = favName
+        ? `${favName}略占上风：模型预期进球 ${xh.toFixed(1)}–${xa.toFixed(1)}`
+        : `双方胜面接近：模型预期进球 ${xh.toFixed(1)}–${xa.toFixed(1)}`;
+      lead += `，${(xh + xa) >= 2.8 ? "比赛节奏可能偏快" : (xh + xa) <= 2.2 ? "比赛节奏可能偏慢" : "整体节奏中等"}。`;
+      if(ip){
+        const marketFav = ip[0] >= ip[1] && ip[0] >= ip[2] ? "home" : (ip[2] >= ip[1] ? "away" : "even");
+        lead += ` 市场与模型${marketFav === fav ? "方向一致" : "存在分歧"}。`;
+      }
+    } else if(ip){
+      const favName = fav === "home" ? hn : fav === "away" ? an : "平局";
+      lead = `缺少完整模型数据，仅从盘口看市场更倾向${favName}。`;
+    } else {
+      lead = "该场可用数据有限，以下为基于近期战绩与交锋的简要分析。";
+    }
+  } else {
+    const winner = m.hs > m.as ? hn : (m.hs < m.as ? an : null);
+    lead = winner ? `${winner}取胜，比分 ${m.hs}–${m.as}。` : `双方 ${m.hs}–${m.as} 战平。`;
+    const s = m.stats;
+    if(s && s.home && s.away){
+      const sh = s.home.shots, sa = s.away.shots;
+      if(sh != null && sa != null){
+        lead += ` 全场射门 ${sh}–${sa}、射正 ${s.home.sot ?? "—"}–${s.away.sot ?? "—"}。`;
+      }
+    }
+  }
+
+  $("#insight-lead").textContent = lead;
+  $("#insight-list").innerHTML = bullets.map(b => `<li><span class="k">${esc(b.k)}</span><p>${esc(b.t)}</p></li>`).join("");
+}
+
+function havYellow(tid){
+  const a = teamAvg(tid);
+  return a.yellow;
+}
+
 function renderMatch(id){
   const m = MATCH_BY_ID.get(String(id));
   if(!m){ location.hash = "#/"; return; }
@@ -2101,6 +2315,7 @@ function renderMatch(id){
     : "";
 
   renderPreMatch(m);
+  renderInsight(m);
 
   const allMeetings = h2hMatches(h.id, a.id, m.id);
   const list = allMeetings.slice(0, 10);
