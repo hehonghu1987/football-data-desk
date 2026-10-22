@@ -1174,9 +1174,14 @@ const LEAGUE_DOT = {
   "英超":"#6B2C91","西甲":"#D97706","意甲":"#2563A8","德甲":"#C0392B",
   "法甲":"#1D4E89","欧冠":"#1B3C8C","欧联杯":"#C2650F","英冠":"#0F766E","巴西甲":"#1E8E3E",
   "足总杯":"#B45309","英联杯":"#8A5A2B","国王杯":"#C2410C","意大利杯":"#0E7490",
-  "德国杯":"#7C3AED","法国杯":"#2563EB","巴西杯":"#15803D"
+  "德国杯":"#7C3AED","法国杯":"#2563EB","巴西杯":"#15803D",
+  "荷甲":"#E11D48","葡超":"#0EA5E9","土超":"#F59E0B","比甲":"#8B5CF6",
+  "奥甲":"#EF4444","希腊超":"#14B8A6","苏超":"#6366F1","挪超":"#10B981",
+  "欧冠资格赛":"#64748B","欧联杯资格赛":"#94A3B8","欧协联":"#0D9488","欧协联资格赛":"#5EEAD4"
 };
 const LEAGUE_ORDER = ["英超","西甲","意甲","德甲","法甲","欧冠","欧联杯",
+  "荷甲","葡超","土超","比甲","奥甲","希腊超","苏超","挪超",
+  "欧冠资格赛","欧联杯资格赛","欧协联","欧协联资格赛",
   "足总杯","英联杯","国王杯","意大利杯","德国杯","法国杯","英冠","巴西甲","巴西杯"];
 const CUP_LEAGUES = new Set(["足总杯","英联杯","国王杯","意大利杯","德国杯","法国杯","巴西杯"]);
 function leagueChip(label){
@@ -2102,7 +2107,8 @@ function renderPreMatch(m){
   const pred = isUpcoming ? m.pred : null;
   const pre = isUpcoming ? null : m.pre;
   const hasLineup = isUpcoming && !!((DATA.lineups || {})[String(m.home)] || (DATA.lineups || {})[String(m.away)]);
-  if(!odds && !pred && !pre && !hasLineup){ sec.hidden = true; return; }
+  const hasMarket = isUpcoming ? !!odds : !!m.mkt;
+  if(!odds && !pred && !pre && !hasLineup && !hasMarket){ sec.hidden = true; return; }
   sec.hidden = false;
   $("#pre-match-note").textContent = isUpcoming
     ? `${fullTime(m.date)} · ${m.venue || ""}`
@@ -2193,6 +2199,28 @@ function renderPreMatch(m){
         <div><div class="k">客胜</div><div class="v">${pct(final[2])}</div>${comp(2)}</div>
       </div>
       <div class="pred-facts">${facts}</div>`;
+    $("#pred-card").hidden = false;
+  } else if(ip){
+    $("#pred-card").innerHTML = `
+      <div class="pred-head">
+        <span class="t">${isUpcoming ? "市场预测" : "赛前市场"}</span>
+        <span class="s">缺少一方联赛数据，仅显示${isUpcoming ? "盘口" : "赛前盘口"}</span>
+      </div>
+      <div class="pred-bars">
+        <span class="pb-h" style="width:${ip[0]*100}%"></span>
+        <span class="pb-d" style="width:${ip[1]*100}%"></span>
+        <span class="pb-a" style="width:${ip[2]*100}%"></span>
+      </div>
+      <div class="pred-legend">
+        <div><div class="k">主胜</div><div class="v">${pct(ip[0])}</div></div>
+        <div><div class="k">平</div><div class="v">${pct(ip[1])}</div></div>
+        <div><div class="k">客胜</div><div class="v">${pct(ip[2])}</div></div>
+      </div>
+      <div class="pred-facts">
+        <span>纯模型不可用</span>
+        <span>信心 <b>低</b></span>
+        ${isUpcoming ? "" : "<span>该场赛前盘口</span>"}
+      </div>`;
     $("#pred-card").hidden = false;
   } else if(isUpcoming){
     $("#pred-card").hidden = false;

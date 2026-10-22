@@ -1060,6 +1060,117 @@ def player_cn(name):
 
 
 RATING_LEAGUES = {"eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "eng.2", "bra.1"}
+
+# 欧战球队的国内联赛（仅 ESPN 公开可用的联赛）；标签用于页面显示
+EURO_DOMESTIC = {
+    "aut.1": "奥甲",
+    "bel.1": "比甲",
+    "gre.1": "希腊超",
+    "ned.1": "荷甲",
+    "nor.1": "挪超",
+    "por.1": "葡超",
+    "sco.1": "苏超",
+    "tur.1": "土超",
+}
+
+
+ALL_LEAGUES = {
+    "uefa.champions": ("欧冠", "uefa.champions"),
+    "uefa.champions_qual": ("欧冠资格赛", "uefa.champions_qual"),
+    "uefa.europa": ("欧联杯", "uefa.europa"),
+    "uefa.europa_qual": ("欧联杯资格赛", "uefa.europa_qual"),
+    "uefa.conference": ("欧协联", "uefa.conference"),
+    "uefa.conference_qual": ("欧协联资格赛", "uefa.conference_qual"),
+}
+
+
+def parse_all_schedule(d, season):
+    """解析 all/teams/{id}/schedule，仅保留欧战与资格赛（不含友谊赛）。"""
+    out = []
+    for e in d.get("events") or []:
+        slug = ((e.get("league") or {}).get("slug")) or ""
+        if slug not in ALL_LEAGUES:
+            continue
+        label, code = ALL_LEAGUES[slug]
+        comps = e.get("competitions") or []
+        if not comps:
+            continue
+        c = comps[0]
+        status = (c.get("status") or {}).get("type") or {}
+        home = away = None
+        for t in c.get("competitors", []):
+            remember_team(t.get("team"))
+            if t.get("homeAway") == "home":
+                home = t
+            elif t.get("homeAway") == "away":
+                away = t
+        if not home or not away:
+            continue
+        out.append({
+            "id": str(e["id"]),
+            "date": e.get("date"),
+            "league": label,
+            "leagueCode": code,
+            "season": (e.get("season") or {}).get("year") or season,
+            "completed": bool(status.get("completed")),
+            "state": status.get("state") or "",
+            "home": str(home["team"]["id"]),
+            "away": str(away["team"]["id"]),
+            "hs": score_value(home),
+            "as": score_value(away),
+            "so": None,
+            "neutral": bool(c.get("neutralSite")),
+            "venue": ((c.get("venue") or {}).get("fullName")) or "",
+            "attendance": to_int(c.get("attendance")),
+        })
+    return out
+
+
+def fetch_all_schedule(team_id, season, refresh=False):
+    name = f"allsched_{team_id}_{season}.json"
+    current = season >= CURRENT_SEASON
+    cached = None if refresh else read_cache(name, max_age=(6 * 3600 if current else None))
+    if cached is not None:
+        if isinstance(cached, dict):
+            for t in cached.get("teams", []):
+                remember_team(t)
+            return cached.get("rows", [])
+        return cached
+    try:
+        d = get_json(f"{API}/all/teams/{team_id}/schedule?season={season}")
+    except Exception as e:
+        log(f"  跨赛事赛程失败 {team_id} {season}: {e}")
+        return []
+    metas = extract_teams_meta(d)
+    for t in metas:
+        remember_team(t)
+    rows = parse_all_schedule(d, season)
+    write_cache(name, {"rows": rows, "teams": metas})
+    return rows
+
+
+def fetch_team_league(team_id):
+    """识别球队的国内联赛代码；欧战球队常见 defaultLeague 指向 uefa.*。"""
+    name = f"teamlg_{team_id}.json"
+    cached = read_cache(name)
+    if cached is not None:
+        return cached.get("league")
+    try:
+        d = get_json(f"{CORE}/teams/{team_id}")
+    except Exception:
+        return None
+    ref = ((d.get("defaultLeague") or {}).get("$ref")) or ""
+    code = ref.split("/leagues/")[-1].split("?")[0] if "/leagues/" in ref else ""
+    if not code or code.startswith("uefa."):
+        slug = d.get("slug") or ""
+        prefix = slug.split(".")[0] if "." in slug else ""
+        # slug 形如 tur.fenerbahce / por.porto；team.* 等无法识别
+        if prefix and prefix not in ("team", "uefa"):
+            code = f"{prefix}.1"
+    if not code or code.startswith("uefa."):
+        code = None
+    write_cache(name, {"league": code})
+    return code
 RATING_HALF_LIFE = 300.0
 RATING_SHRINK = 8.0
 
@@ -1425,7 +1536,7 @@ def main():
     # 1) 球队（杯赛不拉球队名单，只借用已收录球队）
     teams = {}
     for lg in leagues:
-        if lg.get("support_for"):
+        if lg.get("support_for") or lg.get("skip_team_list"):
             continue
         rows = fetch_teams(lg, refresh=args.refresh)
         for t in rows:
@@ -1436,10 +1547,52 @@ def main():
                 cur["currentLeagues"].append(lg["label"])
         log(f"  {lg['label']}: {len(rows)} 队")
 
+    # 1.5) 欧战球队国内联赛补齐（仅 ESPN 公开可用的联赛）
+    covered = {"英超", "西甲", "意甲", "德甲", "法甲", "英冠", "巴西甲"}
+    extra = {}
+    euro_teams = [t for t in teams.values()
+                  if any(x in t.get("currentLeagues", []) for x in ("欧冠", "欧联杯"))]
+    euro_n = 0
+    for t in euro_teams:
+        if set(t.get("currentLeagues", [])) & covered:
+            continue
+        euro_n += 1
+        code = fetch_team_league(t["id"])
+        if code in EURO_DOMESTIC:
+            extra.setdefault(code, set()).add(t["id"])
+    for code, ids in extra.items():
+        label = EURO_DOMESTIC[code]
+        for tid in ids:
+            t = teams[tid]
+            if label not in t["currentLeagues"]:
+                t["currentLeagues"].append(label)
+            if label not in t["leagues"]:
+                t["leagues"].append(label)
+        leagues.append({
+            "label": label, "code": code, "cat": "major",
+            "seasons": SEASONS[:2], "team_scope": sorted(ids),
+            "skip_team_list": True, "no_scoreboard": True,
+        })
+    if extra:
+        RATING_LEAGUES.update(extra.keys())
+        log(f"  欧战国内联赛补齐：{euro_n} 支球队，覆盖 {len(extra)} 个联赛")
+    for label, code in (("欧冠资格赛", "uefa.champions_qual"),
+                        ("欧联杯资格赛", "uefa.europa_qual"),
+                        ("欧协联", "uefa.conference"),
+                        ("欧协联资格赛", "uefa.conference_qual")):
+        leagues.append({
+            "label": label, "code": code, "cat": "major",
+            "seasons": [], "skip_team_list": True, "no_scoreboard": True,
+        })
+
     # 2) 赛程
     jobs = []
     for lg in leagues:
-        if lg.get("support_for"):
+        if lg.get("team_scope"):
+            for tid in lg["team_scope"]:
+                for s in lg["seasons"]:
+                    jobs.append((lg, tid, s))
+        elif lg.get("support_for"):
             for t in teams.values():
                 if any(x in t.get("currentLeagues", []) for x in lg["support_for"]):
                     for s in lg["seasons"]:
@@ -1464,6 +1617,20 @@ def main():
             if done % 60 == 0:
                 log(f"    赛程 {done}/{len(jobs)}，已收集 {len(events)} 场")
 
+    # 2.5) 欧战球队跨赛事补充（资格赛、欧协联）
+    all_jobs = [(t["id"], s) for t in euro_teams for s in SEASONS[:2]]
+    if all_jobs:
+        added = 0
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            futs = {ex.submit(fetch_all_schedule, tid, s, args.refresh): (tid, s)
+                    for tid, s in all_jobs}
+            for fut in as_completed(futs):
+                for ev in fut.result():
+                    if ev["id"] not in events:
+                        events[ev["id"]] = ev
+                        added += 1
+        log(f"  欧战跨赛事补充：请求 {len(all_jobs)} 个，新增 {added} 场")
+
     # 3) 未来 8 天比分板（今日赛程 + 当天赛果）
     today = datetime.now()
     fixtures = {}
@@ -1471,6 +1638,8 @@ def main():
     for offset in range(-1, 9):
         ds = (today + timedelta(days=offset)).strftime("%Y%m%d")
         for lg in leagues:
+            if lg.get("no_scoreboard"):
+                continue
             sb_jobs.append((lg, ds))
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         futs = [ex.submit(fetch_scoreboard, lg, ds, args.refresh) for lg, ds in sb_jobs]
