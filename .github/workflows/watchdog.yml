@@ -1,0 +1,49 @@
+name: 数据更新看门狗
+
+on:
+  schedule:
+    # 每天 14:17 UTC（北京时间 22:17）检查线上数据是否过期
+    - cron: "17 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检查线上数据时间
+        id: check
+        run: |
+          python3 - <<'PY'
+          import datetime, os, re, urllib.request
+
+          url = ("https://hehonghu1987.github.io/football-data-desk/?v="
+                 + str(int(datetime.datetime.now().timestamp())))
+          stale = True
+          try:
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+              html = urllib.request.urlopen(req, timeout=90).read().decode("utf-8", "ignore")
+              m = re.search(r'"generatedAt":"([^"]+)"', html)
+              if not m:
+                  raise RuntimeError("页面里没有 generatedAt")
+              gen = datetime.datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
+              now = datetime.datetime.now(datetime.timezone.utc)
+              age = (now - gen).total_seconds() / 3600
+              print(f"线上数据时间 {gen.isoformat()}，距今 {age:.1f} 小时")
+              stale = age > 30
+          except Exception as e:
+              print("检查失败，按过期处理：", e)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write("stale=%s\n" % ("true" if stale else "false"))
+          PY
+
+      - name: 数据过期则触发重建
+        if: steps.check.outputs.stale == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run update.yml --repo "${{ github.repository }}" --ref main
+          echo "线上数据超过 30 小时未更新，已触发 update.yml"
