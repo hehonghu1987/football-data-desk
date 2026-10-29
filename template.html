@@ -201,6 +201,7 @@ input{font:inherit}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);background:var(--ink);color:#fff;font-size:12px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:200;box-shadow:0 8px 24px -8px rgba(18,33,26,.5)}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .export-btn{margin-left:auto;margin-right:10px}
+.index-toggle{margin-left:auto}
 .match-tools{display:flex;justify-content:flex-end;margin:-6px 0 10px}
 .theme-btn .sun{display:none}
 .theme-btn .moon{display:block}
@@ -984,9 +985,10 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
     <section class="section">
       <div class="section-head">
         <h2 class="section-title">球队索引</h2>
+        <button type="button" class="chip-btn index-toggle" id="index-toggle" aria-pressed="false" aria-controls="team-index">展开</button>
         <span class="section-note">点击球队查看近 30 场逐场数据</span>
       </div>
-      <div id="team-index"></div>
+      <div id="team-index" hidden></div>
     </section>
   </section>
 
@@ -1408,6 +1410,7 @@ const state = {
   h2hOpp: null,
   h2hSide: "all",
   mvSide: "all",
+  indexOpen: false,
   h2hComp: "all",
   perfDays: 30,
   id: null,
@@ -2331,10 +2334,29 @@ function renderHome(){
   renderRecent();
   renderModelPerf();
   renderIndex();
+  syncIndexToggle();
+}
+
+function syncIndexToggle(){
+  const btn = $("#index-toggle"), box = $("#team-index");
+  if(!btn || !box) return;
+  box.hidden = !state.indexOpen;
+  btn.setAttribute("aria-pressed", state.indexOpen ? "true" : "false");
+  const n = document.querySelectorAll("#team-index .team-chip").length;
+  btn.textContent = state.indexOpen ? "收起" : `展开（${n} 支）`;
 }
 
 $("#share-btn")?.addEventListener("click", sharePage);
 $("#export-daily")?.addEventListener("click", exportDailyCard);
+$("#index-toggle")?.addEventListener("click", () => {
+  state.indexOpen = !state.indexOpen;
+  syncIndexToggle();
+  if(state.indexOpen){
+    const box = $("#team-index");
+    if(box) box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+});
+
 $("#mv-h2h-side")?.addEventListener("click", e => {
   const b = e.target.closest("[data-side]");
   if(!b) return;
