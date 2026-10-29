@@ -2077,27 +2077,34 @@ function renderIndex(){
   const cur = t => Array.isArray(t.currentLeagues) ? t.currentLeagues : [];
   const usable = t => (t.currentLeagues || []).length > 0 || teamMatches(t.id).length >= 3;
   const allTeams = Array.from(TEAMS.values());
+  const EURO = new Set(["欧冠", "欧联杯", "欧冠资格赛", "欧联杯资格赛", "欧协联", "欧协联资格赛"]);
+  /* 主联赛：当前联赛优先（跳过欧战），其次曾效力联赛 */
+  const primaryOf = t => {
+    const c = cur(t).filter(lg => !EURO.has(lg));
+    if(c.length) return c[0];
+    if(cur(t).length) return cur(t)[0];
+    const hist = Array.isArray(t.leagues) ? t.leagues : [];
+    const h = hist.filter(lg => !EURO.has(lg));
+    if(h.length) return h[0];
+    return hist.length ? hist[0] : "其他";
+  };
+  /* 归属判定：主联赛命中，或当前参赛该联赛（保证欧战名单完整） */
+  const inGroup = (t, lg) => primaryOf(t) === lg || cur(t).includes(lg);
   let groups = [];
   if(state.league === "all"){
+    // 每个联赛一个组：主联赛归属（当前联赛优先，其次曾效力联赛），
+    // 欧战赛事额外保留完整参赛名单，避免豪门只出现在国内联赛组里
     const teams = allTeams.filter(usable);
-    const sub = cat => teams.filter(t => t.cat === cat);
-
-    const major = sub("major");
-    groups = FIVE.map(lg => ({ label: lg, teams: major.filter(t => cur(t).includes(lg)) }));
-    const rest = major.filter(t => !FIVE.some(lg => cur(t).includes(lg)));
-    const otherCurrent = rest.filter(t => cur(t).length > 0);
-    const historical = rest.filter(t => cur(t).length === 0);
-    if(otherCurrent.length) groups.push({ label: "欧战其他球队", teams: otherCurrent });
-    if(historical.length) groups.push({ label: "历史对手", note: "非本赛季收录联赛", teams: historical });
-
-    groups.push({ label: "英冠", note: "英格兰冠军联赛", teams: sub("champ") });
-    groups.push({ label: "巴西甲", note: "巴西甲级联赛", teams: sub("brazil") });
+    const order = (DATA.leagues || []).map(l => l.label).concat(["其他"]);
+    groups = order.map(lg => ({
+      label: lg,
+      note: lg === "其他" ? "未归属联赛" : "",
+      teams: teams.filter(t => inGroup(t, lg))
+    }));
   } else {
     const lg = state.league;
-    const inLg = allTeams.filter(t => cur(t).includes(lg) && usable(t));
-    const hist = allTeams.filter(t => !cur(t).includes(lg) && (t.leagues || []).includes(lg) && usable(t));
-    groups = [{ label: lg, teams: inLg }];
-    if(hist.length) groups.push({ label: "历史球队", note: "本赛季已不在该赛事", teams: hist });
+    // 与「全部」视图同一判定，保证组内数量一致
+    groups = [{ label: lg, teams: allTeams.filter(t => usable(t) && inGroup(t, lg)) }];
   }
   wrap.innerHTML = groups.filter(g => g.teams.length).map(g => {
     const sorted = g.teams.slice().sort((a,b) => collator.compare(a.cn || a.name, b.cn || b.name));
