@@ -2140,7 +2140,11 @@ def main():
     upcoming_teams |= {ev["away"] for ev in fixture_events if not ev["completed"]}
     lineups = {}
     if upcoming_teams and not args.max_summaries:
+        lineups = build_team_lineups(match_rows, upcoming_teams, args.workers)
         log(f"  参考阵容：{len(lineups)} 支球队")
+        if not lineups:
+            # 有未来比赛却推不出任何阵容，说明这一段逻辑出了问题，明确告警
+            log("  ⚠ 参考阵容为空，请检查 build_team_lineups 的调用与返回")
 
     # 球员中文名覆盖自检（必须在 lineups 构建之后）
     miss_players = set()
