@@ -696,6 +696,23 @@ table.stats tbody tr:last-child td{border-bottom:0}
   font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;
   margin:20px 0 10px;
 }
+/* ---------- 校准曲线 ---------- */
+.cal-wrap{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:16px 18px;margin-top:10px}
+.cal-svg{width:100%;height:auto;display:block;max-width:560px;margin:0 auto}
+.cal-svg text{fill:var(--muted);font-size:8px;font-family:var(--font-mono)}
+.cal-svg .axis{stroke:var(--line);stroke-width:.6}
+.cal-svg .diag{stroke:var(--line-strong);stroke-width:1;stroke-dasharray:3 3}
+.cal-svg .cal-line-1{stroke:var(--accent);stroke-width:1.7;fill:none;stroke-linejoin:round}
+.cal-svg .cal-dot-1{fill:var(--accent);fill-opacity:.72}
+.cal-svg .cal-line-2{stroke:var(--draw);stroke-width:1.7;fill:none;stroke-linejoin:round}
+.cal-svg .cal-dot-2{fill:var(--draw);fill-opacity:.72}
+.cal-legend{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:10.5px;color:var(--muted);margin-top:10px}
+.cal-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.cal-legend .k1{background:var(--accent)}
+.cal-legend .k2{background:var(--draw)}
+.cal-empty{padding:22px;text-align:center;font-size:11.5px;color:var(--muted)}
+.sum-tile .v.pos{color:var(--win)}
+.sum-tile .v.neg{color:var(--loss)}
 .next-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .next-card{
   border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);
@@ -917,7 +934,12 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
       <div class="sum-grid" id="perf-summary"></div>
       <h3 class="subhead" id="perf-blend-head" hidden>含市场权重的综合预测</h3>
       <div class="sum-grid" id="perf-summary-blend"></div>
+      <h3 class="subhead" id="perf-cal-head" hidden>校准曲线</h3>
+      <div class="sum-grid" id="perf-cal-summary" hidden></div>
+      <div class="cal-wrap" id="perf-cal" hidden></div>
       <div class="table-hint">回测口径：先评估纯数据模型；有赛前盘口快照的比赛会再评估「市场 70% + 模型 30%」的综合预测，样本随每日构建逐步积累。</div>
+      <div class="table-hint">校准曲线横轴是模型给出的概率，纵轴是实际命中率；落在对角线上表示概率可信。点越靠右下说明模型系统性高估，越靠左上说明低估。每档至少 20 个样本才绘制，圆点大小代表样本量。</div>
+      <div class="table-hint">「大小球技能分」用 Brier 分数与「永远猜本区间平均进球率」相比：大于 0 说明模型对大小球有判别力，接近 0 或为负说明这些概率不比平均值更有信息量，此时盘口对照里的偏差应视为校准参考，而不是可下注的边际。</div>
     </section>
 
     <section class="section">
@@ -1655,9 +1677,129 @@ function modelPerfStats(days, blended){
   return { n, hit, favN, favHit, absErr, brier };
 }
 
+function calibrationStats(days){
+  const cutoff = Date.now() - days * 86400000;
+  const BINS = 10, MIN_N = 20;
+  const blank = () => Array.from({length: BINS}, () => ({ n: 0, sp: 0, hit: 0 }));
+  const rowsWDL = blank(), rowsOU = blank();
+  let nWDL = 0, nOU = 0, matchN = 0, brierOU = 0, overN = 0;
+  for(const m of (DATA.matches || [])){
+    if(!m.pre || m.hs == null || m.as == null) continue;
+    if(new Date(m.date).getTime() < cutoff) continue;
+    matchN++;
+    const ps = [m.pre.ph, m.pre.pd, m.pre.pa];
+    const o = m.hs > m.as ? 0 : (m.hs === m.as ? 1 : 2);
+    for(let i = 0; i < 3; i++){
+      const p = ps[i];
+      if(!(p >= 0 && p <= 1)) continue;
+      const b = Math.min(BINS - 1, Math.floor(p * BINS));
+      rowsWDL[b].n++; rowsWDL[b].sp += p; rowsWDL[b].hit += (i === o ? 1 : 0);
+      nWDL++;
+    }
+    const ol = m.pre.o;
+    if(Array.isArray(ol) && ol.length >= 3 && ol[2] != null){
+      const p = ol[2] / 1000;   // GOAL_LINES[2] = 2.5 球
+      if(p >= 0 && p <= 1){
+        const b = Math.min(BINS - 1, Math.floor(p * BINS));
+        const y = (m.hs + m.as) >= 3 ? 1 : 0;
+        rowsOU[b].n++; rowsOU[b].sp += p; rowsOU[b].hit += y;
+        nOU++; overN += y; brierOU += (p - y) ** 2;
+      }
+    }
+  }
+  const pack = (rows, total) => {
+    const pts = [];
+    let worst = null;
+    for(let i = 0; i < BINS; i++){
+      const r = rows[i];
+      if(!r.n) continue;
+      const pred = r.sp / r.n, act = r.hit / r.n;
+      if(r.n >= MIN_N){
+        const p = { lo: i / BINS * 100, hi: (i + 1) / BINS * 100,
+                    n: r.n, pred, act };
+        pts.push(p);
+        const d = Math.abs(act - pred);
+        if(!worst || d > worst.d) worst = Object.assign({}, p, { d });
+      }
+    }
+    const ece = total
+      ? rows.reduce((s, r) => s + (r.n ? r.n * Math.abs(r.hit / r.n - r.sp / r.n) : 0), 0) / total
+      : null;
+    return { pts, ece, worst, total, minN: MIN_N };
+  };
+  return { matchN, wdl: pack(rowsWDL, nWDL), ou: pack(rowsOU, nOU),
+           brierOU: nOU ? brierOU / nOU : null,
+           baseRate: nOU ? overN / nOU : null,
+           skillOU: nOU && overN ? 1 - (brierOU / nOU) / ((overN / nOU) * (1 - overN / nOU)) : null };
+}
+
+function calSvg(series){
+  const W = 380, H = 250, padL = 32, padR = 12, padT = 10, padB = 30;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const X = v => padL + v * iw;
+  const Y = v => (H - padB) - v * ih;
+  const allN = series.reduce((a, se) => a.concat(se.pack.pts.map(p => p.n)), []);
+  const maxN = allN.length ? Math.max.apply(null, allN) : 1;
+  const rad = n => (2.4 + 5.1 * Math.sqrt(n / maxN)).toFixed(1);
+  let s = `<svg class="cal-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="模型校准曲线">`;
+  for(const t of [0, 0.25, 0.5, 0.75, 1]){
+    s += `<line class="axis" x1="${X(t).toFixed(1)}" y1="${Y(0)}" x2="${X(t).toFixed(1)}" y2="${Y(1)}"/>`;
+    s += `<line class="axis" x1="${X(0)}" y1="${Y(t).toFixed(1)}" x2="${X(1)}" y2="${Y(t).toFixed(1)}"/>`;
+    s += `<text x="${X(t).toFixed(1)}" y="${H - padB + 12}" text-anchor="middle">${Math.round(t * 100)}</text>`;
+    s += `<text x="${padL - 5}" y="${(Y(t) + 3).toFixed(1)}" text-anchor="end">${Math.round(t * 100)}</text>`;
+  }
+  s += `<line class="diag" x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}"/>`;
+  for(const se of series){
+    const pts = se.pack.pts;
+    if(!pts.length) continue;
+    s += `<polyline class="cal-line-${se.i}" points="${
+      pts.map(p => `${X(p.pred).toFixed(1)},${Y(p.act).toFixed(1)}`).join(" ")}"/>`;
+    for(const p of pts){
+      s += `<circle class="cal-dot-${se.i}" cx="${X(p.pred).toFixed(1)}" cy="${Y(p.act).toFixed(1)}" r="${rad(p.n)}">`
+         + `<title>${esc(se.name)} ${Math.round(p.lo)}–${Math.round(p.hi)}% 档：预测均值 ${Math.round(p.pred * 100)}%，实际 ${Math.round(p.act * 100)}%（${p.n} 个样本）</title></circle>`;
+    }
+  }
+  s += `<text x="${X(0.5).toFixed(1)}" y="${H - 4}" text-anchor="middle">模型预测概率 %</text>`;
+  s += `<text x="9" y="${Y(0.5).toFixed(1)}" text-anchor="middle" transform="rotate(-90 9 ${Y(0.5).toFixed(1)})">实际命中率 %</text>`;
+  return s + `</svg>`;
+}
+
+function renderCalibration(days){
+  const head = $("#perf-cal-head"), box = $("#perf-cal"), sum = $("#perf-cal-summary");
+  if(!head || !box || !sum) return;
+  const c = calibrationStats(days);
+  head.hidden = false; box.hidden = false;
+  if(!c.wdl.pts.length && !c.ou.pts.length){
+    sum.hidden = true;
+    box.innerHTML = `<div class="cal-empty">近 ${days} 天还没有足够的样本绘制校准曲线（每档至少 ${c.wdl.minN} 个样本）。选择更长区间试试。</div>`;
+    return;
+  }
+  sum.hidden = false;
+  const pct1 = v => (v == null ? "—" : (v * 100).toFixed(1) + "%");
+  const tile = (label, val, sub) => `<div class="sum-tile"><div class="l">${label}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`;
+  const w = c.wdl.worst;
+  const sk = c.skillOU;
+  const skCls = sk == null ? "" : (sk > 0.005 ? "pos" : (sk < -0.005 ? "neg" : ""));
+  sum.innerHTML = [
+    tile("校准误差 ECE", pct1(c.wdl.ece), c.wdl.total ? `胜平负 · ${c.wdl.total} 个概率样本` : "样本不足"),
+    tile("大小球 ECE", pct1(c.ou.ece), c.ou.total ? `大 2.5 球 · ${c.ou.total} 场` : "样本不足"),
+    `<div class="sum-tile"><div class="l">大小球技能分</div><div class="v ${skCls}">${
+      sk == null ? "—" : (sk > 0 ? "+" : "") + (sk * 100).toFixed(1) + "%"}</div><div class="s">${
+      sk == null ? "样本不足" : "相对「永远猜本区间平均进球率」；≤0 表示无判别力"}</div></div>`,
+    tile("偏离最大档", w ? `${Math.round(w.lo)}–${Math.round(w.hi)}%` : "—",
+         w ? `预测 ${Math.round(w.pred * 100)}% / 实际 ${Math.round(w.act * 100)}%` : "样本不足")
+  ].join("");
+  box.innerHTML = calSvg([
+    { i: 1, name: "胜平负", pack: c.wdl },
+    { i: 2, name: "大 2.5 球", pack: c.ou }
+  ]) + `<div class="cal-legend"><span><i class="k1"></i>胜平负（每场 3 个概率）</span>`
+     + `<span><i class="k2"></i>大 2.5 球</span><span>虚线 = 完美校准</span></div>`;
+}
+
 function renderModelPerf(){
   const days = state.perfDays || 30;
   $$("#perf-seg [data-days]").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.days) === days)));
+  renderCalibration(days);
   const s = modelPerfStats(days);
   if(!s.n){
     $("#perf-summary").innerHTML = `<div class="sum-tile wide"><div class="l">暂无可回测比赛</div><div class="v">—</div><div class="s">选择更长区间试试</div></div>`;
@@ -2131,6 +2273,7 @@ function renderMarkets(m, pred, odds){
   box.innerHTML = `<div class="mk-title">盘口对照</div>
     <div class="mk-sub">模型 = 纯数据模型概率；市场 = DraftKings 赔率去水后的隐含概率（仅与市场同线时可对照）。偏差 = 模型 − 市场，单位为百分点；仅供参考，不代表存在投注价值。</div>
     ${warn}
+    <div class="mk-sub">大小球口径的模型判别力有限（「模型表现」里的大小球技能分可查），该部分偏差更适合当作校准参考，不宜直接当作下注边际。</div>
     <div class="mk-wrap">${cards.join("")}</div>`;
   box.hidden = false;
 }

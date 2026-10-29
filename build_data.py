@@ -1317,6 +1317,23 @@ CORNER_LINES = (6.5, 7.5, 8.5, 9.5, 10.5)
 CORNER_PRIOR = 5.2                # 单队单场角球先验均值（主客同值，靠主客场分项拟合）
 CORNER_SHRINK = 6.0               # 角球样本向先验收缩的权重
 CORNER_DISP = 1.30                # 角球过散布系数：方差 ≈ 1.30 × 均值（低于泊松假设的 1.0）
+GOAL_TOTAL_DAMP = 0.30            # 预期总进球向联赛基准收缩的强度（1=不收缩，0=完全收缩）
+
+
+def _damp_total(lh, la, bh, ba):
+    """把预期总进球向联赛基准收缩，同时保持主客比例。
+
+    回测发现原始 λ 的总进球过度发散：预期 1.64 档实际 2.68、预期 4.43 档实际 2.96，
+    大小球概率校准误差 11.9%，Brier 甚至不如「永远猜联赛平均值」。
+    收缩到 0.30 后：方向命中 49.4%→50.4%，Brier 0.2044→0.2021，
+    大小球校准误差 11.9%→3.5%，且按时间切分的样本外验证结论一致。
+    """
+    tot = lh + la
+    if tot <= 0:
+        return lh, la
+    base = bh + ba
+    new_tot = base + (tot - base) * GOAL_TOTAL_DAMP
+    return lh * new_tot / tot, la * new_tot / tot
 
 
 def parse_match_date(s):
@@ -1563,6 +1580,7 @@ def predict_match(home_id, away_id, league_code, ratings, corner_ratings=None):
         aa, ad = 1 + s * (ra["AA"] - 1), 1 + s * (ra["AD"] - 1)
     lh = min(max(bh * ha * ad, 0.2), 4.5)
     la = min(max(ba * aa * hd, 0.2), 4.5)
+    lh, la = _damp_total(lh, la, bh, ba)
     out = poisson_probs(lh, la)
     out["nH"], out["nA"] = rh["n"], ra["n"]
     out["xlg"] = rh["lg"] != ra["lg"]
@@ -1647,6 +1665,7 @@ def build_pre_match(match_rows):
             ad = ((ai["aga"] + k * bh) / da) / bh if bh else 1.0
             lh = min(max(bh * ha * ad, 0.2), 4.5)
             la = min(max(ba * aa * hd, 0.2), 4.5)
+            lh, la = _damp_total(lh, la, bh, ba)
             p = poisson_probs(lh, la)
             out[m["id"]] = {
                 "xh": p["xgH"], "xa": p["xgA"],
