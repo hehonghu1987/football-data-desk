@@ -1015,8 +1015,16 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
       </div>
       <div id="comp-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       <button type="button" class="chip-btn" id="h2h-toggle" aria-pressed="false" aria-controls="team-h2h">历史交锋数据</button>
+      <div class="seg" id="team-n-seg" role="group" aria-label="统计场数">
+        <button type="button" data-n="5" aria-pressed="false">近 5 场</button>
+        <button type="button" data-n="10" aria-pressed="false">近 10 场</button>
+        <button type="button" data-n="20" aria-pressed="false">近 20 场</button>
+        <button type="button" data-n="30" aria-pressed="true">近 30 场</button>
+      </div>
       <span class="table-note" id="team-table-count"></span>
     </div>
+
+    <div class="sum-grid" id="team-window-stats"></div>
 
     <section class="section h2h-inline" id="team-h2h" hidden>
       <div class="section-head">
@@ -1411,6 +1419,7 @@ const state = {
   h2hSide: "all",
   mvSide: "all",
   indexOpen: false,
+  teamN: 30,
   h2hComp: "all",
   perfDays: 30,
   id: null,
@@ -2350,6 +2359,13 @@ function syncIndexToggle(){
 
 $("#share-btn")?.addEventListener("click", sharePage);
 $("#export-daily")?.addEventListener("click", exportDailyCard);
+$("#team-n-seg")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-n]");
+  if(!b) return;
+  state.teamN = Number(b.dataset.n) || 30;
+  drawTable();
+});
+
 $("#index-toggle")?.addEventListener("click", () => {
   state.indexOpen = !state.indexOpen;
   syncIndexToggle();
@@ -2466,10 +2482,66 @@ function drawTable(){
     if(state.comp !== "all" && m.league !== state.comp) return false;
     return true;
   });
-  $("#team-table-body").innerHTML = rows.map(m => rowHtml(m, state.id, true)).join("");
-  $("#team-table-count").textContent = `${rows.length} / ${state.all.length} 场`;
+  const shown = rows.slice(0, state.teamN || 30);
+  $("#team-table-body").innerHTML = shown.map(m => rowHtml(m, state.id, true)).join("");
+  $("#team-table-count").textContent = `${shown.length} / ${rows.length} 场`;
   $$(".seg button", $("#side-seg")).forEach(b => b.setAttribute("aria-pressed", b.dataset.side === state.side ? "true" : "false"));
   $$("#comp-filters [data-comp]").forEach(b => b.setAttribute("aria-pressed", b.dataset.comp === state.comp ? "true" : "false"));
+  $$("#team-n-seg [data-n]").forEach(b => b.setAttribute("aria-pressed", Number(b.dataset.n) === (state.teamN || 30) ? "true" : "false"));
+  renderTeamWindow(state.id, shown);
+}
+
+/* 所选区间（近 N 场）的汇总：战绩、进失球、大小球、攻防与角球 */
+function teamWindowStats(tid, list){
+  let w = 0, d = 0, l = 0, gf = 0, ga = 0, over25 = 0, btts = 0;
+  let shots = 0, sots = 0, corners = 0, ns = 0, nc = 0, bigCorners = 0;
+  for(const m of list){
+    const home = String(m.home) === String(tid);
+    const mine = home ? m.hs : m.as;
+    const theirs = home ? m.as : m.hs;
+    if(mine == null || theirs == null) continue;
+    if(mine > theirs) w++; else if(mine === theirs) d++; else l++;
+    gf += mine; ga += theirs;
+    if(mine + theirs >= 3) over25++;
+    if(mine > 0 && theirs > 0) btts++;
+    const st = m.stats;
+    if(!st) continue;
+    const own = home ? st.home : st.away;
+    const opp = home ? st.away : st.home;
+    if(own && own.shots != null){
+      shots += own.shots; sots += (own.sot || 0); ns++;
+    }
+    if(own && opp && own.corners != null && opp.corners != null){
+      corners += own.corners; nc++;
+      if(own.corners + opp.corners >= 11) bigCorners++;
+    }
+  }
+  return { n: list.length, w, d, l, gf, ga, over25, btts, shots, sots, corners, ns, nc, bigCorners };
+}
+
+function renderTeamWindow(tid, list){
+  const box = $("#team-window-stats");
+  if(!box) return;
+  const t = TEAMS.get(String(tid));
+  if(!list.length || !t){ box.innerHTML = ""; return; }
+  const s = teamWindowStats(tid, list);
+  const played = s.w + s.d + s.l;
+  const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const avg = (a, b) => b ? (a / b).toFixed(1) : "—";
+  const tile = (label, val, sub) =>
+    `<div class="sum-tile"><div class="l">${label}</div><div class="v">${val}</div><div class="s">${sub}</div></div>`;
+
+  box.innerHTML = [
+    tile("近 " + s.n + " 场战绩",
+         `<span class="rec-w">${s.w}</span>胜 <span class="rec-d">${s.d}</span>平 <span class="rec-l">${s.l}</span>负`,
+         played ? `胜率 ${pct(s.w, played)}%` : "暂无结果"),
+    tile("场均进 / 失球", `${avg(s.gf, played)} / ${avg(s.ga, played)}`,
+         `合计进 ${s.gf} 球 · 失 ${s.ga} 球`),
+    tile("大 2.5 球", played ? pct(s.over25, played) + "%" : "—",
+         `两队均进球 ${played ? pct(s.btts, played) + "%" : "—"}`),
+    tile("场均射门 / 射正", `${avg(s.shots, s.ns)} / ${avg(s.sots, s.ns)}`,
+         s.nc ? `场均角球 ${avg(s.corners, s.nc)} · 大 10.5 角球 ${pct(s.bigCorners, s.nc)}%` : "暂无技术统计")
+  ].join("");
 }
 
 function h2hOpponents(tid){
