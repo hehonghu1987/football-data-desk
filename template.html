@@ -1958,12 +1958,14 @@ function renderHero(){
 
 function renderTabs(){
   const tabs = $("#cat-tabs");
-  const opts = [{ id: "all", label: "全部" }].concat(
+  const all = [{ id: "all", label: "全部" }].concat(
     (DATA.leagues || []).map(l => ({ id: l.label, label: l.label }))
-  );
+  ).map(o => ({ id: o.id, label: o.label, n: upcomingCount(o.id) }));
+  // 只显示近期有比赛的联赛；当前选中的联赛始终保留，避免选中项消失
+  const opts = all.filter(o => o.id === "all" || o.n > 0 || o.id === state.league);
   tabs.innerHTML = opts.map(o => {
     return `<button type="button" class="cat-tab" role="tab" data-league="${esc(o.id)}" aria-selected="${state.league === o.id}">
-      ${esc(o.label)}<span class="n">${upcomingCount(o.id)}</span>
+      ${esc(o.label)}<span class="n">${o.n}</span>
     </button>`;
   }).join("");
 }
