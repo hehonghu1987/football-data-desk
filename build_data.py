@@ -501,6 +501,31 @@ def log(msg):
         print(msg, file=sys.stderr, flush=True)
 
 
+_CN_EXTRA_DONE = False
+
+
+def merge_cn_extra():
+    """把 team_cn_extra.json 里的补充中文队名并进 CN（懒加载，只做一次）。"""
+    global _CN_EXTRA_DONE
+    if _CN_EXTRA_DONE:
+        return 0
+    _CN_EXTRA_DONE = True
+    path = os.path.join(ROOT, "team_cn_extra.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return 0
+    if not isinstance(data, dict):
+        return 0
+    added = 0
+    for name, cn in data.items():
+        if name and cn and name not in CN:
+            CN[name] = (cn, [])
+            added += 1
+    return added
+
+
 def remember_team(t):
     """记录赛程/比分板里出现的球队元数据（含历史对手）。"""
     if not t or not t.get("id"):
@@ -1802,6 +1827,9 @@ def main():
     RATE_STATE["interval"] = max(0.0, args.rate)
 
     ensure_dirs()
+    n_cn = merge_cn_extra()
+    if n_cn:
+        log(f"  补充中文队名 {n_cn} 条")
     _ODDS_SNAP_INDEX.update(load_odds_snapshots())
     if _ODDS_SNAP_INDEX:
         log(f"  已载入赛前盘口快照 {len(_ODDS_SNAP_INDEX)} 条")
@@ -2067,6 +2095,14 @@ def main():
             "count": counts.get(t["id"], 0),
         })
     team_rows.sort(key=lambda t: (t["cn"], t["name"]))
+
+    # 中文队名覆盖自检：新增球队若未收录译名，会在日志里提示，避免前端回落到英文
+    untranslated = sorted({t["name"] for t in team_rows if t.get("cn") == t.get("name")})
+    if untranslated:
+        log(f"  ⚠ 未翻译球队 {len(untranslated)} 支，需补进 team_cn_extra.json："
+            + "、".join(untranslated[:10]))
+    else:
+        log(f"  中文队名：{len(team_rows)} 支全部已翻译")
 
     ratings = build_ratings(match_rows)
     corner_ratings = build_corner_ratings(match_rows)

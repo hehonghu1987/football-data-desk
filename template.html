@@ -232,7 +232,6 @@ input{font:inherit}
 .sr-item:hover,.sr-item.active{background:var(--surface-2)}
 .sr-main{min-width:0;flex:1}
 .sr-name{font-size:13px;font-weight:700;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
-.sr-en{font-family:var(--font-mono);font-size:10px;color:var(--muted);font-weight:400}
 .sr-meta{font-size:10.5px;color:var(--muted);margin-top:2px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
 .sr-rec{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);white-space:nowrap;flex:none}
 .sr-arrow{color:var(--muted);font-family:var(--font-mono);font-size:12px;flex:none}
@@ -897,7 +896,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line>
         </svg>
-        <input id="team-search" type="search" placeholder="搜索球队，例如 皇家马德里 / Arsenal / 弗拉门戈" autocomplete="off" spellcheck="false" aria-label="搜索球队" role="combobox" aria-expanded="false" aria-controls="search-results">
+        <input id="team-search" type="search" placeholder="搜索球队，例如 皇家马德里、阿森纳、弗拉门戈" autocomplete="off" spellcheck="false" aria-label="搜索球队" role="combobox" aria-expanded="false" aria-controls="search-results">
         <span class="search-kbd">/</span>
       </div>
       <div class="search-results" id="search-results" role="listbox" aria-label="球队搜索结果" hidden></div>
@@ -1845,7 +1844,7 @@ function renderSearch(){
   state.results = list;
   state.activeResult = list.length ? 0 : -1;
   if(!list.length){
-    searchPanel.innerHTML = `<div class="sr-empty">没有找到「${esc(q)}」对应的球队。<br>可以试试中文名、英文名或三字缩写，例如「皇马」「Arsenal」「RMA」。</div>`;
+    searchPanel.innerHTML = `<div class="sr-empty">没有找到「${esc(q)}」对应的球队。<br>可以试试中文名或常用简称，例如「皇马」「巴萨」「曼联」。</div>`;
   } else {
     searchPanel.innerHTML = list.map((t, i) => {
       const rec = recordOf(teamMatches(t.id), t.id);
@@ -1854,7 +1853,7 @@ function renderSearch(){
       return `<div class="sr-item ${i === 0 ? "active" : ""}" role="option" aria-selected="${i === 0}" data-team="${esc(t.id)}" data-i="${i}">
         ${badge(t, "sm")}
         <div class="sr-main">
-          <div class="sr-name"><span>${esc(t.cn || t.name)}</span><span class="sr-en">${esc(t.name || "")}</span></div>
+          <div class="sr-name"><span>${esc(t.cn || t.name)}</span></div>
           <div class="sr-meta"><span>${lgs}</span><span>近 ${ms} 场</span></div>
         </div>
         <span class="sr-rec">${rec.w}-${rec.d}-${rec.l}</span>

@@ -193,7 +193,7 @@ def main():
         path = f"{slug}.html"
         canonical = f"{SITE}/teams/{path}"
 
-        title = f"{name_cn}{('（' + name_en + '）') if name_en and name_en != name_cn else ''} · 近期战绩与技术统计"
+        title = f"{name_cn} · 近期战绩与技术统计"
         desc = (f"{name_cn}近 {len(recent)} 场战绩 {wins}胜{draws}平{losses}负，"
                 f"进 {gf} 球失 {ga} 球，场均射门 {(shots / n_st):.1f} 次、射正 {(sots / n_st):.1f} 次、"
                 f"角球 {(corners / n_st):.1f} 个。含逐场比分与技术统计。") if n_st else \
@@ -242,7 +242,7 @@ def main():
                          f'{"主场" if home else "客场"} 对阵 <b>{esc(opp_name)}</b>{esc(extra)}</p>')
 
         body = f"""<h1>{esc(name_cn)}</h1>
-<p class="sub">{esc(name_en)}{(' · ' + esc(league)) if league else ''}　近 {len(recent)} 场</p>
+<p class="sub">{esc(league)}　近 {len(recent)} 场</p>
 <div class="cards">
   <div class="card"><div class="k">近 {len(recent)} 场战绩</div><div class="v">{wins}–{draws}–{losses}</div></div>
   <div class="card"><div class="k">进球 / 失球</div><div class="v">{gf} / {ga}</div></div>
