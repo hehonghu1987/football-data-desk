@@ -74,6 +74,10 @@ jobs:
         if: ${{ !inputs.deploy_only }}
         run: python3 build_seo.py
 
+      - name: 生成每日简报
+        if: ${{ !inputs.deploy_only }}
+        run: python3 build_daily.py
+
       - name: 整理发布目录
         run: |
           mkdir -p dist
@@ -83,6 +87,9 @@ jobs:
           if [ -d seo/teams ]; then
             cp -R seo/teams dist/teams
             cp seo/sitemap.xml dist/sitemap.xml
+          fi
+          if [ -d daily ]; then
+            cp -R daily dist/daily
           fi
           du -sh dist
 
