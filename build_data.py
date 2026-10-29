@@ -871,36 +871,43 @@ def american_to_decimal(ml):
 
 
 def parse_odds(d):
-    """从 summary 的 pickcenter 提取欧赔、亚盘、大小球（DraftKings）。"""
-    pc = d.get("pickcenter") or []
-    if not pc:
+    """从 summary 的 pickcenter 提取欧赔、亚盘、大小球。
+
+    pickcenter 可能挂多家供应商，也可能首条缺少胜平负（冷门杯赛常只挂单边盘）。
+    按顺序取第一条三项齐全的记录，而不是盲取第一条。
+    """
+    books = []
+    for p in (d.get("pickcenter") or []):
+        home = p.get("homeTeamOdds") or {}
+        away = p.get("awayTeamOdds") or {}
+        draw = p.get("drawOdds") or {}
+        ml = {
+            "h": american_to_decimal(home.get("moneyLine")),
+            "d": american_to_decimal(draw.get("moneyLine")),
+            "a": american_to_decimal(away.get("moneyLine")),
+        }
+        if not all(ml.values()):
+            continue
+        books.append({
+            "provider": ((p.get("provider") or {}).get("name")) or "",
+            "ml": ml,
+            "ah": {
+                "line": p.get("spread"),
+                "h": american_to_decimal(home.get("spreadOdds")),
+                "a": american_to_decimal(away.get("spreadOdds")),
+            } if p.get("spread") is not None else None,
+            "ou": {
+                "line": p.get("overUnder"),
+                "over": american_to_decimal(p.get("overOdds")),
+                "under": american_to_decimal(p.get("underOdds")),
+            } if p.get("overUnder") is not None else None,
+        })
+    if not books:
         return None
-    p = pc[0]
-    home = p.get("homeTeamOdds") or {}
-    away = p.get("awayTeamOdds") or {}
-    draw = p.get("drawOdds") or {}
-    ml = {
-        "h": american_to_decimal(home.get("moneyLine")),
-        "d": american_to_decimal(draw.get("moneyLine")),
-        "a": american_to_decimal(away.get("moneyLine")),
-    }
-    if not all(ml.values()):
-        return None
-    return {
-        "provider": ((p.get("provider") or {}).get("name")) or "",
-        "ml": ml,
-        "ah": {
-            "line": p.get("spread"),
-            "h": american_to_decimal(home.get("spreadOdds")),
-            "a": american_to_decimal(away.get("spreadOdds")),
-        } if p.get("spread") is not None else None,
-        "ou": {
-            "line": p.get("overUnder"),
-            "over": american_to_decimal(p.get("overOdds")),
-            "under": american_to_decimal(p.get("underOdds")),
-        } if p.get("overUnder") is not None else None,
-        "fetchedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
-    }
+    out = books[0]
+    out["books"] = len(books)
+    out["fetchedAt"] = datetime.now().astimezone().isoformat(timespec="seconds")
+    return out
 
 
 def fetch_odds(league_code, event_id):
@@ -1193,6 +1200,12 @@ EURO_DOMESTIC = {
     "por.1": "葡超",
     "sco.1": "苏超",
     "tur.1": "土超",
+    # 以下经 ESPN 联赛目录核对确认可用；波甲、捷甲、克甲、以超、保甲、罗甲、
+    # 塞甲、瑞士超、乌超、匈甲等代码在 ESPN 站点接口并不存在（请求返回 400），
+    # 加入只会产生无效请求，故不收录。
+    "den.1": "丹超",
+    "ger.2": "德乙",
+    "swe.1": "瑞超",
 }
 
 
