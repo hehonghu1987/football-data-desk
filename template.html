@@ -410,6 +410,14 @@ input{font:inherit}
 }
 .badge.lg{width:64px;height:64px;font-size:22px;letter-spacing:.01em}
 .badge.sm{width:30px;height:30px;font-size:10px}
+/* 真实队徽：图片撑满，加载失败时回落到色块+缩写 */
+.badge{overflow:hidden}
+.badge.with-logo{background:transparent;box-shadow:none}
+.badge.with-logo img{width:100%;height:100%;object-fit:contain;display:block}
+.badge.with-logo .badge-ab{display:none}
+.badge.with-logo.fb{background:var(--badge,#0E7A49);color:var(--badge-fg,#fff);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.badge.with-logo.fb img{display:none}
+.badge.with-logo.fb .badge-ab{display:block}
 
 /* ---------- team view ---------- */
 .backlink{
@@ -1270,11 +1278,21 @@ function teamColor(t){
   const c = String(t && t.color || "").replace("#","");
   return /^[0-9a-fA-F]{6}$/.test(c) ? "#" + c : "#0E7A49";
 }
+const LOGO_BASE = "https://a.espncdn.com/i/teamlogos/soccer/500/";
+function teamLogoUrl(t){
+  if(!t) return "";
+  return t.logo || (LOGO_BASE + encodeURIComponent(String(t.id)) + ".png");
+}
 function badge(t, cls){
+  if(!t) return "";
   const bg = teamColor(t);
   const fg = contrast(bg);
   const ab = (t.abbr || t.cn || "").slice(0,3);
-  return `<span class="badge ${cls||""}" style="--badge:${bg};--badge-fg:${fg}">${esc(ab)}</span>`;
+  const name = t.cn || t.name || "";
+  return `<span class="badge with-logo ${cls||""}" style="--badge:${bg};--badge-fg:${fg}">`
+    + `<img src="${esc(teamLogoUrl(t))}" alt="${esc(name)}" loading="lazy" decoding="async"`
+    + ` onerror="this.closest('.badge').classList.add('fb')">`
+    + `<span class="badge-ab">${esc(ab)}</span></span>`;
 }
 function teamDot(t){
   return `<span class="tdot" style="background:${teamColor(t)}"></span>`;

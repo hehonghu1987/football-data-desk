@@ -534,6 +534,15 @@ def remember_team(t):
     with _meta_lock:
         if tid in TEAM_META:
             return
+        # 队徽：标准路径由前端用 teamId 拼接，只有非标准地址才落库
+        logo = ""
+        logos = t.get("logos") or []
+        if logos:
+            pick = next((x for x in logos
+                         if "default" in (x.get("rel") or []) and x.get("href")), logos[0])
+            href = (pick or {}).get("href") or ""
+            if href and href != f"https://a.espncdn.com/i/teamlogos/soccer/500/{tid}.png":
+                logo = href
         TEAM_META[tid] = {
             "id": tid,
             "name": t.get("displayName") or t.get("name") or tid,
@@ -542,6 +551,7 @@ def remember_team(t):
             "color": (t.get("color") or "").lstrip("#"),
             "alt": (t.get("alternateColor") or "").lstrip("#"),
             "location": t.get("location") or "",
+            "logo": logo,
         }
 
 
@@ -2079,7 +2089,7 @@ def main():
             cat = "brazil"
         else:
             cat = "major"
-        team_rows.append({
+        team_row = {
             "id": t["id"],
             "name": t["name"],
             "short": t["short"],
@@ -2093,7 +2103,10 @@ def main():
             "currentLeagues": cur_lgs,
             "cat": cat,
             "count": counts.get(t["id"], 0),
-        })
+        }
+        if t.get("logo"):
+            team_row["logo"] = t["logo"]
+        team_rows.append(team_row)
     team_rows.sort(key=lambda t: (t["cn"], t["name"]))
 
 # 中文队名覆盖自检：新增球队若未收录译名，会在日志里提示，避免前端回落到英文
