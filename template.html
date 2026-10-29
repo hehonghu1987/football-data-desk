@@ -200,6 +200,8 @@ input{font:inherit}
 .noscript-note p{margin:0 0 8px}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);background:var(--ink);color:#fff;font-size:12px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:200;box-shadow:0 8px 24px -8px rgba(18,33,26,.5)}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.export-btn{margin-left:auto;margin-right:10px}
+.match-tools{display:flex;justify-content:flex-end;margin:-6px 0 10px}
 .theme-btn .sun{display:none}
 .theme-btn .moon{display:block}
 @media (prefers-color-scheme: dark){
@@ -948,6 +950,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
     <section class="section">
       <div class="section-head">
         <h2 class="section-title" id="fixtures-title">今日赛程</h2>
+        <button class="chip-btn export-btn" id="export-daily" type="button">导出赛程卡片</button>
         <span class="section-note">时间为本地时区 · 仅列未来 3 个比赛日</span>
       </div>
       <div class="panel" id="fixtures-panel"></div>
@@ -1088,6 +1091,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   <!-- ============ MATCH ============ -->
   <section id="match-view" hidden>
     <a class="backlink" href="#/" id="match-back">← 返回</a>
+    <div class="match-tools"><button class="chip-btn" id="export-match" type="button">导出图片</button></div>
     <div id="match-hero"></div>
     <div id="match-compare"></div>
 
@@ -1401,6 +1405,7 @@ const state = {
   h2hComp: "all",
   perfDays: 30,
   id: null,
+  matchId: null,
   all: [],
   activeResult: -1,
   results: []
@@ -1490,6 +1495,341 @@ async function sharePage(){
   }catch(e){
     window.prompt("复制链接：", url);
   }
+}
+
+/* ---------- 图文卡片导出 ---------- */
+const CARD_W = 1080, CARD_H = 1350;
+const CK = {
+  bg: "#F2F5EF", surface: "#FFFFFF", ink: "#12211A", ink2: "#33463C",
+  muted: "#5E7065", line: "#D3DDD5", accent: "#0E7A49", soft: "#DFF1E6",
+  win: "#0E7A49", draw: "#A97A1F", loss: "#B24A38"
+};
+
+async function ensureCardFonts(){
+  try{ await document.fonts.ready; }catch(e){ /* 忽略 */ }
+}
+
+function cFont(ctx, size, weight){
+  ctx.font = `${weight || 400} ${size}px "Noto Sans SC","PingFang SC",-apple-system,BlinkMacSystemFont,sans-serif`;
+}
+
+function cRound(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function cFit(ctx, text, maxW){
+  text = String(text == null ? "" : text);
+  if(ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while(t.length > 1 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+  return t + "…";
+}
+
+function cPanel(ctx, x, y, w, h){
+  ctx.fillStyle = CK.surface;
+  cRound(ctx, x, y, w, h, 24);
+  ctx.fill();
+  ctx.strokeStyle = CK.line;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function cHeader(ctx, subtitle){
+  ctx.fillStyle = CK.accent;
+  ctx.fillRect(0, 0, CARD_W, 10);
+
+  ctx.fillStyle = CK.accent;
+  cRound(ctx, 64, 60, 62, 62, 18);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  cFont(ctx, 30, 700);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("绿", 95, 92);
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  cFont(ctx, 34, 700);
+  ctx.fillStyle = CK.ink;
+  ctx.fillText("绿茵数据台", 146, 62);
+  cFont(ctx, 17, 400);
+  ctx.fillStyle = CK.muted;
+  ctx.fillText("MATCH DATA DESK", 148, 104);
+
+  if(subtitle){
+    cFont(ctx, 20, 400);
+    ctx.fillStyle = CK.muted;
+    ctx.textAlign = "right";
+    ctx.fillText(subtitle, CARD_W - 64, 74);
+    ctx.textAlign = "left";
+  }
+}
+
+function cFootNote(ctx, lines){
+  let y = CARD_H - 96;
+  ctx.textAlign = "center";
+  cFont(ctx, 17, 400);
+  ctx.fillStyle = CK.muted;
+  lines.forEach((t, i) => ctx.fillText(t, CARD_W / 2, y + i * 26));
+  ctx.textAlign = "left";
+}
+
+function cDownload(cv, name, msg){
+  cv.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast(msg || "图片已生成");
+  }, "image/png");
+}
+
+async function exportMatchCard(m){
+  await ensureCardFonts();
+  const cv = document.createElement("canvas");
+  cv.width = CARD_W; cv.height = CARD_H;
+  const ctx = cv.getContext("2d");
+  ctx.textBaseline = "top";
+
+  const h = TEAMS.get(String(m.home)) || {}, a = TEAMS.get(String(m.away)) || {};
+  const hn = h.cn || h.name || "主队", an = a.cn || a.name || "客队";
+  const isUpcoming = m.hs == null && m.as == null;
+  const pred = isUpcoming ? m.pred : (m.pre ? { xgH: m.pre.xh, xgA: m.pre.xa, ph: m.pre.ph, pd: m.pre.pd, pa: m.pre.pa } : null);
+
+  ctx.fillStyle = CK.bg;
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  cHeader(ctx, fullTime(m.date));
+
+  // 联赛标签
+  ctx.fillStyle = CK.soft;
+  cFont(ctx, 20, 600);
+  const lgTxt = m.league || "";
+  const lgW = ctx.measureText(lgTxt).width + 36;
+  cRound(ctx, 64, 158, lgW, 40, 20);
+  ctx.fill();
+  ctx.fillStyle = CK.accent;
+  ctx.fillText(lgTxt, 82, 168);
+
+  // 对阵
+  cFont(ctx, 46, 700);
+  ctx.fillStyle = CK.ink;
+  ctx.fillText(cFit(ctx, hn, 440), 64, 240);
+  ctx.fillText(cFit(ctx, an, 440), 64, 320);
+
+  ctx.textAlign = "right";
+  const score = isUpcoming ? "VS" : `${m.hs}–${m.as}`;
+  cFont(ctx, isUpcoming ? 34 : 62, 700);
+  ctx.fillStyle = isUpcoming ? CK.muted : CK.accent;
+  ctx.fillText(score, CARD_W - 64, isUpcoming ? 272 : 258);
+  ctx.textAlign = "left";
+
+  let y = 430;
+  if(pred){
+    cPanel(ctx, 64, y, CARD_W - 128, 250);
+    cFont(ctx, 20, 600);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText("模型预测", 96, y + 26);
+    ctx.textAlign = "right";
+    cFont(ctx, 20, 400);
+    ctx.fillText(`预期进球 ${Number(pred.xgH).toFixed(2)} – ${Number(pred.xgA).toFixed(2)}`, CARD_W - 96, y + 26);
+    ctx.textAlign = "left";
+
+    const ps = [pred.ph, pred.pd, pred.pa];
+    const bw = CARD_W - 192, bx = 96, by = y + 66, bh = 16;
+    let cx = bx;
+    ps.forEach((p, i) => {
+      ctx.fillStyle = i === 0 ? CK.accent : (i === 1 ? CK.line : CK.muted);
+      ctx.fillRect(cx, by, Math.max(0, bw * p - (i < 2 ? 2 : 0)), bh);
+      cx += bw * p;
+    });
+
+    const labels = ["主胜", "平", "客胜"];
+    labels.forEach((lb, i) => {
+      const col = bx + (bw / 3) * i;
+      cFont(ctx, 19, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.fillText(lb, col, by + 34);
+      cFont(ctx, 34, 700);
+      ctx.fillStyle = CK.ink;
+      ctx.fillText(Math.round(ps[i] * 100) + "%", col, by + 62);
+    });
+    y += 280;
+  }
+
+  // 盘口
+  if(pred && (pred.lines || pred.ah || pred.corners)){
+    cPanel(ctx, 64, y, CARD_W - 128, 230);
+    cFont(ctx, 20, 600);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText("关键盘口", 96, y + 26);
+
+    const items = [];
+    if(pred.lines && pred.lines["2.5"] != null)
+      items.push(["大 2.5 球", Math.round(pred.lines["2.5"] * 100) + "%"]);
+    if(pred.ah && pred.ah["-0.5"] != null)
+      items.push(["主队 -0.5 赢盘", Math.round(pred.ah["-0.5"] * 100) + "%"]);
+    if(pred.corners)
+      items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
+    if(pred.corners && pred.corners.over && pred.corners.over["9.5"] != null)
+      items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
+
+    const colW = (CARD_W - 192) / 2;
+    items.slice(0, 4).forEach((it, i) => {
+      const col = 96 + (i % 2) * colW;
+      const row = y + 74 + Math.floor(i / 2) * 74;
+      cFont(ctx, 19, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.fillText(cFit(ctx, it[0], colW - 24), col, row);
+      cFont(ctx, 30, 700);
+      ctx.fillStyle = CK.ink;
+      ctx.fillText(it[1], col, row + 26);
+    });
+    y += 260;
+  }
+
+  // 已完赛场次：本场技术统计
+  if(!isUpcoming && m.stats){
+    const H = m.stats.home || {}, A = m.stats.away || {};
+    const pc = v => (v == null ? "—" : Number(v).toFixed(1) + "%");
+    const rows = [
+      ["射门", H.shots, A.shots],
+      ["射正", H.sot, A.sot],
+      ["角球", H.corners, A.corners],
+      ["控球率", pc(H.possession), pc(A.possession)]
+    ];
+    const ph = 96 + rows.length * 52;
+    cPanel(ctx, 64, y, CARD_W - 128, ph);
+    cFont(ctx, 20, 600);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText("本场技术统计", 96, y + 26);
+    rows.forEach((r, i) => {
+      const ry = y + 82 + i * 52;
+      cFont(ctx, 19, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.textAlign = "center";
+      ctx.fillText(r[0], CARD_W / 2, ry + 6);
+      ctx.textAlign = "left";
+      cFont(ctx, 26, 700);
+      ctx.fillStyle = CK.ink;
+      ctx.fillText(String(r[1] == null ? "—" : r[1]), 96, ry);
+      ctx.textAlign = "right";
+      ctx.fillText(String(r[2] == null ? "—" : r[2]), CARD_W - 96, ry);
+      ctx.textAlign = "left";
+    });
+    y += ph + 28;
+  }
+
+  // 模型 vs 市场（有赔率时）
+  const odds = isUpcoming ? m.odds : null;
+  const ip = odds ? impliedProbs(odds.ml) : (m.mkt || null);
+  if(ip && pred){
+    const bl = blendProbs(pred, ip, 0.7);
+    cPanel(ctx, 64, y, CARD_W - 128, 176);
+    cFont(ctx, 20, 600);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText("市场去水概率 · 综合预测", 96, y + 26);
+    const labels = ["主", "平", "客"];
+    const colW = (CARD_W - 192) / 3;
+    labels.forEach((lb, i) => {
+      const col = 96 + colW * i;
+      cFont(ctx, 18, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.fillText(lb + " 　模型 " + Math.round(pred[["ph", "pd", "pa"][i]] * 100) + "%", col, y + 68);
+      cFont(ctx, 30, 700);
+      ctx.fillStyle = CK.ink;
+      ctx.fillText(Math.round(bl[i] * 100) + "%", col, y + 100);
+    });
+    y += 200;
+  }
+
+  cFootNote(ctx, [
+    "数据来源 ESPN · 赔率 DraftKings · 模型基于近三个赛季攻防数据",
+    "预测仅供参考，不代表确定结果",
+    "hehonghu1987.github.io/football-data-desk"
+  ]);
+
+  const safe = (hn + "-vs-" + an).replace(/[^\w\u4e00-\u9fa5-]+/g, "");
+  cDownload(cv, `${safe || "match"}-绿茵数据台.png`);
+}
+
+async function exportDailyCard(){
+  await ensureCardFonts();
+  const cv = document.createElement("canvas");
+  cv.width = CARD_W; cv.height = CARD_H;
+  const ctx = cv.getContext("2d");
+  ctx.textBaseline = "top";
+
+  const today = DATA.fixtures || [];
+  const list = today
+    .filter(f => f.pred)
+    .sort((x, y2) => new Date(x.date) - new Date(y2.date))
+    .slice(0, 8);
+  if(!list.length){ toast("暂无可导出的比赛"); return; }
+
+  ctx.fillStyle = CK.bg;
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  cHeader(ctx, fmtDate(list[0].date));
+
+  cFont(ctx, 40, 700);
+  ctx.fillStyle = CK.ink;
+  ctx.fillText("近期赛程与模型预测", 64, 150);
+  cFont(ctx, 20, 400);
+  ctx.fillStyle = CK.muted;
+  ctx.fillText(`共 ${today.filter(f => f.pred).length} 场有模型预测，以下按开赛时间排序`, 64, 204);
+
+  let y = 260;
+  const rowH = 118;
+  list.forEach((f, i) => {
+    const h = TEAMS.get(String(f.home)) || {}, a = TEAMS.get(String(f.away)) || {};
+    const hn = h.cn || h.name || "", an = a.cn || a.name || "";
+    cPanel(ctx, 64, y, CARD_W - 128, rowH - 12);
+
+    const dLabel = fmtDate(f.date) === fmtDate(list[0].date)
+      ? fmtTime(f.date)
+      : fmtDate(f.date).slice(5) + " " + fmtTime(f.date);
+    cFont(ctx, dLabel.length > 8 ? 16 : 18, 600);
+    ctx.fillStyle = CK.accent;
+    ctx.fillText(dLabel, 92, y + 16);
+    cFont(ctx, 16, 400);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText(cFit(ctx, f.league || "", 120), 92, y + 44);
+
+    cFont(ctx, 26, 600);
+    ctx.fillStyle = CK.ink;
+    ctx.fillText(cFit(ctx, hn + "  vs  " + an, 600), 214, y + 30);
+
+    const p = f.pred;
+    ctx.textAlign = "right";
+    cFont(ctx, 17, 400);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText("主 / 平 / 客", CARD_W - 92, y + 16);
+    cFont(ctx, 22, 700);
+    ctx.fillStyle = CK.ink;
+    ctx.fillText(`${Math.round(p.ph * 100)} / ${Math.round(p.pd * 100)} / ${Math.round(p.pa * 100)}`, CARD_W - 92, y + 40);
+    ctx.textAlign = "left";
+
+    y += rowH;
+  });
+
+  cFootNote(ctx, [
+    "数据来源 ESPN · 模型基于近三个赛季攻防数据",
+    "大小球方向判别力有限，请以胜平负为主参考",
+    "hehonghu1987.github.io/football-data-desk"
+  ]);
+
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  cDownload(cv, `绿茵数据台-赛程预测-${stamp}.png`);
 }
 
 function renderSearch(){
@@ -1950,6 +2290,11 @@ function renderHome(){
 }
 
 $("#share-btn")?.addEventListener("click", sharePage);
+$("#export-daily")?.addEventListener("click", exportDailyCard);
+$("#export-match")?.addEventListener("click", () => {
+  const m = state.matchId ? MATCH_BY_ID.get(state.matchId) : null;
+  if(m) exportMatchCard(m); else toast("请先打开一场比赛");
+});
 
 $("#perf-seg").addEventListener("click", e => {
   const b = e.target.closest("[data-days]");
@@ -2839,6 +3184,7 @@ function renderMatch(id){
   $("#home-view").hidden = true;
   $("#team-view").hidden = true;
   $("#match-view").hidden = false;
+  state.matchId = String(id);
   $("#match-back").href = "#/team/" + encodeURIComponent(h.id);
   $("#match-back").textContent = "← 返回 " + (h.cn || h.name);
   setShareMeta(`${h.cn || h.name} vs ${a.cn || a.name} · 绿茵数据台`);
