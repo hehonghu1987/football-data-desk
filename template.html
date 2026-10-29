@@ -1128,6 +1128,14 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
         <h2 class="section-title">双方历史交锋</h2>
         <span class="section-note" id="h2h-note">—</span>
       </div>
+      <div class="filters">
+        <div class="seg" id="mv-h2h-side" role="group" aria-label="按主客场筛选历史交锋">
+          <button type="button" data-side="all" aria-pressed="true">全部</button>
+          <button type="button" data-side="home" aria-pressed="false">主场</button>
+          <button type="button" data-side="away" aria-pressed="false">客场</button>
+        </div>
+        <span class="table-note" id="mv-h2h-count"></span>
+      </div>
       <div class="sum-grid" id="h2h-summary"></div>
       <div class="table-wrap">
         <table class="stats">
@@ -1399,6 +1407,7 @@ const state = {
   h2hOpen: false,
   h2hOpp: null,
   h2hSide: "all",
+  mvSide: "all",
   h2hComp: "all",
   perfDays: 30,
   id: null,
@@ -2326,6 +2335,16 @@ function renderHome(){
 
 $("#share-btn")?.addEventListener("click", sharePage);
 $("#export-daily")?.addEventListener("click", exportDailyCard);
+$("#mv-h2h-side")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-side]");
+  if(!b) return;
+  state.mvSide = b.dataset.side;
+  const m = state.matchId ? MATCH_BY_ID.get(state.matchId) : null;
+  if(!m) return;
+  const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+  if(h && a) renderMatchH2H(h, a, m);
+});
+
 $("#export-match")?.addEventListener("click", () => {
   const m = state.matchId ? MATCH_BY_ID.get(state.matchId) : null;
   if(m) exportMatchCard(m); else toast("请先打开一场比赛");
@@ -3220,6 +3239,7 @@ function renderMatch(id){
   $("#team-view").hidden = true;
   $("#match-view").hidden = false;
   state.matchId = String(id);
+  state.mvSide = "all";
   $("#match-back").href = "#/team/" + encodeURIComponent(h.id);
   $("#match-back").textContent = "← 返回 " + (h.cn || h.name);
   setShareMeta(`${h.cn || h.name} vs ${a.cn || a.name} · 绿茵数据台`);
@@ -3276,26 +3296,42 @@ function renderMatch(id){
   renderPreMatch(m);
   renderInsight(m);
 
-  const allMeetings = h2hMatches(h.id, a.id, m.id);
-  const list = allMeetings.slice(0, 10);
+  renderMatchH2H(h, a, m);
+}
+
+/* 比赛页的双方历史交锋，支持按主客场筛选（以本场主队为参照） */
+function renderMatchH2H(h, a, m){
+  const all = h2hMatches(h.id, a.id, m.id);
+  const side = state.mvSide || "all";
+  const sideFiltered = side === "all"
+    ? all
+    : all.filter(x => String(x.home) === String(h.id) ? side === "home" : side === "away");
+  const list = sideFiltered.slice(0, 10);
   const rec = recordOf(list, h.id);
   const goalsH = list.reduce((n, x) => n + (String(x.home) === String(h.id) ? (x.hs || 0) : (x.as || 0)), 0);
   const goalsA = list.reduce((n, x) => n + (String(x.home) === String(h.id) ? (x.as || 0) : (x.hs || 0)), 0);
   const last = list[0];
+  const sideLabel = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
+
+  $$("#mv-h2h-side [data-side]").forEach(b =>
+    b.setAttribute("aria-pressed", b.dataset.side === side ? "true" : "false"));
+  $("#mv-h2h-count").textContent = side === "all"
+    ? `${all.length} 场`
+    : `${sideLabel} ${sideFiltered.length} / ${all.length} 场（以${h.cn || h.name}为参照）`;
 
   $("#h2h-note").textContent = list.length
-    ? `最近 ${list.length} 次${allMeetings.length > list.length ? `（共 ${allMeetings.length} 场）` : ""} · 最早 ${fmtDate(list[list.length - 1].date)}`
-    : "暂无交锋记录";
+    ? `${side === "all" ? "" : sideLabel + " · "}最近 ${list.length} 次${sideFiltered.length > list.length ? `（共 ${sideFiltered.length} 场）` : ""} · 最早 ${fmtDate(list[list.length - 1].date)}`
+    : (all.length ? `该筛选下暂无交锋` : "暂无交锋记录");
 
   $("#h2h-summary").innerHTML = list.length ? [
-    `<div class="sum-tile wide"><div class="l">历史交锋</div><div class="v">${allMeetings.length} 场</div><div class="s">不含本场 · 显示最近 ${list.length} 场</div></div>`,
+    `<div class="sum-tile wide"><div class="l">历史交锋${side === "all" ? "" : " · " + sideLabel}</div><div class="v">${sideFiltered.length} 场</div><div class="s">不含本场 · 显示最近 ${list.length} 场</div></div>`,
     `<div class="sum-tile"><div class="l">${esc(h.cn || h.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`,
     `<div class="sum-tile"><div class="l">最近一次交锋</div><div class="v">${last ? `${fmtDate(last.date).slice(5)}` : "—"}</div><div class="s">${last ? `${TEAMS.get(String(last.home)) ? (TEAMS.get(String(last.home)).cn || TEAMS.get(String(last.home)).name) : ""} ${last.hs}–${last.as} ${TEAMS.get(String(last.away)) ? (TEAMS.get(String(last.away)).cn || TEAMS.get(String(last.away)).name) : ""}` : "暂无"}</div></div>`
   ].join("") : "";
 
   $("#h2h-table-body").innerHTML = list.length
     ? list.map(x => rowHtml(x, h.id)).join("")
-    : `<tr><td colspan="12"><div class="h2h-empty" style="margin:18px 0">本站尚未收录两队的历史交锋。每队仅保留最近 30 场，若两队近年未相遇则不会出现在这里。</div></td></tr>`;
+    : `<tr><td colspan="12"><div class="h2h-empty" style="margin:18px 0">${all.length ? "该主客场筛选下没有交锋记录，可切回「全部」。" : "本站尚未收录两队的历史交锋。每队仅保留最近 30 场，若两队近年未相遇则不会出现在这里。"}</div></td></tr>`;
   $("#match-view").querySelector(".table-wrap").hidden = !list.length;
 }
 
