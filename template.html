@@ -1682,13 +1682,16 @@ function calibrationStats(days){
   const BINS = 10, MIN_N = 20;
   const blank = () => Array.from({length: BINS}, () => ({ n: 0, sp: 0, hit: 0 }));
   const rowsWDL = blank(), rowsOU = blank();
-  let nWDL = 0, nOU = 0, matchN = 0, brierOU = 0, overN = 0;
+  let nWDL = 0, nOU = 0, matchN = 0, brierOU = 0, overN = 0, brierWDL = 0;
+  const outcomeN = [0, 0, 0];
   for(const m of (DATA.matches || [])){
     if(!m.pre || m.hs == null || m.as == null) continue;
     if(new Date(m.date).getTime() < cutoff) continue;
     matchN++;
     const ps = [m.pre.ph, m.pre.pd, m.pre.pa];
     const o = m.hs > m.as ? 0 : (m.hs === m.as ? 1 : 2);
+    outcomeN[o]++;
+    brierWDL += ps.reduce((acc, v, i) => acc + (v - (i === o ? 1 : 0)) ** 2, 0) / 3;
     for(let i = 0; i < 3; i++){
       const p = ps[i];
       if(!(p >= 0 && p <= 1)) continue;
@@ -1730,7 +1733,13 @@ function calibrationStats(days){
   return { matchN, wdl: pack(rowsWDL, nWDL), ou: pack(rowsOU, nOU),
            brierOU: nOU ? brierOU / nOU : null,
            baseRate: nOU ? overN / nOU : null,
-           skillOU: nOU && overN ? 1 - (brierOU / nOU) / ((overN / nOU) * (1 - overN / nOU)) : null };
+           skillOU: nOU && overN ? 1 - (brierOU / nOU) / ((overN / nOU) * (1 - overN / nOU)) : null,
+           brierWDL: matchN ? brierWDL / matchN : null,
+           skillWDL: matchN ? (() => {
+             const base = outcomeN.map(n => n / matchN);
+             const ref = (1 - base.reduce((a, v) => a + v * v, 0)) / 3;
+             return ref > 0 ? 1 - (brierWDL / matchN) / ref : null;
+           })() : null };
 }
 
 function calSvg(series){
@@ -1782,6 +1791,10 @@ function renderCalibration(days){
   const skCls = sk == null ? "" : (sk > 0.005 ? "pos" : (sk < -0.005 ? "neg" : ""));
   sum.innerHTML = [
     tile("校准误差 ECE", pct1(c.wdl.ece), c.wdl.total ? `胜平负 · ${c.wdl.total} 个概率样本` : "样本不足"),
+    `<div class="sum-tile"><div class="l">胜平负技能分</div><div class="v ${
+      c.skillWDL == null ? "" : (c.skillWDL > 0.005 ? "pos" : (c.skillWDL < -0.005 ? "neg" : ""))}">${
+      c.skillWDL == null ? "—" : (c.skillWDL > 0 ? "+" : "") + (c.skillWDL * 100).toFixed(1) + "%"}</div><div class="s">${
+      c.skillWDL == null ? "样本不足" : "相对「永远猜本区间赛果分布」"}</div></div>`,
     tile("大小球 ECE", pct1(c.ou.ece), c.ou.total ? `大 2.5 球 · ${c.ou.total} 场` : "样本不足"),
     `<div class="sum-tile"><div class="l">大小球技能分</div><div class="v ${skCls}">${
       sk == null ? "—" : (sk > 0 ? "+" : "") + (sk * 100).toFixed(1) + "%"}</div><div class="s">${
