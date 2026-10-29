@@ -274,12 +274,10 @@ input{font:inherit}
 }
 .quick button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .cat-tabs{
-  display:flex;gap:5px;margin-top:20px;padding:5px;
+  display:flex;gap:6px;margin-top:20px;padding:6px;
   background:var(--surface-2);border-radius:12px;
-  width:max-content;max-width:100%;overflow-x:auto;
-  scrollbar-width:none;
+  width:100%;max-width:100%;flex-wrap:wrap;
 }
-.cat-tabs::-webkit-scrollbar{display:none}
 .cat-tab{
   display:flex;align-items:center;gap:7px;
   padding:9px 14px;border-radius:8px;
@@ -1394,7 +1392,7 @@ function avgText(v){
 
 /* ---------- state ---------- */
 const state = {
-  cat: "major",
+  league: "all",
   q: "",
   side: "all",
   comp: "all",
@@ -1948,28 +1946,54 @@ function renderHero(){
 
 function renderTabs(){
   const tabs = $("#cat-tabs");
-  tabs.innerHTML = (DATA.categories || []).map(c => {
-    const teams = indexTeams(c.id).length;
-    return `<button type="button" class="cat-tab" role="tab" data-cat="${esc(c.id)}" aria-selected="${state.cat === c.id}">
-      ${esc(c.label)}<span class="n">${teams}</span>
+  const opts = [{ id: "all", label: "全部" }].concat(
+    (DATA.leagues || []).map(l => ({ id: l.label, label: l.label }))
+  );
+  tabs.innerHTML = opts.map(o => {
+    return `<button type="button" class="cat-tab" role="tab" data-league="${esc(o.id)}" aria-selected="${state.league === o.id}">
+      ${esc(o.label)}<span class="n">${upcomingCount(o.id)}</span>
     </button>`;
   }).join("");
 }
 
-function catMatches(cat){
-  return (DATA.matches || []).filter(m => matchCat(m) === cat);
+function leagueMatchList(league){
+  const all = DATA.matches || [];
+  return league === "all" ? all : all.filter(m => m.league === league);
 }
-function catTeams(cat){
-  return Array.from(TEAMS.values()).filter(t => t.cat === cat);
+function leagueFixtureList(league){
+  const all = DATA.fixtures || [];
+  return league === "all" ? all : all.filter(f => f.league === league);
 }
-function indexTeams(cat){
-  return catTeams(cat).filter(t => (t.currentLeagues || []).length > 0 || teamMatches(t.id).length >= 3);
+/* 与「今日赛程」面板口径一致：只统计前 3 个有比赛的比赛日 */
+function upcomingCount(league){
+  const start = new Date(TODAY_KEY + "T00:00:00");
+  const days = new Set();
+  for(const f of leagueFixtureList(league)){
+    const d = new Date(f.date);
+    if(isNaN(d) || d < start) continue;
+    days.add(dayKey(d));
+  }
+  const keep = Array.from(days).sort().slice(0, 3);
+  const keepSet = new Set(keep);
+  let n = 0;
+  for(const f of leagueFixtureList(league)){
+    const d = new Date(f.date);
+    if(isNaN(d) || d < start) continue;
+    if(keepSet.has(dayKey(d))) n++;
+  }
+  return n;
+}
+function leagueTeams(league){
+  const all = Array.from(TEAMS.values());
+  if(league === "all") return all;
+  const cur = t => Array.isArray(t.currentLeagues) ? t.currentLeagues : [];
+  return all.filter(t => cur(t).includes(league) || (t.leagues || []).includes(league));
 }
 
 function renderFixtures(){
   const panel = $("#fixtures-panel");
-  const list = (DATA.fixtures || []).filter(f =>
-    matchCat(f) === state.cat && new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
+  const list = leagueFixtureList(state.league).filter(f =>
+    new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
   );
   const groups = new Map();
   for(const f of list){
@@ -1981,9 +2005,10 @@ function renderFixtures(){
     groups.get(k).push(f);
   }
   const keys = Array.from(groups.keys()).sort().slice(0, 3);
-  $("#fixtures-title").textContent = groups.has(TODAY_KEY) ? "今日赛程" : "近期赛程";
+  const titleBase = groups.has(TODAY_KEY) ? "今日赛程" : "近期赛程";
+  $("#fixtures-title").textContent = state.league === "all" ? titleBase : state.league + " · " + titleBase;
   if(!keys.length){
-    panel.innerHTML = `<div class="empty">该分类近期暂无已排定的比赛。<br>可以切换到其他分类，或直接搜索球队查看历史数据。</div>`;
+    panel.innerHTML = `<div class="empty">${state.league === "all" ? "近期" : esc(state.league) + " 近期"}暂无已排定的比赛。<br>可以切换到其他联赛，或直接搜索球队查看历史数据。</div>`;
     return;
   }
   panel.innerHTML = keys.map(k => {
@@ -2017,7 +2042,7 @@ function renderFixtures(){
 
 function renderRecent(){
   const panel = $("#recent-panel");
-  const list = catMatches(state.cat).slice(0, 8);
+  const list = leagueMatchList(state.league).filter(m => m.hs != null).slice(0, 8);
   if(!list.length){
     panel.innerHTML = `<div class="empty">该分类暂无已结束的比赛数据。</div>`;
     return;
@@ -2050,25 +2075,29 @@ function renderIndex(){
   const wrap = $("#team-index");
   const FIVE = ["英超","西甲","意甲","德甲","法甲"];
   const cur = t => Array.isArray(t.currentLeagues) ? t.currentLeagues : [];
-  const teams = indexTeams(state.cat);
+  const usable = t => (t.currentLeagues || []).length > 0 || teamMatches(t.id).length >= 3;
+  const allTeams = Array.from(TEAMS.values());
   let groups = [];
-  if(state.cat === "major"){
-    groups = FIVE.map(lg => ({label:lg, teams:teams.filter(t => cur(t).includes(lg))}));
-    const rest = teams.filter(t => !FIVE.some(lg => cur(t).includes(lg)));
+  if(state.league === "all"){
+    const teams = allTeams.filter(usable);
+    const sub = cat => teams.filter(t => t.cat === cat);
+
+    const major = sub("major");
+    groups = FIVE.map(lg => ({ label: lg, teams: major.filter(t => cur(t).includes(lg)) }));
+    const rest = major.filter(t => !FIVE.some(lg => cur(t).includes(lg)));
     const otherCurrent = rest.filter(t => cur(t).length > 0);
     const historical = rest.filter(t => cur(t).length === 0);
-    if(otherCurrent.length) groups.push({label:"欧战其他球队", teams:otherCurrent});
-    if(historical.length) groups.push({label:"历史对手", note:"非本赛季收录联赛", teams:historical});
-  } else if(state.cat === "champ"){
-    groups = [
-      {label:"英冠", teams: teams.filter(t => cur(t).includes("英冠"))},
-      {label:"历史对手", note:"已降级", teams: teams.filter(t => !cur(t).includes("英冠"))}
-    ];
+    if(otherCurrent.length) groups.push({ label: "欧战其他球队", teams: otherCurrent });
+    if(historical.length) groups.push({ label: "历史对手", note: "非本赛季收录联赛", teams: historical });
+
+    groups.push({ label: "英冠", note: "英格兰冠军联赛", teams: sub("champ") });
+    groups.push({ label: "巴西甲", note: "巴西甲级联赛", teams: sub("brazil") });
   } else {
-    groups = [
-      {label:"巴西甲", teams: teams.filter(t => cur(t).includes("巴西甲"))},
-      {label:"历史对手", note:"已降级", teams: teams.filter(t => !cur(t).includes("巴西甲"))}
-    ];
+    const lg = state.league;
+    const inLg = allTeams.filter(t => cur(t).includes(lg) && usable(t));
+    const hist = allTeams.filter(t => !cur(t).includes(lg) && (t.leagues || []).includes(lg) && usable(t));
+    groups = [{ label: lg, teams: inLg }];
+    if(hist.length) groups.push({ label: "历史球队", note: "本赛季已不在该赛事", teams: hist });
   }
   wrap.innerHTML = groups.filter(g => g.teams.length).map(g => {
     const sorted = g.teams.slice().sort((a,b) => collator.compare(a.cn || a.name, b.cn || b.name));
@@ -2303,9 +2332,9 @@ $("#perf-seg").addEventListener("click", e => {
 });
 
 $("#cat-tabs").addEventListener("click", e => {
-  const b = e.target.closest("[data-cat]");
+  const b = e.target.closest("[data-league]");
   if(!b) return;
-  state.cat = b.dataset.cat;
+  state.league = b.dataset.league;
   renderTabs();
   renderFixtures();
   renderRecent();
