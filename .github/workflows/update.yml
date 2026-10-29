@@ -70,11 +70,21 @@ jobs:
           assert size < 10 * 1024 * 1024, '页面体积超过 10MB，放弃发布'
           PY
 
+      - name: 生成静态球队页
+        if: ${{ !inputs.deploy_only }}
+        run: python3 build_seo.py
+
       - name: 整理发布目录
         run: |
           mkdir -p dist
           cp football_database.html dist/index.html
           cp sw.js dist/sw.js
+          cp robots.txt sitemap.xml og-image.png og-icon.png dist/
+          if [ -d seo/teams ]; then
+            cp -R seo/teams dist/teams
+            cp seo/sitemap.xml dist/sitemap.xml
+          fi
+          du -sh dist
 
       - name: 记录构建时间
         run: |

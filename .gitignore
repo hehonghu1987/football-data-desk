@@ -3,3 +3,5 @@ data/
 build.log
 probe_*.json
 .DS_Store
+# 静态页由 build_seo.py 在 CI 现场生成，不入库
+seo/

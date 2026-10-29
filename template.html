@@ -3,7 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>绿茵数据台</title>
+<title>绿茵数据台 · 足球赛程比分、盘口与模型预测（五大联赛／欧冠／英冠／巴西甲）</title>
+<meta name="description" content="绿茵数据台提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲等赛事的每日赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，并给出进球线、亚盘让球与角球盘口概率。数据每日自动更新。">
+<meta name="theme-color" content="#0E7A49">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://hehonghu1987.github.io/football-data-desk/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="绿茵数据台">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:title" content="绿茵数据台 · 足球赛程比分、盘口与模型预测">
+<meta property="og:description" content="每日更新的足球数据台：赛程比分、射门射正角球统计、球队近况、攻防模型预测，含进球线／亚盘／角球盘口概率。覆盖五大联赛、欧冠、英冠与巴西甲。">
+<meta property="og:url" content="https://hehonghu1987.github.io/football-data-desk/">
+<meta property="og:image" content="https://hehonghu1987.github.io/football-data-desk/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="绿茵数据台：足球赛程比分与模型预测">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="绿茵数据台 · 足球赛程比分、盘口与模型预测">
+<meta name="twitter:description" content="每日更新的足球数据台：赛程比分、技术统计、球队近况与模型预测，含进球线／亚盘／角球盘口概率。">
+<meta name="twitter:image" content="https://hehonghu1987.github.io/football-data-desk/og-image.png">
+<link rel="apple-touch-icon" href="og-icon.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"绿茵数据台","alternateName":"MATCH DATA DESK","url":"https://hehonghu1987.github.io/football-data-desk/","description":"足球赛程比分、技术统计与攻防模型预测，覆盖五大联赛、欧冠、欧联杯、英冠、巴西甲及各国杯赛，含进球线、亚盘与角球盘口概率。","inLanguage":"zh-CN","publisher":{"@type":"Organization","name":"绿茵数据台"},"about":[{"@type":"Thing","name":"足球赛程与比分"},{"@type":"Thing","name":"足球技术统计"},{"@type":"Thing","name":"足球比赛模型预测"}]}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -173,6 +195,11 @@ input{font:inherit}
   transition:color .15s,border-color .15s;
 }
 .icon-btn:hover{color:var(--ink);border-color:var(--line-strong)}
+.noscript-note{max-width:760px;margin:24px auto;padding:20px 22px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);font-size:13px;line-height:1.85;color:var(--ink-2)}
+.noscript-note h1{font-family:var(--font-display);font-size:22px;margin:0 0 10px;color:var(--ink)}
+.noscript-note p{margin:0 0 8px}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);background:var(--ink);color:#fff;font-size:12px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:200;box-shadow:0 8px 24px -8px rgba(18,33,26,.5)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .theme-btn .sun{display:none}
 .theme-btn .moon{display:block}
 @media (prefers-color-scheme: dark){
@@ -839,6 +866,15 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 </head>
 <body>
 
+<noscript>
+  <div class="noscript-note">
+    <h1>绿茵数据台 · 足球赛程比分与模型预测</h1>
+    <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
+    <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
+    <p><a href="/football-data-desk/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
+    <p>数据来源 ESPN 公开接口，赔率来自 DraftKings（经 ESPN），每日自动更新。</p>
+  </div>
+</noscript>
 <header class="topbar">
   <div class="topbar-inner">
     <a class="brand" href="#/" aria-label="绿茵数据台首页">
@@ -867,6 +903,9 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 
     <div class="topbar-meta">
       <span class="update-chip" id="update-chip"><span class="dot"></span><span class="txt">更新</span><span id="update-time">—</span></span>
+      <button class="icon-btn" id="share-btn" type="button" aria-label="分享本页" title="分享本页">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 15V3"></path><path d="M8 7l4-4 4 4"></path></svg>
+      </button>
       <button class="icon-btn theme-btn" id="theme-toggle" type="button" aria-label="切换深浅色">
         <svg class="moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
         <svg class="sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
@@ -1401,6 +1440,58 @@ function searchTeams(q){
   return out.slice(0, 12).map(x => x.s.t);
 }
 
+/* ---------- 分享与页面元信息 ---------- */
+const DEFAULT_TITLE = document.title;
+
+function setShareMeta(title){
+  document.title = title || DEFAULT_TITLE;
+  const pairs = [
+    ['meta[property="og:title"]', document.title],
+    ['meta[name="twitter:title"]', document.title],
+    ['meta[property="og:url"]', location.href]
+  ];
+  for(const [sel, val] of pairs){
+    const el = document.querySelector(sel);
+    if(el) el.setAttribute("content", val);
+  }
+}
+
+let toastTimer = null;
+function toast(msg){
+  let el = document.getElementById("dsh-toast");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "dsh-toast";
+    el.className = "toast";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  requestAnimationFrame(() => el.classList.add("on"));
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("on"), 1900);
+}
+
+async function sharePage(){
+  const url = location.href;
+  const title = document.title;
+  if(navigator.share){
+    try{
+      await navigator.share({ title, url });
+      return;
+    }catch(err){
+      if(err && err.name === "AbortError") return;
+    }
+  }
+  try{
+    await navigator.clipboard.writeText(url);
+    toast("链接已复制");
+  }catch(e){
+    window.prompt("复制链接：", url);
+  }
+}
+
 function renderSearch(){
   const q = state.q;
   if(!q){
@@ -1849,7 +1940,7 @@ function renderHome(){
   $("#home-view").hidden = false;
   $("#team-view").hidden = true;
   $("#match-view").hidden = true;
-  document.title = "绿茵数据台";
+  setShareMeta(null);
   renderHero();
   renderTabs();
   renderFixtures();
@@ -1857,6 +1948,8 @@ function renderHome(){
   renderModelPerf();
   renderIndex();
 }
+
+$("#share-btn")?.addEventListener("click", sharePage);
 
 $("#perf-seg").addEventListener("click", e => {
   const b = e.target.closest("[data-days]");
@@ -2061,7 +2154,7 @@ function renderTeam(id){
   $("#home-view").hidden = true;
   $("#team-view").hidden = false;
   $("#match-view").hidden = true;
-  document.title = (t.cn || t.name) + " · 绿茵数据台";
+  setShareMeta((t.cn || t.name) + " · 绿茵数据台");
 
   const rec = recordOf(state.all, id);
   const sum = summarize(state.all, id);
@@ -2748,7 +2841,7 @@ function renderMatch(id){
   $("#match-view").hidden = false;
   $("#match-back").href = "#/team/" + encodeURIComponent(h.id);
   $("#match-back").textContent = "← 返回 " + (h.cn || h.name);
-  document.title = `${h.cn || h.name} vs ${a.cn || a.name} · 绿茵数据台`;
+  setShareMeta(`${h.cn || h.name} vs ${a.cn || a.name} · 绿茵数据台`);
 
   const done = m.hs != null && m.as != null;
   const score = done ? `${m.hs}–${m.as}` : "VS";
