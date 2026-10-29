@@ -933,17 +933,139 @@ def fetch_odds(league_code, event_id):
     return odds
 
 
+ODDS_SNAP_DIR = os.path.join(ROOT, "odds_snapshots")
+ODDS_SNAP_MAX = 6        # 每个事件最多保留的快照条数，控制仓库体积
+ODDS_SNAP_MONTHS = 3     # 回读最近几个月作为回测依据
+ODDS_SNAP_MOVE = 0.01    # 去水概率变化超过此阈值才追加新快照
+_ODDS_SNAP_INDEX = {}
+
+
+def _snap_months(n=ODDS_SNAP_MONTHS):
+    d = date.today().replace(day=1)
+    out = []
+    for _ in range(n):
+        out.append(f"{d.year:04d}-{d.month:02d}")
+        d = (d - timedelta(days=1)).replace(day=1)
+    return out
+
+
+def _snap_probs(o):
+    ml = [o.get("h"), o.get("d"), o.get("a")]
+    if not all(ml):
+        return None
+    inv = [1 / v for v in ml]
+    s = sum(inv)
+    return [x / s for x in inv]
+
+
+def _load_snapshot_state():
+    """回读仓库内全部快照，返回 (事件→最后一条, 事件→已存条数)。"""
+    last, counts = {}, {}
+    for key in _snap_months():
+        path = os.path.join(ODDS_SNAP_DIR, key + ".jsonl")
+        if not os.path.exists(path):
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    o = json.loads(line)
+                except ValueError:
+                    continue
+                eid = str(o.get("e") or "")
+                if eid:
+                    last[eid] = o
+                    counts[eid] = counts.get(eid, 0) + 1
+    return last, counts
+
+
+def load_odds_snapshots():
+    """读取赛前赔率快照索引（eventId → 最后一条），供回测使用。"""
+    return _load_snapshot_state()[0]
+
+
+def write_odds_snapshots(events, odds_map):
+    """把本次采集到的赛前盘口追加到 odds_snapshots/YYYY-MM.jsonl。
+
+    追加式写入，避免每天重写整个文件造成仓库抖动。同一事件只在首次出现、
+    赔率变化超过阈值或盘口线变动时追加，且每个事件最多保留 ODDS_SNAP_MAX 条。
+    """
+    if not odds_map:
+        return 0
+    os.makedirs(ODDS_SNAP_DIR, exist_ok=True)
+    last, counts = _load_snapshot_state()
+    path = os.path.join(ODDS_SNAP_DIR, date.today().strftime("%Y-%m") + ".jsonl")
+    now = datetime.now().astimezone().isoformat(timespec="minutes")
+    lines = []
+    for eid, od in odds_map.items():
+        if not od:
+            continue
+        ml = od.get("ml") or {}
+        if not all(ml.get(k) for k in ("h", "d", "a")):
+            continue
+        ev = events.get(eid) or {}
+        ko_day = parse_match_date(ev.get("date"))
+        # 防御：只保留真正赛前的盘口。跨天后 ESPN 仍可能返回残留赔率，
+        # 一旦写入就会污染回测，因此开赛日期早于今天的一律丢弃。
+        if ko_day is not None and ko_day < date.today():
+            continue
+        snap = {
+            "e": str(eid),
+            "lg": ev.get("league"),
+            "ko": ev.get("date"),
+            "t": now,
+            "h": ml["h"], "d": ml["d"], "a": ml["a"],
+        }
+        ah = od.get("ah") or {}
+        if ah.get("line") is not None:
+            snap["ah"] = [ah.get("line"), ah.get("h"), ah.get("a")]
+        ou = od.get("ou") or {}
+        if ou.get("line") is not None:
+            snap["ou"] = [ou.get("line"), ou.get("over"), ou.get("under")]
+        prev = last.get(str(eid))
+        n = counts.get(str(eid), 0)
+        if prev is not None:
+            if n >= ODDS_SNAP_MAX:
+                continue
+            p0, p1 = _snap_probs(prev), _snap_probs(snap)
+            changed = bool(p0 and p1 and
+                           max(abs(a - b) for a, b in zip(p0, p1)) >= ODDS_SNAP_MOVE)
+            if (prev.get("ah") or [None])[0] != (snap.get("ah") or [None])[0]:
+                changed = True
+            if (prev.get("ou") or [None])[0] != (snap.get("ou") or [None])[0]:
+                changed = True
+            if not changed:
+                continue
+        lines.append(json.dumps(snap, ensure_ascii=False, separators=(",", ":")))
+        counts[str(eid)] = n + 1
+        last[str(eid)] = snap
+    if lines:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    return len(lines)
+
+
 def odds_market_probs(league_code, event_id):
-    """读取赛前盘口的去水概率（供已结束比赛回测综合预测）。"""
+    """读取赛前盘口的去水概率（供已结束比赛回测综合预测）。
+
+    先用采集缓存（最近一次抓到的赔率），缓存缺失时回落到仓库内的快照，
+    使回测样本不受 CI 缓存淘汰影响。
+    """
     raw = read_cache(f"odds_{league_code}_{event_id}.json")
-    if not raw:
-        return None
-    ml = (raw.get("odds") or {}).get("ml") or {}
-    if not all(ml.get(k) for k in ("h", "d", "a")):
-        return None
-    inv = [1 / ml["h"], 1 / ml["d"], 1 / ml["a"]]
-    total = sum(inv)
-    return [round(x / total, 3) for x in inv]
+    if raw:
+        ml = (raw.get("odds") or {}).get("ml") or {}
+        if all(ml.get(k) for k in ("h", "d", "a")):
+            inv = [1 / ml["h"], 1 / ml["d"], 1 / ml["a"]]
+            total = sum(inv)
+            return [round(x / total, 3) for x in inv]
+    snap = _ODDS_SNAP_INDEX.get(str(event_id))
+    if snap:
+        probs = _snap_probs(snap)
+        if probs:
+            return [round(x, 3) for x in probs]
+    return None
 
 
 def fetch_lineup(league_code, event_id):
@@ -1648,6 +1770,9 @@ def main():
     RATE_STATE["interval"] = max(0.0, args.rate)
 
     ensure_dirs()
+    _ODDS_SNAP_INDEX.update(load_odds_snapshots())
+    if _ODDS_SNAP_INDEX:
+        log(f"  已载入赛前盘口快照 {len(_ODDS_SNAP_INDEX)} 条")
     wanted = [s.strip() for s in args.leagues.split(",") if s.strip()]
     leagues = [l for l in LEAGUES if not wanted or l["label"] in wanted]
     if wanted:
@@ -1926,6 +2051,9 @@ def main():
             for fut in as_completed(futs):
                 odds_map[futs[fut]] = fut.result()
         log(f"  赔率：{sum(1 for v in odds_map.values() if v)}/{len(odds_jobs)} 场有数据")
+        snap_added = write_odds_snapshots(events, odds_map)
+        if snap_added:
+            log(f"  盘口快照：新增 {snap_added} 条")
 
     fixture_rows = []
     for ev in fixture_events:
