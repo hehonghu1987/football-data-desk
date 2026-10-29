@@ -2096,21 +2096,7 @@ def main():
         })
     team_rows.sort(key=lambda t: (t["cn"], t["name"]))
 
-    # 球员中文名覆盖自检
-    miss_players = set()
-    for lu in lineups.values():
-        for pl in (lu.get("p") or []):
-            en = pl.get("en") or ""
-            n = pl.get("n") or ""
-            if en and n and not any(0x4E00 <= ord(ch) <= 0x9FFF for ch in n):
-                miss_players.add(en)
-    if miss_players:
-        log(f"  ⚠ 未翻译球员 {len(miss_players)} 人，需补进 player_cn.json："
-            + "、".join(sorted(miss_players)[:8]))
-    else:
-        log("  球员中文名：阵容中已全部翻译")
-
-    # 中文队名覆盖自检：新增球队若未收录译名，会在日志里提示，避免前端回落到英文
+# 中文队名覆盖自检：新增球队若未收录译名，会在日志里提示，避免前端回落到英文
     untranslated = sorted({t["name"] for t in team_rows if t.get("cn") == t.get("name")})
     if untranslated:
         log(f"  ⚠ 未翻译球队 {len(untranslated)} 支，需补进 team_cn_extra.json："
@@ -2154,8 +2140,21 @@ def main():
     upcoming_teams |= {ev["away"] for ev in fixture_events if not ev["completed"]}
     lineups = {}
     if upcoming_teams and not args.max_summaries:
-        lineups = build_team_lineups(match_rows, upcoming_teams, args.workers)
         log(f"  参考阵容：{len(lineups)} 支球队")
+
+    # 球员中文名覆盖自检（必须在 lineups 构建之后）
+    miss_players = set()
+    for lu in lineups.values():
+        for pl in (lu.get("p") or []):
+            en = pl.get("en") or ""
+            n = pl.get("n") or ""
+            if en and n and not any(0x4E00 <= ord(ch) <= 0x9FFF for ch in n):
+                miss_players.add(en)
+    if miss_players:
+        log(f"  ⚠ 未翻译球员 {len(miss_players)} 人，需补进 player_cn.json："
+            + "、".join(sorted(miss_players)[:8]))
+    elif lineups:
+        log("  球员中文名：阵容中已全部翻译")
 
     dates = [m["date"] for m in match_rows if m["date"]]
     meta = {
