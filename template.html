@@ -664,6 +664,34 @@ table.stats tbody tr:last-child td{border-bottom:0}
   font-size:10px;color:var(--muted);margin-top:4px;
 }
 .pred-note{font-size:10px;color:var(--muted);margin-top:12px;line-height:1.7}
+/* ---------- 盘口对照 ---------- */
+.mk-block{margin-top:16px}
+.mk-title{font-size:12px;font-weight:600;margin:0 0 4px}
+.mk-sub{font-size:10px;color:var(--muted);line-height:1.75;margin-bottom:12px}
+.mk-sub.mk-warn{color:var(--loss);margin-top:-6px}
+.mk-wrap{display:grid;gap:12px}
+.mk-card{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.mk-card>.hd{font-size:10.5px;color:var(--muted);letter-spacing:.04em;padding:9px 13px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.mk-card>.hd b{color:var(--ink);font-family:var(--font-mono);font-weight:600;letter-spacing:0}
+.mk-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.mk-tbl th{font-size:10px;font-weight:500;color:var(--muted);text-align:right;padding:7px 13px;border-bottom:1px solid var(--line);white-space:nowrap}
+.mk-tbl th:first-child{text-align:left}
+.mk-tbl td{padding:6px 13px;text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line);white-space:nowrap}
+.mk-tbl td:first-child{text-align:left;font-family:inherit;font-weight:600}
+.mk-tbl tbody tr:last-child td{border-bottom:0}
+.mk-tbl tr.on td{background:var(--surface-2)}
+.mk-tbl .tagline{font-size:9px;font-weight:500;color:var(--accent);letter-spacing:.04em;margin-left:6px;font-family:var(--font-body)}
+.mk-tbl .pos{color:var(--win);font-weight:600}
+.mk-tbl .neg{color:var(--loss);font-weight:600}
+.mk-tbl .dim{color:var(--muted)}
+.mk-corner{display:flex;gap:7px;flex-wrap:wrap;padding:12px 13px;font-size:11px;color:var(--muted)}
+.mk-corner span{border:1px solid var(--line);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.mk-corner span.hi{border-color:var(--accent);color:var(--accent)}
+.mk-corner b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+@media (max-width:640px){
+  .mk-tbl th,.mk-tbl td{padding-left:9px;padding-right:9px}
+  .mk-tbl{font-size:11px}
+}
 .subhead{
   font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;
   margin:20px 0 10px;
@@ -1021,6 +1049,8 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
       <div class="odds-grid" id="odds-grid"></div>
 
       <div class="pred-card" id="pred-card"></div>
+
+      <div class="mk-block" id="mk-block" hidden></div>
 
       <h3 class="subhead" id="form-head">近期状态</h3>
       <div class="form-compare" id="form-compare"></div>
@@ -2021,6 +2051,90 @@ function ahText(line){
 
 function pct(p){ return Math.round((p || 0) * 100) + "%"; }
 
+/* 两路赔率去水，返回 [主/大, 客/小] 的隐含概率 */
+function devig2(o1, o2){
+  const a = o1 > 0 ? 1 / o1 : 0;
+  const b = o2 > 0 ? 1 / o2 : 0;
+  const s = a + b;
+  return s ? [a / s, b / s] : null;
+}
+
+/* 盘口对照表：模型概率 vs 同一条线上的市场去水概率，偏差单位为百分点 */
+function marketRows(rows, mkLine, mkProbs, fmt){
+  return rows.map(r => {
+    const isMk = mkProbs && mkLine != null && Math.abs(mkLine - r.line) < 1e-6;
+    const pm = isMk ? mkProbs[0] : null;
+    const edge = pm == null ? null : r.p - pm;
+    const cls = edge == null ? "dim" : edge > 0.015 ? "pos" : edge < -0.015 ? "neg" : "";
+    const txt = edge == null ? "—" : (edge > 0 ? "+" : "") + (edge * 100).toFixed(1);
+    return `<tr${isMk ? ' class="on"' : ""}>`
+      + `<td>${fmt(r.line)}${isMk ? '<span class="tagline">盘口</span>' : ""}</td>`
+      + `<td>${pct(r.p)}</td>`
+      + `<td>${pm == null ? '<span class="dim">—</span>' : pct(pm)}</td>`
+      + `<td class="${cls}">${txt}</td></tr>`;
+  }).join("");
+}
+
+function renderMarkets(m, pred, odds){
+  const box = $("#mk-block");
+  if(!box) return;
+  box.hidden = true;
+  box.innerHTML = "";
+  if(!pred) return;
+  const cards = [];
+  const ou = odds && odds.ou ? odds.ou : null;
+  const ah = odds && odds.ah ? odds.ah : null;
+
+  if(pred.lines){
+    const rows = Object.keys(pred.lines)
+      .sort((x, y) => Number(x) - Number(y))
+      .map(k => ({ line: Number(k), p: pred.lines[k] }));
+    const mk = ou ? devig2(ou.over, ou.under) : null;
+    const mkLine = ou && ou.line != null ? Number(ou.line) : null;
+    cards.push(`<div class="mk-card">
+      <div class="hd">大小球 · 模型 vs 市场（大球概率），模型期望总进球 <b>${(Number(pred.xgH) + Number(pred.xgA)).toFixed(2)}</b></div>
+      <table class="mk-tbl"><thead><tr><th>盘口线</th><th>模型</th><th>市场</th><th>偏差 pts</th></tr></thead>
+      <tbody>${marketRows(rows, mkLine, mk, v => v.toFixed(1) + " 球")}</tbody></table></div>`);
+  }
+
+  if(pred.ah){
+    const rows = Object.keys(pred.ah)
+      .sort((x, y) => Number(x) - Number(y))
+      .map(k => ({ line: Number(k), p: pred.ah[k] }));
+    const mk = ah ? devig2(ah.h, ah.a) : null;
+    const mkLine = ah && ah.line != null ? Number(ah.line) : null;
+    cards.push(`<div class="mk-card">
+      <div class="hd">亚盘让球 · 主队赢盘概率（走盘按退还本金折算）</div>
+      <table class="mk-tbl"><thead><tr><th>让球</th><th>模型</th><th>市场</th><th>偏差 pts</th></tr></thead>
+      <tbody>${marketRows(rows, mkLine, mk, v => ahText(v))}</tbody></table></div>`);
+  }
+
+  if(pred.corners){
+    const c = pred.corners;
+    const home = TEAMS.get(String(m.home)) || {};
+    const away = TEAMS.get(String(m.away)) || {};
+    const chips = Object.keys(c.over).map(ln =>
+      `<span>大 ${ln} <b>${pct(c.over[ln])}</b></span>`).join("");
+    cards.push(`<div class="mk-card">
+      <div class="hd">角球 · 期望总角球 <b>${Number(c.exp).toFixed(1)}</b></div>
+      <div class="mk-corner">
+        <span>${esc(home.cn || home.name || "主队")} <b>${Number(c.expH).toFixed(1)}</b></span>
+        <span>${esc(away.cn || away.name || "客队")} <b>${Number(c.expA).toFixed(1)}</b></span>
+        ${chips}
+      </div></div>`);
+  }
+
+  if(!cards.length) return;
+  const warn = pred.xlg
+    ? `<div class="mk-sub mk-warn">本场为跨联赛对阵，模型向均值收缩后偏向保守，偏差绝对值会系统性偏大，参考性较低。</div>`
+    : "";
+  box.innerHTML = `<div class="mk-title">盘口对照</div>
+    <div class="mk-sub">模型 = 纯数据模型概率；市场 = DraftKings 赔率去水后的隐含概率（仅与市场同线时可对照）。偏差 = 模型 − 市场，单位为百分点；仅供参考，不代表存在投注价值。</div>
+    ${warn}
+    <div class="mk-wrap">${cards.join("")}</div>`;
+  box.hidden = false;
+}
+
 function blendProbs(model, market, wMarket){
   const w = wMarket == null ? 0.7 : wMarket;
   const m = [model.ph, model.pd, model.pa];
@@ -2108,6 +2222,8 @@ function renderPreMatch(m){
   const pre = isUpcoming ? null : m.pre;
   const hasLineup = isUpcoming && !!((DATA.lineups || {})[String(m.home)] || (DATA.lineups || {})[String(m.away)]);
   const hasMarket = isUpcoming ? !!odds : !!m.mkt;
+  const mkBox = $("#mk-block");
+  if(mkBox){ mkBox.hidden = true; mkBox.innerHTML = ""; }
   if(!odds && !pred && !pre && !hasLineup && !hasMarket){ sec.hidden = true; return; }
   sec.hidden = false;
   $("#pre-match-note").textContent = isUpcoming
@@ -2200,6 +2316,7 @@ function renderPreMatch(m){
       </div>
       <div class="pred-facts">${facts}</div>`;
     $("#pred-card").hidden = false;
+    renderMarkets(m, pred, odds);
   } else if(ip){
     $("#pred-card").innerHTML = `
       <div class="pred-head">

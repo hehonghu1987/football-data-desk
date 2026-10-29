@@ -1174,6 +1174,15 @@ def fetch_team_league(team_id):
 RATING_HALF_LIFE = 300.0
 RATING_SHRINK = 8.0
 
+# 盘口输出网格：进球线 / 亚盘让球线 / 角球线
+GRID_N = 11                       # 比分网格上限，保证 4.5 球线与亚盘尾部分量
+GOAL_LINES = (0.5, 1.5, 2.5, 3.5, 4.5)
+AH_LINES = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
+CORNER_LINES = (6.5, 7.5, 8.5, 9.5, 10.5)
+CORNER_PRIOR = 5.2                # 单队单场角球先验均值（主客同值，靠主客场分项拟合）
+CORNER_SHRINK = 6.0               # 角球样本向先验收缩的权重
+CORNER_DISP = 1.30                # 角球过散布系数：方差 ≈ 1.30 × 均值（低于泊松假设的 1.0）
+
 
 def parse_match_date(s):
     try:
@@ -1252,8 +1261,8 @@ def poisson_pmf(k, lam):
     return math.exp(-lam) * lam ** k / math.factorial(k)
 
 
-def poisson_probs(lh, la):
-    n = 9
+def _score_grid(lh, la, n=GRID_N):
+    """带 Dixon-Coles 低比分修正的比分网格，已归一化。"""
     rho = -0.06
     grid = [[poisson_pmf(i, lh) * poisson_pmf(j, la) for j in range(n)] for i in range(n)]
     for i in (0, 1):
@@ -1267,13 +1276,45 @@ def poisson_probs(lh, la):
             else:
                 grid[i][j] *= 1 - rho
     total = sum(sum(r) for r in grid)
-    ph = sum(grid[i][j] for i in range(n) for j in range(n) if i > j) / total
-    pd = sum(grid[i][i] for i in range(n)) / total
-    pa = 1 - ph - pd
-    over25 = sum(grid[i][j] for i in range(n) for j in range(n) if i + j >= 3) / total
-    btts = sum(grid[i][j] for i in range(1, n) for j in range(1, n)) / total
+    return [[v / total for v in row] for row in grid]
+
+
+def _over_total(grid, line):
+    """总进球大于某条半球线的概率（网格已归一化）。"""
+    need = int(line + 0.5)
+    n = len(grid)
+    return sum(grid[i][j] for i in range(n) for j in range(n) if i + j >= need)
+
+
+def _ah_home(grid, line):
+    """主队让球盘（负数为让球）的有效赢盘概率，走盘按退还本金折算 0.5。"""
+    frac = abs(line) % 1
+    if abs(frac - 0.25) < 1e-9 or abs(frac - 0.75) < 1e-9:
+        # 四分之一球盘拆成上下两条半球/整数线各半
+        return 0.5 * (_ah_home(grid, line - 0.25) + _ah_home(grid, line + 0.25))
+    n = len(grid)
+    win = push = 0.0
+    for i in range(n):
+        for j in range(n):
+            d = i - j + line
+            if d > 1e-9:
+                win += grid[i][j]
+            elif d > -1e-9:
+                push += grid[i][j]
+    return win + push * 0.5
+
+
+def poisson_probs(lh, la):
+    grid = _score_grid(lh, la)
+    n = len(grid)
+    ph = sum(grid[i][j] for i in range(n) for j in range(n) if i > j)
+    pd = sum(grid[i][i] for i in range(n))
+    pa = max(0.0, 1 - ph - pd)
+    lines = {f"{ln:.1f}": round(_over_total(grid, ln), 3) for ln in GOAL_LINES}
+    ah = {f"{ln:g}": round(_ah_home(grid, ln), 3) for ln in AH_LINES}
+    btts = sum(grid[i][j] for i in range(1, n) for j in range(1, n))
     tops = sorted(
-        ((f"{i}-{j}", grid[i][j] / total) for i in range(5) for j in range(5)),
+        ((f"{i}-{j}", grid[i][j]) for i in range(5) for j in range(5)),
         key=lambda x: -x[1]
     )[:3]
     return {
@@ -1282,13 +1323,96 @@ def poisson_probs(lh, la):
         "ph": round(ph, 3),
         "pd": round(pd, 3),
         "pa": round(pa, 3),
-        "o25": round(over25, 3),
+        "o25": lines["2.5"],
         "btts": round(btts, 3),
         "top": [[s, round(p, 3)] for s, p in tops],
+        "lines": lines,
+        "ah": ah,
     }
 
 
-def predict_match(home_id, away_id, league_code, ratings):
+def build_corner_ratings(match_rows):
+    """各队主/客场角球的创造与让出强度（时间衰减 + 向先验收缩）。"""
+    today = date.today()
+    acc = defaultdict(lambda: {
+        "wh": 0.0, "wa": 0.0, "ch": 0.0, "cd": 0.0, "ah": 0.0, "ad": 0.0,
+    })
+    for m in match_rows:
+        st = m.get("stats") or {}
+        h = (st.get("home") or {}).get("corners")
+        a = (st.get("away") or {}).get("corners")
+        if h is None or a is None:
+            continue
+        d = parse_match_date(m.get("date"))
+        if not d:
+            continue
+        age = (today - d).days
+        if age < 0 or age > 1200:
+            continue
+        w = 0.5 ** (age / RATING_HALF_LIFE)
+        hi = acc[m["home"]]
+        hi["wh"] += w
+        hi["ch"] += w * h
+        hi["cd"] += w * a
+        ai = acc[m["away"]]
+        ai["wa"] += w
+        ai["ah"] += w * a
+        ai["ad"] += w * h
+    return {tid: s for tid, s in acc.items() if s["wh"] + s["wa"] > 0}
+
+
+def _corner_rate(value, weight):
+    """角球单项强度，样本不足时向先验收缩。"""
+    return (value + CORNER_PRIOR * CORNER_SHRINK) / (weight + CORNER_SHRINK)
+
+
+def corner_probs(home_id, away_id, ratings):
+    """双方期望角球数：自身创造与对手让出取平均。"""
+    hs = ratings.get(str(home_id)) or {}
+    as_ = ratings.get(str(away_id)) or {}
+    h_for = _corner_rate(hs.get("ch", 0.0), hs.get("wh", 0.0))
+    h_against = _corner_rate(hs.get("cd", 0.0), hs.get("wh", 0.0))
+    a_for = _corner_rate(as_.get("ah", 0.0), as_.get("wa", 0.0))
+    a_against = _corner_rate(as_.get("ad", 0.0), as_.get("wa", 0.0))
+    eh = (h_for + a_against) / 2
+    ea = (a_for + h_against) / 2
+    return max(0.5, eh), max(0.5, ea)
+
+
+def _nb_pmf(k, mu, disp):
+    """负二项分布 pmf，方差 = disp × 均值；disp 不大于 1 时退化为泊松。
+
+    用 lgamma 在对数空间计算，避免 k 较大时 math.gamma 溢出。
+    """
+    if disp <= 1.0 or mu <= 0:
+        return poisson_pmf(k, mu)
+    r = mu / (disp - 1.0)
+    if k == 0:
+        return (r / (r + mu)) ** r
+    logp = (math.lgamma(k + r) - math.lgamma(r) - math.lgamma(k + 1)
+            + r * math.log(r / (r + mu)) + k * math.log(mu / (r + mu)))
+    return math.exp(logp)
+
+
+def corner_output(eh, ea):
+    """由期望角球数给出总角球分布与各条大小线概率。"""
+    mu = eh + ea
+    n = 40
+    pmf = [_nb_pmf(i, mu, CORNER_DISP) for i in range(n)]
+    total = sum(pmf) or 1.0
+    over = {}
+    for ln in CORNER_LINES:
+        need = int(ln + 0.5)
+        over[f"{ln:.1f}"] = round(sum(pmf[need:]) / total, 3)
+    return {
+        "expH": round(eh, 1),
+        "expA": round(ea, 1),
+        "exp": round(mu, 1),
+        "over": over,
+    }
+
+
+def predict_match(home_id, away_id, league_code, ratings, corner_ratings=None):
     rh = ratings.get(str(home_id))
     ra = ratings.get(str(away_id))
     if not rh or not ra:
@@ -1307,6 +1431,9 @@ def predict_match(home_id, away_id, league_code, ratings):
     out = poisson_probs(lh, la)
     out["nH"], out["nA"] = rh["n"], ra["n"]
     out["xlg"] = rh["lg"] != ra["lg"]
+    if corner_ratings:
+        eh, ea = corner_probs(home_id, away_id, corner_ratings)
+        out["corners"] = corner_output(eh, ea)
     return out
 
 
@@ -1389,6 +1516,8 @@ def build_pre_match(match_rows):
             out[m["id"]] = {
                 "xh": p["xgH"], "xa": p["xgA"],
                 "ph": p["ph"], "pd": p["pd"], "pa": p["pa"],
+                # 各条进球线的大球概率，按 GOAL_LINES 顺序存千分比整数以压缩体积
+                "o": [int(round(p["lines"][f"{ln:.1f}"] * 1000)) for ln in GOAL_LINES],
             }
         # 记录本场结果
         if base is None:
@@ -1783,7 +1912,8 @@ def main():
     team_rows.sort(key=lambda t: (t["cn"], t["name"]))
 
     ratings = build_ratings(match_rows)
-    log(f"  攻防模型：{len(ratings)} 支球队")
+    corner_ratings = build_corner_ratings(match_rows)
+    log(f"  攻防模型：{len(ratings)} 支球队；角球模型：{len(corner_ratings)} 支球队")
 
     fixture_events = [ev for ev in fixtures.values()
                       if ev["league"] in [lg["label"] for lg in leagues]
@@ -1805,7 +1935,8 @@ def main():
             "home": ev["home"], "away": ev["away"], "venue": ev["venue"],
             "state": ev["state"],
             "odds": odds_map.get(ev["id"]),
-            "pred": predict_match(ev["home"], ev["away"], ev["leagueCode"], ratings),
+            "pred": predict_match(ev["home"], ev["away"], ev["leagueCode"],
+                                  ratings, corner_ratings),
         })
     fixture_rows.sort(key=lambda f: f["date"] or "")
 
