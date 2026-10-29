@@ -91,6 +91,9 @@ jobs:
           if [ -d daily ]; then
             cp -R daily dist/daily
           fi
+          if [ -d logos ]; then
+            cp -R logos dist/logos
+          fi
           du -sh dist
 
       - name: 记录构建时间

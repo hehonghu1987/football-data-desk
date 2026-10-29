@@ -1289,9 +1289,13 @@ function badge(t, cls){
   const fg = contrast(bg);
   const ab = (t.abbr || t.cn || "").slice(0,3);
   const name = t.cn || t.name || "";
+  // 三级回落：仓库内 96px 缩图 → ESPN 原始地址 → 色块+缩写
+  const localSrc = `logos/${encodeURIComponent(String(t.id))}.png`;
+  const remoteSrc = teamLogoUrl(t);
   return `<span class="badge with-logo ${cls||""}" style="--badge:${bg};--badge-fg:${fg}">`
-    + `<img src="${esc(teamLogoUrl(t))}" alt="${esc(name)}" loading="lazy" decoding="async"`
-    + ` onerror="this.closest('.badge').classList.add('fb')">`
+    + `<img src="${esc(localSrc)}" data-remote="${esc(remoteSrc)}" alt="${esc(name)}"`
+    + ` loading="lazy" decoding="async"`
+    + ` onerror="var r=this.dataset.remote;if(r){this.dataset.remote='';this.src=r;}else{this.closest('.badge').classList.add('fb');}">`
     + `<span class="badge-ab">${esc(ab)}</span></span>`;
 }
 function teamDot(t){
