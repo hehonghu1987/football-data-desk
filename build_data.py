@@ -1028,6 +1028,58 @@ def load_odds_snapshots():
     return _load_snapshot_state()[0]
 
 
+ODDS_MOVE_MIN = 0.02   # 去水概率变化达到 2 个百分点才算「异动」
+
+
+def load_odds_movement():
+    """eventId → {from, to, n}：首末快照与采样次数，用于站内盘口异动展示。"""
+    out = {}
+    for key in _snap_months():
+        path = os.path.join(ODDS_SNAP_DIR, key + ".jsonl")
+        if not os.path.exists(path):
+            continue
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    o = json.loads(line)
+                except ValueError:
+                    continue
+                eid = str(o.get("e") or "")
+                if not eid or not _snap_probs(o):
+                    continue
+                rec = out.get(eid)
+                if rec is None:
+                    out[eid] = {"from": o, "to": o, "n": 1}
+                else:
+                    rec["to"] = o
+                    rec["n"] += 1
+    return out
+
+
+def movement_summary(rec):
+    """把首末快照折成一条异动记录；变化不足阈值返回 None。"""
+    if not rec or rec.get("n", 0) < 2:
+        return None
+    p0 = _snap_probs(rec["from"])
+    p1 = _snap_probs(rec["to"])
+    if not p0 or not p1:
+        return None
+    diff = [p1[i] - p0[i] for i in range(3)]
+    k = max(range(3), key=lambda i: abs(diff[i]))
+    if abs(diff[k]) < ODDS_MOVE_MIN:
+        return None
+    return {
+        "k": ("h", "d", "a")[k],
+        "a": round(p0[k], 3),
+        "b": round(p1[k], 3),
+        "n": rec["n"],
+        "t": (rec["to"].get("t") or "")[:16],
+    }
+
+
 def write_odds_snapshots(events, odds_map):
     """把本次采集到的赛前盘口追加到 odds_snapshots/YYYY-MM.jsonl。
 
@@ -2148,6 +2200,17 @@ def main():
                                   ratings, corner_ratings),
         })
     fixture_rows.sort(key=lambda f: f["date"] or "")
+
+    # 盘口异动：把赛前快照的首末变化挂到对应比赛上
+    moves = load_odds_movement()
+    move_n = 0
+    for fr in fixture_rows:
+        mv = movement_summary(moves.get(str(fr["id"])))
+        if mv:
+            fr["mv"] = mv
+            move_n += 1
+    if move_n:
+        log(f"  盘口异动：{move_n} 场（赛前快照变化 ≥{ODDS_MOVE_MIN*100:.0f} 个百分点）")
 
     upcoming_teams = {ev["home"] for ev in fixture_events if not ev["completed"]}
     upcoming_teams |= {ev["away"] for ev in fixture_events if not ev["completed"]}

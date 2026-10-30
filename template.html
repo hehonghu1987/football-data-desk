@@ -723,6 +723,8 @@ table.stats tbody tr:last-child td{border-bottom:0}
 .mk-corner span{border:1px solid var(--line);border-radius:999px;padding:2px 9px;white-space:nowrap}
 .mk-corner span.hi{border-color:var(--accent);color:var(--accent)}
 .mk-corner b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+.mk-corner .pos{color:var(--win);font-weight:700;border-color:var(--win)}
+.mk-corner .neg{color:var(--loss);font-weight:700;border-color:var(--loss)}
 @media (max-width:640px){
   .mk-tbl th,.mk-tbl td{padding-left:9px;padding-right:9px}
   .mk-tbl{font-size:11px}
@@ -2891,6 +2893,21 @@ function renderMarkets(m, pred, odds){
         <span>${esc(away.cn || away.name || "客队")} <b>${Number(c.expA).toFixed(1)}</b></span>
         ${chips}
       </div></div>`);
+  }
+
+  if(m && m.mv){
+    const lb = { h: "主胜", d: "平", a: "客胜" }[m.mv.k] || m.mv.k;
+    const dv = (m.mv.b - m.mv.a) * 100;
+    const cls = dv > 0 ? "pos" : "neg";
+    cards.unshift(`<div class="mk-card">
+      <div class="hd">盘口异动 · 赛前 ${m.mv.n} 次快照</div>
+      <div class="mk-corner">
+        <span>${esc(lb)} <b>${Math.round(m.mv.a * 100)}%</b> → <b>${Math.round(m.mv.b * 100)}%</b></span>
+        <span class="${cls}">${dv > 0 ? "+" : ""}${dv.toFixed(1)} pts</span>
+        <span>最近采样 ${esc(fullTime(m.mv.t + ":00Z"))}</span>
+      </div>
+      <div class="mk-sub" style="padding:0 13px 12px;margin:0">赔率向某一方向持续移动，通常反映资金与信息的变化，可结合模型概率一起看。</div>
+    </div>`);
   }
 
   if(!cards.length) return;
