@@ -42,8 +42,9 @@ align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1
 h1{font-size:26px;margin:0 0 6px}
 h2{font-size:16px;margin:34px 0 12px;color:var(--ink2);border-left:3px solid var(--accent);padding-left:10px}
 .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px;border-radius:12px}
 table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);
-border-radius:12px;overflow:hidden;font-size:13px;margin-bottom:8px}
+border-radius:12px;overflow:hidden;font-size:13px}
 th{font-size:11px;color:var(--muted);font-weight:500;text-align:right;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 th:nth-child(1),th:nth-child(2){text-align:left}
 td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -56,7 +57,7 @@ tr:last-child td{border-bottom:0}
 .card .t{font-weight:600;margin-bottom:6px}
 .card .m{font-size:12.5px;color:var(--muted);line-height:1.9}
 .foot{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);line-height:1.9}
-@media(max-width:640px){.wrap{padding:0 14px 48px}h1{font-size:21px}table{font-size:12px}th,td{padding:7px 6px}.hide-s{display:none}}
+@media(max-width:640px){.wrap{padding:0 14px 48px}h1{font-size:21px}table{font-size:12px}th,td{padding:7px 6px}.tw{margin-inline:-2px}.tw table{min-width:640px}}
 """
 
 
@@ -107,6 +108,8 @@ def devig(h, d, a):
 
 
 def page(title, desc, body, canonical):
+    # 表格统一套横向滚动容器：窄屏保留全部列（此前用 .hide-s 直接隐藏列，手机上会丢数据）
+    body = body.replace("<table>", '<div class="tw"><table>').replace("</table>", "</table></div>")
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
