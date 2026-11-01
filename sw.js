@@ -39,7 +39,12 @@ async function htmlStrategy(req) {
   const cached = await cache.match(req, { ignoreSearch: true });
   // 后台更新：不阻塞当前返回
   const refresh = fetch(req).then(res => {
-    if (res && res.ok) cache.put(req, res.clone());
+    if (res && res.ok) {
+      const changed = cached && isChanged(cached, res);
+      cache.put(req, res.clone());
+      // 用户正开着旧页面时提示有新数据（30 分钟一轮构建，避免一直看旧版本）
+      if (changed) notifyFresh();
+    }
     return res;
   }).catch(() => null);
   if (cached) {
@@ -52,6 +57,38 @@ async function htmlStrategy(req) {
     headers: { "Content-Type": "text/plain; charset=utf-8" }
   });
 }
+
+function isChanged(oldRes, newRes) {
+  const etagOld = oldRes.headers.get("etag"), etagNew = newRes.headers.get("etag");
+  if (etagOld && etagNew) return etagOld !== etagNew;
+  const lmOld = oldRes.headers.get("last-modified"), lmNew = newRes.headers.get("last-modified");
+  if (lmOld && lmNew) return lmOld !== lmNew;
+  return false;
+}
+
+let pendingFresh = false;
+
+function notifyFresh() {
+  pendingFresh = true;
+  self.clients.matchAll({ type: "window" }).then(list => {
+    list.forEach(client => client.postMessage({ type: "fresh" }));
+  }).catch(() => {});
+}
+
+// 页面刚加载时可能错过这条消息（后台比对常早于页面脚本执行），
+// 由页面主动询问一次，命中后立即清空，避免反复提示。
+self.addEventListener("message", event => {
+  if (event.data && event.data.type === "fresh-ack") {
+    pendingFresh = false;
+    return;
+  }
+  if (event.data && event.data.type === "check-fresh") {
+    if (pendingFresh && event.source && event.source.postMessage) {
+      event.source.postMessage({ type: "fresh" });
+      pendingFresh = false;
+    }
+  }
+});
 
 async function staticStrategy(req) {
   const cache = await caches.open(STATIC_CACHE);

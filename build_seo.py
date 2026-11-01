@@ -322,7 +322,7 @@ def main():
     ibody = f"""<h1>球队索引</h1>
 <p class="sub">共 {len(pages)} 支球队 · 点击查看近期战绩与逐场技术统计</p>
 {''.join(idx)}
-<div class="foot">数据每日自动更新。技术统计与比分来自 ESPN 公开接口。</div>"""
+<div class="foot">比分每 30 分钟自动更新。技术统计与比分来自 ESPN 公开接口。</div>"""
     with open(os.path.join(teams_dir, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(page(f"{BRAND} · 球队索引", f"{BRAND}收录 {len(pages)} 支球队的近期战绩、逐场技术统计与模型预测。",
                       ibody, f"{SITE}/teams/index.html"))

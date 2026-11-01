@@ -573,6 +573,19 @@ def read_cache(name, max_age=None):
         return None
 
 
+def cache_age(raw, path):
+    """缓存年龄（秒）。优先用内容里的 _t：CI 缓存恢复可能不保留文件 mtime，
+    高频率构建必须靠内容时间戳判断新鲜度。"""
+    if isinstance(raw, dict):
+        t = raw.get("_t")
+        if isinstance(t, (int, float)) and t > 0:
+            return max(0.0, time.time() - t)
+    try:
+        return time.time() - os.path.getmtime(path)
+    except OSError:
+        return 1e9
+
+
 def write_cache(name, obj):
     path = os.path.join(CACHE_DIR, name)
     tmp = path + ".tmp"
@@ -779,8 +792,18 @@ def parse_scoreboard(d, league):
 
 def fetch_scoreboard(league, date_str, refresh=False):
     name = f"sb_{league['code']}_{date_str}.json"
-    cached = None if refresh else read_cache(name, max_age=3600)
-    if cached is not None:
+    # 比分板时效按日期区分：今天/昨天 5 分钟（高频刷新拿即时比分与赛果），
+    # 其他日期 1 小时，避免每次构建都把 10 天比分板全部重拉。
+    ttl = 3600
+    try:
+        d = datetime.strptime(date_str, "%Y%m%d").date()
+        if abs((datetime.now().date() - d).days) <= 1:
+            ttl = 300
+    except ValueError:
+        pass
+    path = os.path.join(CACHE_DIR, name)
+    cached = None if refresh else read_cache(name)
+    if cached is not None and cache_age(cached, path) <= ttl:
         if isinstance(cached, dict):
             for t in cached.get("teams", []):
                 remember_team(t)
@@ -795,7 +818,7 @@ def fetch_scoreboard(league, date_str, refresh=False):
     for t in metas:
         remember_team(t)
     rows = parse_scoreboard(d, league)
-    write_cache(name, {"rows": rows, "teams": metas})
+    write_cache(name, {"rows": rows, "teams": metas, "_t": time.time()})
     return rows
 
 
@@ -894,6 +917,27 @@ def fetch_summary(league_code, event_id):
     return {"ok": bool(stats), "stats": stats}
 
 
+def fetch_live_summary(league_code, event_id):
+    """进行中比赛的即时技术统计：独立缓存文件、120 秒 TTL。
+
+    赛后统计走 fetch_summary 的永久缓存，两者必须分开，否则第一份「进行中」
+    快照会被当成终态永久复用。
+    """
+    name = f"live_{league_code}_{event_id}.json"
+    path = os.path.join(CACHE_DIR, name)
+    raw = read_cache(name)
+    if raw is not None and cache_age(raw, path) < 120:
+        return raw.get("stats")
+    try:
+        d = get_json(f"{API}/{league_code}/summary?event={event_id}")
+    except Exception as e:
+        log(f"  即时统计失败 {event_id}: {e}")
+        return (raw or {}).get("stats")
+    stats = stats_for_summary(league_code, event_id, d)
+    write_cache(name, {"stats": stats, "_t": time.time()})
+    return stats
+
+
 def american_to_decimal(ml):
     """美式赔率转欧洲小数赔率。"""
     try:
@@ -950,7 +994,7 @@ def fetch_odds(league_code, event_id):
     name = f"odds_{league_code}_{event_id}.json"
     path = os.path.join(CACHE_DIR, name)
     raw = read_cache(name)
-    if raw is not None and time.time() - os.path.getmtime(path) < 3600:
+    if raw is not None and cache_age(raw, path) < 1800:
         return raw.get("odds")
     history = (raw or {}).get("history") or []
     try:
@@ -971,7 +1015,7 @@ def fetch_odds(league_code, event_id):
             if not history or history[-1].get("p") != snap["p"]:
                 history.append(snap)
                 history = history[-8:]
-        write_cache(name, {"odds": odds, "history": history})
+        write_cache(name, {"odds": odds, "history": history, "_t": time.time()})
     return odds
 
 
@@ -2021,8 +2065,22 @@ def main():
         futs = [ex.submit(fetch_scoreboard, lg, ds, args.refresh) for lg, ds in sb_jobs]
         for fut in as_completed(futs):
             for ev in fut.result():
-                events.setdefault(ev["id"], ev)
-                if not ev["completed"] and ev["state"] in ("pre", "in"):
+                old_ev = events.get(ev["id"])
+                if old_ev is None:
+                    events[ev["id"]] = ev
+                elif ev["completed"] or ev["state"] in ("in", "post"):
+                    # 比分板是「当下状态」的权威来源：赛程缓存（6 小时）不能挡住新赛果
+                    old_ev["completed"] = ev["completed"]
+                    old_ev["state"] = ev["state"] or old_ev.get("state")
+                    if ev["hs"] is not None:
+                        old_ev["hs"] = ev["hs"]
+                    if ev["as"] is not None:
+                        old_ev["as"] = ev["as"]
+                # 今日赛程：未开赛/进行中，以及今天已经结束的场次（显示为已结束+比分）
+                if ev["state"] in ("pre", "in"):
+                    fixtures[ev["id"]] = ev
+                elif ev["completed"] and (ev.get("date") or "")[:10] >= \
+                        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"):
                     fixtures[ev["id"]] = ev
     log(f"  未来赛程 {len(fixtures)} 场")
 
@@ -2191,14 +2249,32 @@ def main():
         if snap_added:
             log(f"  盘口快照：新增 {snap_added} 条")
 
+    # 进行中的比赛：抓即时技术统计（比分本身来自 5 分钟 TTL 的比分板）
+    live_events = [ev for ev in fixture_events if ev.get("state") == "in"]
+    live_stats = {}
+    if live_events:
+        with ThreadPoolExecutor(max_workers=min(6, len(live_events))) as ex:
+            futs = {ex.submit(fetch_live_summary, ev["leagueCode"], ev["id"]): ev["id"]
+                    for ev in live_events}
+            for fut in as_completed(futs):
+                st = fut.result()
+                if st:
+                    live_stats[futs[fut]] = st
+        for ev in live_events:
+            if ev["id"] in live_stats:
+                ev["stats"] = live_stats[ev["id"]]
+        log(f"  即时统计：{len(live_stats)}/{len(live_events)} 场进行中的比赛")
+
     fixture_rows = []
     for ev in fixture_events:
         fixture_rows.append({
             "id": ev["id"], "date": ev["date"], "league": ev["league"],
             "leagueCode": ev["leagueCode"],
             "home": ev["home"], "away": ev["away"], "venue": ev["venue"],
-            "state": ev["state"],
+            "state": ev["state"], "hs": ev.get("hs"), "as": ev.get("as"),
             "odds": odds_map.get(ev["id"]),
+            **({"stats": ev.get("stats")} if ev.get("stats") else
+               ({"stats": stats_map[ev["id"]]} if ev.get("completed") and stats_map.get(ev["id"]) else {})),
             "pred": predict_match(ev["home"], ev["away"], ev["leagueCode"],
                                   ratings, corner_ratings),
         })

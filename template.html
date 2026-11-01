@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <script>document.documentElement.classList.add("js-boot");setTimeout(function(){document.documentElement.classList.remove("js-boot")},15000);</script>
 <title>绿茵数据台 · 足球赛程比分与模型预测</title>
-<meta name="description" content="每日更新的足球数据台：五大联赛、欧冠、英冠、巴西甲的赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，含进球线、亚盘让球与角球盘口概率。">
+<meta name="description" content="每 30 分钟刷新数据的足球数据台：五大联赛、欧冠、英冠、巴西甲的赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，含进球线、亚盘让球与角球盘口概率。">
 <meta name="theme-color" content="#0E7A49">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://hehonghu1987.github.io/football-data-desk/">
@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="绿茵数据台">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:title" content="绿茵数据台 · 足球赛程比分与模型预测">
-<meta property="og:description" content="每日更新的足球数据台：赛程比分、技术统计、球队近况与攻防模型预测，含进球线、亚盘与角球盘口概率。">
+<meta property="og:description" content="每 30 分钟刷新的足球数据台：赛程比分、技术统计、球队近况与攻防模型预测，含进球线、亚盘与角球盘口概率。">
 <meta property="og:url" content="https://hehonghu1987.github.io/football-data-desk/">
 <meta property="og:image" content="https://hehonghu1987.github.io/football-data-desk/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
 <meta property="og:image:alt" content="绿茵数据台：足球赛程比分与模型预测">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="绿茵数据台 · 足球赛程比分与模型预测">
-<meta name="twitter:description" content="每日更新的足球数据台：赛程比分、技术统计与攻防模型预测，含进球线、亚盘与角球盘口概率。">
+<meta name="twitter:description" content="每 30 分钟刷新的足球数据台：赛程比分、技术统计与攻防模型预测，含进球线、亚盘与角球盘口概率。">
 <meta name="twitter:image" content="https://hehonghu1987.github.io/football-data-desk/og-image.png">
 <link rel="apple-touch-icon" href="og-icon.png">
 <link rel="icon" href="og-icon.png" type="image/png">
@@ -210,6 +210,10 @@ input{font:inherit}
 .noscript-note p{margin:0 0 8px}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);background:var(--ink);color:#fff;font-size:12px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:200;box-shadow:0 8px 24px -8px rgba(18,33,26,.5)}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+/* SW 检测到站点已重新部署时的「有新数据」提示条 */
+.fresh-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:150;display:none;align-items:center;gap:10px;background:var(--ink);color:#fff;border-radius:999px;padding:7px 8px 7px 16px;font-size:12px;box-shadow:0 12px 32px -12px rgba(0,0,0,.5);white-space:nowrap}
+.fresh-bar.on{display:flex}
+.fresh-bar button{background:var(--accent);color:#fff;border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;cursor:pointer}
 .export-btn{margin-left:auto;margin-right:10px}
 .index-toggle{margin-left:auto}
 .match-tools{display:flex;justify-content:flex-end;margin:-6px 0 10px}
@@ -944,7 +948,7 @@ html.js-boot #boot-skeleton{display:block}
     <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
     <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
     <p><a href="/football-data-desk/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
-    <p>数据来源 ESPN 公开接口，赔率来自 DraftKings（经 ESPN），每日自动更新。</p>
+    <p>数据来源 ESPN 公开接口，赔率来自 DraftKings（经 ESPN），每 30 分钟自动更新。</p>
   </div>
 </noscript>
 <header class="topbar">
@@ -1050,7 +1054,7 @@ html.js-boot #boot-skeleton{display:block}
       <h3 class="subhead" id="perf-cal-head" hidden>校准曲线</h3>
       <div class="sum-grid" id="perf-cal-summary" hidden></div>
       <div class="cal-wrap" id="perf-cal" hidden></div>
-      <div class="table-hint">回测口径：先评估纯数据模型；有赛前盘口快照的比赛会再评估「市场 70% + 模型 30%」的综合预测，样本随每日构建逐步积累。</div>
+      <div class="table-hint">回测口径：先评估纯数据模型；有赛前盘口快照的比赛会再评估「市场 70% + 模型 30%」的综合预测，样本随每轮构建逐步积累。</div>
       <div class="table-hint">校准曲线横轴是模型给出的概率，纵轴是实际命中率；落在对角线上表示概率可信。点越靠右下说明模型系统性高估，越靠左上说明低估。每档至少 20 个样本才绘制，圆点大小代表样本量。</div>
       <div class="table-hint">「大小球技能分」用 Brier 分数与「永远猜本区间平均进球率」相比：大于 0 说明模型对大小球有判别力，接近 0 或为负说明这些概率不比平均值更有信息量，此时盘口对照里的偏差应视为校准参考，而不是可下注的边际。</div>
     </section>
@@ -1254,7 +1258,7 @@ html.js-boot #boot-skeleton{display:block}
     <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
   </div>
   <div class="row">
-    <span>数据每日自动更新 · 赛前盘口快照持续积累 · 缺失项以 — 表示</span>
+    <span>比分每 30 分钟自动更新 · 赛前盘口快照持续积累 · 缺失项以 — 表示</span>
     <span id="footer-meta"></span>
   </div>
   <div class="row">
@@ -1513,9 +1517,9 @@ function avgText(v){
   if(g && !isNaN(g)){
     const ageH = (Date.now() - g.getTime()) / 3600000;
     const chip = $("#update-chip");
-    if(chip && ageH > 30){
+    if(chip && ageH > 3){
       chip.classList.add("stale");
-      chip.title = `数据已 ${Math.round(ageH)} 小时未更新，请等待下一次自动更新`;
+      chip.title = `数据已 ${Math.round(ageH)} 小时未更新（正常每 30 分钟更新一次）`;
     }
   }
 })();
@@ -2133,17 +2137,20 @@ function renderFixtures(){
   const now = Date.now();
   const statusOf = f => {
     const m = MATCH_BY_ID.get(String(f.id));
-    if(m && m.hs != null && m.as != null) return { kind: "done", score: `${m.hs}–${m.as}` };
-    if(f.state === "in") return { kind: "live" };
+    const hs = (m && m.hs != null) ? m.hs : (f.hs != null ? f.hs : null);
+    const as = (m && m.as != null) ? m.as : (f.as != null ? f.as : null);
+    const score = (hs != null && as != null) ? `${hs}–${as}` : null;
+    if(f.state === "in") return { kind: "live", score };
+    if((m && m.hs != null && m.as != null) || f.state === "post") return { kind: "done", score };
     const t = +new Date(f.date);
-    if(!isNaN(t) && t <= now) return { kind: "stale" };
-    return { kind: "pre" };
+    if(!isNaN(t) && t <= now) return { kind: "stale", score };
+    return { kind: "pre", score };
   };
   const note = $("#fixtures-note");
   if(note){
     const started = list.some(f => statusOf(f).kind !== "pre");
     if(started){
-      note.textContent = `数据截止 ${dataStamp()} · 之后开赛的场次结果待下次更新`;
+      note.textContent = `数据截止 ${dataStamp()} · 比分每 30 分钟刷新`;
       note.classList.add("warn");
     } else {
       note.textContent = "时间为本地时区 · 仅列未来 3 个比赛日";
@@ -2183,11 +2190,11 @@ function renderFixtures(){
         const fst = statusOf(f);
         let predLine = "";
         if(fst.kind === "done"){
-          predLine = `<div class="fix-pred"><span class="tag tag-done">已结束</span><span>比分 <b>${esc(fst.score)}</b></span></div>`;
+          predLine = `<div class="fix-pred"><span class="tag tag-done">已结束</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : `<span>赛果待更新</span>`}</div>`;
         } else if(fst.kind === "live"){
-          predLine = `<div class="fix-pred"><span class="tag tag-live">进行中</span><span>比分与统计待更新</span></div>`;
+          predLine = `<div class="fix-pred"><span class="tag tag-live">进行中</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : `<span>开赛中</span>`}<span>每 30 分钟更新</span></div>`;
         } else if(fst.kind === "stale"){
-          predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span><span>数据截止 ${esc(dataStamp())}，结果待下次更新</span></div>`;
+          predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : ""}<span>数据截止 ${esc(dataStamp())}</span></div>`;
         } else if(pd && fbp){
           predLine = `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span></div>`;
         }
@@ -3499,8 +3506,10 @@ function renderMatch(id){
   $("#match-back").textContent = "← 返回 " + (h.cn || h.name);
   setShareMeta(`${h.cn || h.name} vs ${a.cn || a.name} · 绿茵数据台`);
 
-  const done = m.hs != null && m.as != null;
-  const score = done ? `${m.hs}–${m.as}` : "VS";
+  const live = m.state === "in";          // 比分板标记进行中
+  const hasScore = m.hs != null && m.as != null;
+  const done = !live && hasScore;
+  const score = hasScore ? `${m.hs}–${m.as}` : "VS";
   const so = m.so && m.so[0] != null && m.so[1] != null ? `点球 ${m.so[0]}–${m.so[1]}` : "";
 
   $("#match-hero").innerHTML = `<div class="match-hero">
@@ -3517,7 +3526,7 @@ function renderMatch(id){
           <div class="en">${esc(h.name || "")}${done ? " · 主" : ""}</div>
         </div>
       </div>
-      <div class="match-score ${done ? "" : "vs"}">${score}${so ? `<div class="so">${so}</div>` : ""}</div>
+      <div class="match-score ${done || hasScore ? "" : "vs"}">${score}${so ? `<div class="so">${so}</div>` : ""}</div>
       <div class="match-side away">
         <a href="#/team/${esc(a.id)}">${badge(a, "lg")}</a>
         <div>
@@ -3529,9 +3538,10 @@ function renderMatch(id){
     <div class="match-foot">
       <span>主队技术统计在左，客队在右</span>
       ${done ? `<span>${recTextFor(m, h.id)}</span>`
+        : (live ? `<span>比赛进行中 · 比分每 30 分钟刷新</span>`
         : (m.date && +new Date(m.date) <= Date.now()
             ? `<span>比赛已开始 · 数据截止 ${esc(dataStamp())}，比分待下一次更新</span>`
-            : `<span>比赛尚未开始</span>`)}
+            : `<span>比赛尚未开始</span>`))}
     </div>
   </div>`;
 
@@ -3548,7 +3558,7 @@ function renderMatch(id){
     cmpItem("被封堵", m, "blocked")
   ].join("") : "";
   $("#match-compare").innerHTML = cmp
-    ? `<div class="cmp-head"><span>本场技术统计</span><span>${done ? "已结束" : "未开始"}</span></div><div class="cmp-grid">${cmp}</div>`
+    ? `<div class="cmp-head"><span>本场技术统计</span><span>${done ? "已结束" : (live ? "进行中" : "未开始")}</span></div><div class="cmp-grid">${cmp}</div>`
     : `<div class="cmp-head"><span>本场技术统计</span><span>暂无</span></div><div class="empty">该场暂无技术统计：数据源未提供，或比赛尚未开始。</div>`;
 
   renderPreMatch(m);
@@ -3724,11 +3734,30 @@ route();
 bootReady();
 })();
 </script>
+<div class="fresh-bar" id="fresh-bar">
+  <span>数据已更新</span>
+  <button type="button" id="fresh-reload">刷新查看</button>
+</div>
+
 <script>
 if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")){
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
+  // SW 在后台比对到新版本（ETag 变化）时提示，避免用户一直看缓存里的旧数据
+  navigator.serviceWorker.addEventListener("message", ev => {
+    if(ev.data && ev.data.type === "fresh"){
+      const bar = document.getElementById("fresh-bar");
+      if(bar) bar.classList.add("on");
+      // 告知 SW 已提示过，刷新后不再重复弹条
+      navigator.serviceWorker.controller?.postMessage({ type: "fresh-ack" });
+    }
+  });
+  // 页面脚本晚于 SW 的后台比对，主动问一次「有没有新版本」
+  navigator.serviceWorker.ready.then(reg => {
+    if(reg.active) reg.active.postMessage({ type: "check-fresh" });
+  }).catch(() => {});
+  document.getElementById("fresh-reload")?.addEventListener("click", () => location.reload());
 }
 </script>
 </body>
