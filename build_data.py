@@ -2158,6 +2158,9 @@ def main():
         }
         if t.get("logo"):
             team_row["logo"] = t["logo"]
+        # 构建期确认队徽素材：没有就前端直接画色块，避免线上 404 与无谓请求
+        team_row["hasLogo"] = os.path.exists(
+            os.path.join(ROOT, "logos", f'{t["id"]}.png'))
         team_rows.append(team_row)
     team_rows.sort(key=lambda t: (t["cn"], t["name"]))
 

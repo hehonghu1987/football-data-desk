@@ -3,33 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>绿茵数据台 · 足球赛程比分、盘口与模型预测（五大联赛／欧冠／英冠／巴西甲）</title>
-<meta name="description" content="绿茵数据台提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲等赛事的每日赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，并给出进球线、亚盘让球与角球盘口概率。数据每日自动更新。">
+<script>document.documentElement.classList.add("js-boot");setTimeout(function(){document.documentElement.classList.remove("js-boot")},15000);</script>
+<title>绿茵数据台 · 足球赛程比分与模型预测</title>
+<meta name="description" content="每日更新的足球数据台：五大联赛、欧冠、英冠、巴西甲的赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，含进球线、亚盘让球与角球盘口概率。">
 <meta name="theme-color" content="#0E7A49">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://hehonghu1987.github.io/football-data-desk/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="绿茵数据台">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:title" content="绿茵数据台 · 足球赛程比分、盘口与模型预测">
-<meta property="og:description" content="每日更新的足球数据台：赛程比分、射门射正角球统计、球队近况、攻防模型预测，含进球线／亚盘／角球盘口概率。覆盖五大联赛、欧冠、英冠与巴西甲。">
+<meta property="og:title" content="绿茵数据台 · 足球赛程比分与模型预测">
+<meta property="og:description" content="每日更新的足球数据台：赛程比分、技术统计、球队近况与攻防模型预测，含进球线、亚盘与角球盘口概率。">
 <meta property="og:url" content="https://hehonghu1987.github.io/football-data-desk/">
 <meta property="og:image" content="https://hehonghu1987.github.io/football-data-desk/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="绿茵数据台：足球赛程比分与模型预测">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="绿茵数据台 · 足球赛程比分、盘口与模型预测">
-<meta name="twitter:description" content="每日更新的足球数据台：赛程比分、技术统计、球队近况与模型预测，含进球线／亚盘／角球盘口概率。">
+<meta name="twitter:title" content="绿茵数据台 · 足球赛程比分与模型预测">
+<meta name="twitter:description" content="每日更新的足球数据台：赛程比分、技术统计与攻防模型预测，含进球线、亚盘与角球盘口概率。">
 <meta name="twitter:image" content="https://hehonghu1987.github.io/football-data-desk/og-image.png">
 <link rel="apple-touch-icon" href="og-icon.png">
+<link rel="icon" href="og-icon.png" type="image/png">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebSite","name":"绿茵数据台","alternateName":"MATCH DATA DESK","url":"https://hehonghu1987.github.io/football-data-desk/","description":"足球赛程比分、技术统计与攻防模型预测，覆盖五大联赛、欧冠、欧联杯、英冠、巴西甲及各国杯赛，含进球线、亚盘与角球盘口概率。","inLanguage":"zh-CN","publisher":{"@type":"Organization","name":"绿茵数据台"},"about":[{"@type":"Thing","name":"足球赛程与比分"},{"@type":"Thing","name":"足球技术统计"},{"@type":"Thing","name":"足球比赛模型预测"}]}
 </script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* 自托管字体：只保留拉丁子集（数字/英文），中文走系统字体栈。
+   不引用 Google Fonts：其 Noto Sans SC 会把首访字体开销推到 1MB+，且站点主要面向中文用户。 */
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/barlow-condensed-500.woff2) format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url(fonts/barlow-condensed-600.woff2) format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/barlow-condensed-700.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/ibm-plex-mono-400.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/ibm-plex-mono-500.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url(fonts/ibm-plex-mono-600.woff2) format('woff2')}
 :root{
   color-scheme: light;
   --bg:#F2F5EF;
@@ -50,8 +58,8 @@
   --loss:#B24A38;
   --shadow:0 18px 50px -20px rgba(18,33,26,.35);
   --radius:14px;
-  --font-display:'Barlow Condensed','Noto Sans SC',sans-serif;
-  --font-body:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --font-display:'Barlow Condensed','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC',sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif;
   --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --topbar-h:64px;
 }
@@ -188,6 +196,8 @@ input{font:inherit}
   width:6px;height:6px;border-radius:50%;background:var(--accent);
   box-shadow:0 0 0 3px var(--accent-soft);
 }
+.update-chip.stale{color:var(--loss)}
+.update-chip.stale .dot{background:var(--loss);box-shadow:0 0 0 3px color-mix(in srgb,var(--loss) 18%,transparent)}
 .icon-btn{
   width:34px;height:34px;display:grid;place-items:center;
   border:1px solid var(--line);border-radius:9px;
@@ -196,7 +206,7 @@ input{font:inherit}
 }
 .icon-btn:hover{color:var(--ink);border-color:var(--line-strong)}
 .noscript-note{max-width:760px;margin:24px auto;padding:20px 22px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);font-size:13px;line-height:1.85;color:var(--ink-2)}
-.noscript-note h1{font-family:var(--font-display);font-size:22px;margin:0 0 10px;color:var(--ink)}
+.noscript-note h1,.noscript-note .noscript-title{font-family:var(--font-display);font-size:22px;font-weight:700;margin:0 0 10px;color:var(--ink)}
 .noscript-note p{margin:0 0 8px}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);background:var(--ink);color:#fff;font-size:12px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:200;box-shadow:0 8px 24px -8px rgba(18,33,26,.5)}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -243,6 +253,7 @@ input{font:inherit}
   max-width:1240px;
   margin:0 auto;
   padding:0 clamp(16px,3vw,28px) 56px;
+  overflow-x:clip;
 }
 .hero{
   display:flex;justify-content:space-between;align-items:flex-end;gap:24px;
@@ -773,6 +784,10 @@ table.stats tbody tr:last-child td{border-bottom:0}
 }
 .fix-pred b{font-family:var(--font-mono);font-weight:600;color:var(--ink)}
 .fix-pred .tag{font-size:9px;letter-spacing:.04em;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.fix-pred .tag-done{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.fix-pred .tag-live{color:#B24A38;border-color:#B24A38}
+.fix-pred .tag-wait{color:var(--draw);border-color:var(--draw)}
+.section-note.warn{color:var(--draw)}
 
 @media (max-width:640px){
   .odds-grid{grid-template-columns:minmax(0,1fr)}
@@ -828,7 +843,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   .search-results{max-height:min(64vh,480px)}
   .hero{padding-block:22px 18px;flex-direction:column;align-items:flex-start;gap:18px}
   .hero-stats{grid-template-columns:repeat(3,1fr);gap:12px;text-align:left;width:100%;border-top:1px solid var(--line);padding-top:14px}
-  .cat-tabs{width:100%;overflow-x:auto}
+  .cat-tabs{width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin}
   .cat-tab{flex:none}
   .table-hint{display:block}
 }
@@ -857,6 +872,14 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   .team-count .n{font-size:38px}
   .sum-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .sum-tile .v{font-size:24px}
+  /* 小字标签默认 nowrap，窄屏两列时会把整页撑宽（视口 390 被放大到 448），这里允许折行 */
+  .sum-tile .l,.sum-tile .s{white-space:normal;overflow-wrap:anywhere;font-size:11px;line-height:1.45}
+  .sum-tile{padding:10px 11px}
+  .table-hint{font-size:11.5px}
+  .cat-tab{min-height:36px}
+  .seg button,.chip-btn{min-height:36px}
+  .fix-team{min-height:36px}
+  .backlink{display:inline-block;padding:6px 0;min-height:32px}
   .filters{gap:7px}
   .table-note{width:100%;margin-left:0}
   .section{margin-top:28px}
@@ -872,13 +895,52 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition:none!important;animation:none!important}
 }
+/* ---------- 首屏骨架与 CLS 治理 ---------- */
+html.js-boot main.shell:not(.ready),html.js-boot .footer{visibility:hidden}
+#boot-skeleton{
+  display:none;position:fixed;inset:0;z-index:30;background:var(--bg);
+  padding:calc(var(--topbar-h) + 26px) clamp(16px,3vw,28px) 0;overflow:hidden;
+}
+html.js-boot #boot-skeleton{display:block}
+.sk-wrap{max-width:1240px;margin:0 auto}
+.sk-bar,.sk-chip{
+  background:var(--surface-2);border-radius:6px;
+  animation:skpulse 1.4s ease-in-out infinite;
+}
+.sk-bar{height:14px;margin-bottom:8px}
+.sk-tabs{display:flex;gap:8px;margin-top:24px;flex-wrap:wrap}
+.sk-chip{width:92px;height:36px;border-radius:8px}
+.sk-panel{margin-top:24px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.sk-row{height:64px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--surface-2) 0%,transparent 55%)}
+.sk-row:last-child{border-bottom:0}
+@keyframes skpulse{0%,100%{opacity:.78}50%{opacity:.42}}
+@media (prefers-reduced-motion:reduce){.sk-bar,.sk-chip{animation:none}}
 </style>
 </head>
 <body>
 
+<!-- 首屏骨架：4.4MB 内联数据解析期间先画占位，避免内容插入时整页跳动（CLS） -->
+<div id="boot-skeleton" aria-hidden="true">
+  <div class="sk-wrap">
+    <div class="sk-hero">
+      <div class="sk-bar" style="width:120px;height:11px"></div>
+      <div class="sk-bar" style="width:190px;height:46px;margin-top:14px"></div>
+      <div class="sk-bar" style="width:260px;height:13px;margin-top:12px"></div>
+    </div>
+    <div class="sk-tabs">
+      <span class="sk-chip"></span><span class="sk-chip"></span><span class="sk-chip"></span>
+      <span class="sk-chip"></span><span class="sk-chip"></span><span class="sk-chip"></span>
+    </div>
+    <div class="sk-panel">
+      <div class="sk-row"></div><div class="sk-row"></div><div class="sk-row"></div>
+      <div class="sk-row"></div><div class="sk-row"></div><div class="sk-row"></div>
+    </div>
+  </div>
+</div>
+
 <noscript>
   <div class="noscript-note">
-    <h1>绿茵数据台 · 足球赛程比分与模型预测</h1>
+    <p class="noscript-title">绿茵数据台 · 足球赛程比分与模型预测</p>
     <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
     <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
     <p><a href="/football-data-desk/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
@@ -925,6 +987,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 </header>
 
 <main class="shell">
+<h1 class="sr-only">绿茵数据台 · 足球赛程比分、技术统计与模型预测</h1>
 
   <!-- ============ HOME ============ -->
   <section id="home-view">
@@ -959,7 +1022,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
       <div class="section-head">
         <h2 class="section-title" id="fixtures-title">今日赛程</h2>
         <button class="chip-btn export-btn" id="export-daily" type="button">导出赛程卡片</button>
-        <span class="section-note">时间为本地时区 · 仅列未来 3 个比赛日</span>
+        <span class="section-note" id="fixtures-note">时间为本地时区 · 仅列未来 3 个比赛日</span>
       </div>
       <div class="panel" id="fixtures-panel"></div>
     </section>
@@ -1191,7 +1254,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
     <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
   </div>
   <div class="row">
-    <span>每日更新：在项目目录运行 <code>python3 build_data.py</code> 后重新发布页面。</span>
+    <span>数据每日自动更新 · 赛前盘口快照持续积累 · 缺失项以 — 表示</span>
     <span id="footer-meta"></span>
   </div>
   <div class="row">
@@ -1266,6 +1329,12 @@ function weekday(iso){
   const d = new Date(iso);
   return isNaN(d) ? "" : dtfWeek.format(d);
 }
+/* 数据生成时间（页面上所有「数据截止」文案统一用这个） */
+function dataStamp(){
+  const g = DATA.meta && DATA.meta.generatedAt ? new Date(DATA.meta.generatedAt) : null;
+  if(!g || isNaN(g)) return "—";
+  return `${pad2(g.getMonth()+1)}-${pad2(g.getDate())} ${pad2(g.getHours())}:${pad2(g.getMinutes())}`;
+}
 function niceNum(n){
   return Number(n).toLocaleString("zh-CN");
 }
@@ -1291,9 +1360,15 @@ function badge(t, cls){
   const fg = contrast(bg);
   const ab = (t.abbr || t.cn || "").slice(0,3);
   const name = t.cn || t.name || "";
-  // 三级回落：仓库内 96px 缩图 → ESPN 原始地址 → 色块+缩写
+  // 三级回落：仓库内 96px 缩图 → ESPN 原始地址 → 色块+缩写。
+  // hasLogo === false 表示构建期已确认两个来源都没有素材，直接画色块，避免 404 噪音。
+  const hasLogo = t.hasLogo !== false;
   const localSrc = `logos/${encodeURIComponent(String(t.id))}.png`;
   const remoteSrc = teamLogoUrl(t);
+  if(!hasLogo){
+    return `<span class="badge with-logo fb ${cls||""}" style="--badge:${bg};--badge-fg:${fg}">`
+      + `<span class="badge-ab">${esc(ab)}</span></span>`;
+  }
   return `<span class="badge with-logo ${cls||""}" style="--badge:${bg};--badge-fg:${fg}">`
     + `<img src="${esc(localSrc)}" data-remote="${esc(remoteSrc)}" alt="${esc(name)}"`
     + ` loading="lazy" decoding="async"`
@@ -1434,6 +1509,15 @@ function avgText(v){
   $("#footer-meta").textContent = meta.generatedAt
     ? `页面生成于 ${fullTime(meta.generatedAt)}`
     : "";
+  // 数据超过 30 小时未更新：与看门狗阈值一致，顶栏给出可见提醒
+  if(g && !isNaN(g)){
+    const ageH = (Date.now() - g.getTime()) / 3600000;
+    const chip = $("#update-chip");
+    if(chip && ageH > 30){
+      chip.classList.add("stale");
+      chip.title = `数据已 ${Math.round(ageH)} 小时未更新，请等待下一次自动更新`;
+    }
+  }
 })();
 
 /* ---------- state ---------- */
@@ -2046,6 +2130,26 @@ function renderFixtures(){
   const list = leagueFixtureList(state.league).filter(f =>
     new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
   );
+  const now = Date.now();
+  const statusOf = f => {
+    const m = MATCH_BY_ID.get(String(f.id));
+    if(m && m.hs != null && m.as != null) return { kind: "done", score: `${m.hs}–${m.as}` };
+    if(f.state === "in") return { kind: "live" };
+    const t = +new Date(f.date);
+    if(!isNaN(t) && t <= now) return { kind: "stale" };
+    return { kind: "pre" };
+  };
+  const note = $("#fixtures-note");
+  if(note){
+    const started = list.some(f => statusOf(f).kind !== "pre");
+    if(started){
+      note.textContent = `数据截止 ${dataStamp()} · 之后开赛的场次结果待下次更新`;
+      note.classList.add("warn");
+    } else {
+      note.textContent = "时间为本地时区 · 仅列未来 3 个比赛日";
+      note.classList.remove("warn");
+    }
+  }
   const groups = new Map();
   for(const f of list){
     const d = new Date(f.date);
@@ -2076,9 +2180,17 @@ function renderFixtures(){
         const pd = f.pred;
         const fip = f.odds ? impliedProbs(f.odds.ml) : null;
         const fbp = pd ? (fip ? blendProbs(pd, fip, 0.7) : [pd.ph, pd.pd, pd.pa]) : null;
-        const predLine = pd && fbp
-          ? `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span></div>`
-          : "";
+        const fst = statusOf(f);
+        let predLine = "";
+        if(fst.kind === "done"){
+          predLine = `<div class="fix-pred"><span class="tag tag-done">已结束</span><span>比分 <b>${esc(fst.score)}</b></span></div>`;
+        } else if(fst.kind === "live"){
+          predLine = `<div class="fix-pred"><span class="tag tag-live">进行中</span><span>比分与统计待更新</span></div>`;
+        } else if(fst.kind === "stale"){
+          predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span><span>数据截止 ${esc(dataStamp())}，结果待下次更新</span></div>`;
+        } else if(pd && fbp){
+          predLine = `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span></div>`;
+        }
         return `<div class="fix-row" data-mid="${esc(f.id)}">
           <div class="fix-time">${fmtTime(f.date)}</div>
           <div>${leagueChip(f.league)}</div>
@@ -2428,11 +2540,15 @@ $("#perf-seg").addEventListener("click", e => {
 $("#cat-tabs").addEventListener("click", e => {
   const b = e.target.closest("[data-league]");
   if(!b) return;
-  state.league = b.dataset.league;
-  renderTabs();
-  renderFixtures();
-  renderRecent();
-  renderIndex();
+  const lg = b.dataset.league;
+  const next = lg === "all" ? "#/" : "#/league/" + encodeURIComponent(lg);
+  if(location.hash === next){
+    state.league = lg;
+    renderHome();
+    window.scrollTo({top: 0, behavior: "auto"});
+  } else {
+    location.hash = next;
+  }
 });
 
 /* ---------- team ---------- */
@@ -3412,7 +3528,10 @@ function renderMatch(id){
     </div>
     <div class="match-foot">
       <span>主队技术统计在左，客队在右</span>
-      ${done ? `<span>${recTextFor(m, h.id)}</span>` : `<span>比赛尚未开始</span>`}
+      ${done ? `<span>${recTextFor(m, h.id)}</span>`
+        : (m.date && +new Date(m.date) <= Date.now()
+            ? `<span>比赛已开始 · 数据截止 ${esc(dataStamp())}，比分待下一次更新</span>`
+            : `<span>比赛尚未开始</span>`)}
     </div>
   </div>`;
 
@@ -3430,7 +3549,7 @@ function renderMatch(id){
   ].join("") : "";
   $("#match-compare").innerHTML = cmp
     ? `<div class="cmp-head"><span>本场技术统计</span><span>${done ? "已结束" : "未开始"}</span></div><div class="cmp-grid">${cmp}</div>`
-    : "";
+    : `<div class="cmp-head"><span>本场技术统计</span><span>暂无</span></div><div class="empty">该场暂无技术统计：数据源未提供，或比赛尚未开始。</div>`;
 
   renderPreMatch(m);
   renderInsight(m);
@@ -3551,8 +3670,27 @@ $("#home-view").addEventListener("click", e => {
 });
 
 /* ---------- routing ---------- */
+function bootReady(){
+  const main = document.querySelector("main.shell");
+  if(main) main.classList.add("ready");
+  document.documentElement.classList.remove("js-boot");
+  const sk = document.getElementById("boot-skeleton");
+  if(sk) sk.remove();
+}
 function route(){
   const h = location.hash || "";
+  /* 分类筛选写进 hash，便于刷新、分享、后退保持 */
+  const lm = h.match(/^#\/league\/(.+)$/);
+  if(lm){
+    const lg = decodeURIComponent(lm[1]);
+    const known = lg === "all" || (DATA.leagues || []).some(l => l.label === lg);
+    if(known){
+      state.league = lg;
+      renderHome();
+      window.scrollTo({top: 0, behavior: "auto"});
+      return;
+    }
+  }
   const tm = h.match(/^#\/team\/(.+)$/);
   if(tm){
     const id = decodeURIComponent(tm[1]);
@@ -3571,15 +3709,23 @@ function route(){
       return;
     }
   }
+  const cleanHome = h === "" || h === "#" || h === "#/" ;
+  if(!cleanHome){
+    /* 非法/失效的深链接：清掉坏 URL，避免分享出去 */
+    try{ history.replaceState(null, "", "#/"); }catch(e){ location.hash = "#/"; }
+  }
+  state.league = "all";
   renderHome();
+  window.scrollTo({top: 0, behavior: "auto"});
 }
 
 window.addEventListener("hashchange", route);
 route();
+bootReady();
 })();
 </script>
 <script>
-if("serviceWorker" in navigator && location.protocol === "https:"){
+if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")){
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });

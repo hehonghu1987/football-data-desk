@@ -335,18 +335,19 @@ def main():
                       ibody, f"{SITE}/daily/"))
 
     # ---- 并入 sitemap ----
+    # 幂等：先删掉旧的 daily 条目，再按归档目录重建，避免「只有首次生效」或
+    # 旧条目重复；归档目录里有多少期就收录多少期。
     if os.path.exists(SEO_SITEMAP):
         s = open(SEO_SITEMAP, encoding="utf-8").read()
+        s = re.sub(r"\s*<url><loc>[^<]*/daily/[^<]*</loc>.*?</url>", "", s, flags=re.S)
         add = [f"<url><loc>{SITE}/daily/index.html</loc><lastmod>{target}</lastmod>"
                f"<changefreq>daily</changefreq><priority>0.9</priority></url>"]
-        for d in days[:60]:
+        for d in days[:400]:
             add.append(f"<url><loc>{SITE}/daily/{d}.html</loc><lastmod>{d}</lastmod>"
                        f"<changefreq>monthly</changefreq><priority>0.5</priority></url>")
-        block = "\n".join(add)
-        if "daily/" not in s:
-            s = s.replace("</urlset>", block + "\n</urlset>")
-            with open(SEO_SITEMAP, "w", encoding="utf-8") as fh:
-                fh.write(s)
+        s = s.replace("</urlset>", "\n".join(add) + "\n</urlset>")
+        with open(SEO_SITEMAP, "w", encoding="utf-8") as fh:
+            fh.write(s)
 
     print(f"已生成每日简报 {target}：{len(day_fixtures)} 场 / "
           f"分歧 {len(edges[:5])} 条 / 异动 {len(moves[:5])} 条")

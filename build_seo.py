@@ -25,6 +25,39 @@ ORDER = ("shots", "sot", "corners", "offsides", "yellow", "red",
          "fouls", "possession", "blocked", "saves")
 SHOT, SOT, CORNER = 0, 1, 2
 
+# 球队可能同时出现在国内联赛、洲际赛与杯赛中。索引分组与 memberOf 只应取
+# 国内联赛，否则会出现「国王杯 134 支」「LASK 属于欧冠」这类错误分类。
+DOMESTIC_LEAGUES = {
+    "英超", "西甲", "意甲", "德甲", "法甲", "英冠", "巴西甲", "荷甲", "葡超",
+    "土超", "比甲", "奥甲", "希腊超", "苏超", "挪超", "丹超", "瑞超", "俄超",
+    "乌超", "波甲", "捷甲", "瑞士超", "巴甲", "阿甲", "美职联", "日职联",
+}
+EURO_OR_CUP = {
+    "欧冠", "欧联杯", "欧协联", "欧冠资格赛", "欧联杯资格赛", "欧协联资格赛",
+    "足总杯", "英联杯", "国王杯", "意大利杯", "德国杯", "法国杯", "巴西杯",
+    "世俱杯", "解放者杯", "南美杯", "超级杯",
+}
+
+
+def main_league(t, recent):
+    """给出球队「主联赛」：优先国内联赛，其次近期比赛里最常见的联赛。"""
+    cands = [l for l in (t.get("currentLeagues") or []) if l]
+    cands += [l for l in (t.get("leagues") or []) if l and l not in cands]
+    for l in cands:
+        if l in DOMESTIC_LEAGUES:
+            return l
+    cnt = Counter(m.get("league") for m in recent
+                  if (m.get("league") or "") in DOMESTIC_LEAGUES)
+    if cnt:
+        return cnt.most_common(1)[0][0]
+    cnt = Counter(m.get("league") for m in recent if m.get("league"))
+    if cnt:
+        return cnt.most_common(1)[0][0]
+    for l in cands:
+        if l not in EURO_OR_CUP:
+            return l
+    return cands[0] if cands else ""
+
 
 def esc(v):
     return html.escape(str(v if v is not None else ""))
@@ -165,8 +198,7 @@ def main():
         recent = ms[:10]
         name_cn = t.get("cn") or t.get("name") or tid
         name_en = t.get("name") or ""
-        leagues = [l for l in (t.get("currentLeagues") or t.get("leagues") or []) if l]
-        league = leagues[0] if leagues else (recent[0].get("league") if recent else "")
+        league = main_league(t, recent)
         by_league.setdefault(league or "其他", []).append((name_cn, tid, t))
 
         wins = draws = losses = 0

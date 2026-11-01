@@ -7,11 +7,6 @@ on:
     # 备用时段：GitHub 定时任务偶尔延迟或跳过，傍晚再补一次（北京时间 18:47）
     - cron: "47 10 * * *"
   workflow_dispatch:
-    inputs:
-      deploy_only:
-        description: "仅部署已提交的页面，不重新采集"
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -33,7 +28,6 @@ jobs:
           python-version: "3.12"
 
       - name: 恢复采集缓存
-        if: ${{ !inputs.deploy_only }}
         uses: actions/cache/restore@v4
         with:
           path: cache
@@ -42,18 +36,16 @@ jobs:
             espn-cache-
 
       - name: 采集数据并生成页面
-        if: ${{ !inputs.deploy_only }}
         run: python3 build_data.py --workers 6 --rate 0.1
 
       - name: 保存采集缓存
-        if: ${{ always() && !inputs.deploy_only }}
+        if: ${{ always() }}
         uses: actions/cache/save@v4
         with:
           path: cache
           key: espn-cache-${{ github.run_id }}
 
       - name: 校验数据完整性
-        if: ${{ !inputs.deploy_only }}
         run: |
           python3 - <<'PY'
           import json
@@ -71,11 +63,9 @@ jobs:
           PY
 
       - name: 生成静态球队页
-        if: ${{ !inputs.deploy_only }}
         run: python3 build_seo.py
 
       - name: 生成每日简报
-        if: ${{ !inputs.deploy_only }}
         run: python3 build_daily.py
 
       - name: 整理发布目录
@@ -94,15 +84,20 @@ jobs:
           if [ -d logos ]; then
             cp -R logos dist/logos
           fi
+          if [ -d fonts ]; then
+            cp -R fonts dist/fonts
+          fi
           du -sh dist
 
-      - name: 记录构建时间
+      - name: 记录构建时间并归档简报
         run: |
           date -u +'{"generatedAt":"%Y-%m-%dT%H:%M:%SZ"}' > .last-build.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .last-build.json
           if [ -d odds_snapshots ]; then git add odds_snapshots; fi
+          # 简报按日归档入库：CI 每次全新 checkout，不提交就会在下次部署时丢失往期
+          if [ -d daily ]; then git add daily; fi
           git commit -m "每日数据更新 $(date -u +%F)" || true
           git push || true
 
