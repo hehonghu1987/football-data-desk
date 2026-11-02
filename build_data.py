@@ -2082,11 +2082,8 @@ def main():
                         old_ev["hs"] = ev["hs"]
                     if ev["as"] is not None:
                         old_ev["as"] = ev["as"]
-                # 今日赛程：未开赛/进行中，以及今天已经结束的场次（显示为已结束+比分）
-                if ev["state"] in ("pre", "in"):
-                    fixtures[ev["id"]] = ev
-                elif ev["completed"] and (ev.get("date") or "")[:10] >= \
-                        (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"):
+                # 今日赛程只放未开赛/进行中；已结束的场次统一进「最近赛果」，避免同一场比赛两处出现
+                if ev["state"] in ("pre", "in") and not ev["completed"]:
                     fixtures[ev["id"]] = ev
     log(f"  未来赛程 {len(fixtures)} 场")
 

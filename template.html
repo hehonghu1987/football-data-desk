@@ -2071,9 +2071,17 @@ function renderHero(){
     const d = new Date(f.date);
     return !isNaN(d) && dayKey(d) >= TODAY_KEY;
   });
-  const todayCount = fixtures.filter(f => dayKey(new Date(f.date)) === TODAY_KEY).length;
+  // 今日赛程只放未开赛/进行中，已结束的在「最近赛果」；统计口径把两边合并，才是当天/未来 5 天的真实场次
+  const results = (DATA.matches || []).filter(m => {
+    if(m.hs == null || !m.date) return false;
+    const d = new Date(m.date);
+    return !isNaN(d) && dayKey(d) >= TODAY_KEY;
+  });
+  const merged = new Map([...fixtures, ...results].map(x => [String(x.id), x]));
+  const items = Array.from(merged.values());
+  const todayCount = items.filter(f => dayKey(new Date(f.date)) === TODAY_KEY).length;
   // 与「今日赛程」列表面板口径一致：未来 5 个比赛日（今天 + 之后 4 天）
-  const weekCount = fixtures.filter(f => dayKey(new Date(f.date)) <= dayKey(new Date(Date.now()+4*86400000))).length;
+  const weekCount = items.filter(f => dayKey(new Date(f.date)) <= dayKey(new Date(Date.now()+4*86400000))).length;
   $("#hero-sub").innerHTML = todayCount
     ? `今日 <b>${todayCount}</b> 场 · 未来 5 天 <b>${weekCount}</b> 场`
     : `今日暂无比赛 · 未来 5 天 <b>${weekCount}</b> 场`;
@@ -2218,7 +2226,7 @@ function renderFixtures(){
 
 function renderRecent(){
   const panel = $("#recent-panel");
-  const list = leagueMatchList(state.league).filter(m => m.hs != null).slice(0, 8);
+  const list = leagueMatchList(state.league).filter(m => m.hs != null).slice(0, 10);
   if(!list.length){
     panel.innerHTML = `<div class="empty">该分类暂无已结束的比赛数据。</div>`;
     return;
