@@ -1026,7 +1026,7 @@ html.js-boot #boot-skeleton{display:block}
       <div class="section-head">
         <h2 class="section-title" id="fixtures-title">今日赛程</h2>
         <button class="chip-btn export-btn" id="export-daily" type="button">导出赛程卡片</button>
-        <span class="section-note" id="fixtures-note">时间为本地时区 · 仅列未来 3 个比赛日</span>
+        <span class="section-note" id="fixtures-note">时间为本地时区 · 未来 5 个比赛日</span>
       </div>
       <div class="panel" id="fixtures-panel"></div>
     </section>
@@ -2072,10 +2072,11 @@ function renderHero(){
     return !isNaN(d) && dayKey(d) >= TODAY_KEY;
   });
   const todayCount = fixtures.filter(f => dayKey(new Date(f.date)) === TODAY_KEY).length;
-  const weekCount = fixtures.filter(f => dayKey(new Date(f.date)) <= dayKey(new Date(Date.now()+6*86400000))).length;
+  // 与「今日赛程」列表面板口径一致：未来 5 个比赛日（今天 + 之后 4 天）
+  const weekCount = fixtures.filter(f => dayKey(new Date(f.date)) <= dayKey(new Date(Date.now()+4*86400000))).length;
   $("#hero-sub").innerHTML = todayCount
-    ? `今日 <b>${todayCount}</b> 场 · 未来 7 天 <b>${weekCount}</b> 场`
-    : `今日暂无比赛 · 未来 7 天 <b>${weekCount}</b> 场`;
+    ? `今日 <b>${todayCount}</b> 场 · 未来 5 天 <b>${weekCount}</b> 场`
+    : `今日暂无比赛 · 未来 5 天 <b>${weekCount}</b> 场`;
   $("#stat-leagues").textContent = (DATA.leagues || []).length;
   $("#stat-matches").textContent = niceNum((DATA.matches || []).length);
   $("#stat-teams").textContent = niceNum((DATA.teams || []).length);
@@ -2103,7 +2104,7 @@ function leagueFixtureList(league){
   const all = DATA.fixtures || [];
   return league === "all" ? all : all.filter(f => f.league === league);
 }
-/* 与「今日赛程」面板口径一致：只统计前 3 个有比赛的比赛日 */
+/* 与「今日赛程」面板口径一致：只统计前 5 个有比赛的比赛日 */
 function upcomingCount(league){
   const start = new Date(TODAY_KEY + "T00:00:00");
   const days = new Set();
@@ -2112,7 +2113,7 @@ function upcomingCount(league){
     if(isNaN(d) || d < start) continue;
     days.add(dayKey(d));
   }
-  const keep = Array.from(days).sort().slice(0, 3);
+  const keep = Array.from(days).sort().slice(0, 5);
   const keepSet = new Set(keep);
   let n = 0;
   for(const f of leagueFixtureList(league)){
@@ -2158,7 +2159,7 @@ function renderFixtures(){
       note.textContent = `数据截止 ${dataStamp()} · 比分每 30 分钟刷新`;
       note.classList.add("warn");
     } else {
-      note.textContent = "时间为本地时区 · 仅列未来 3 个比赛日";
+      note.textContent = "时间为本地时区 · 未来 5 个比赛日";
       note.classList.remove("warn");
     }
   }
@@ -2171,7 +2172,7 @@ function renderFixtures(){
     if(!groups.has(k)) groups.set(k, []);
     groups.get(k).push(f);
   }
-  const keys = Array.from(groups.keys()).sort().slice(0, 3);
+  const keys = Array.from(groups.keys()).sort().slice(0, 5);
   const titleBase = groups.has(TODAY_KEY) ? "今日赛程" : "近期赛程";
   $("#fixtures-title").textContent = state.league === "all" ? titleBase : state.league + " · " + titleBase;
   if(!keys.length){
