@@ -2079,12 +2079,13 @@ function renderHero(){
   });
   const merged = new Map([...fixtures, ...results].map(x => [String(x.id), x]));
   const items = Array.from(merged.values());
+  // 今日场次 = 未开赛/进行中 + 今天已结束（已结束的列在「最近赛果」）
   const todayCount = items.filter(f => dayKey(new Date(f.date)) === TODAY_KEY).length;
-  // 与「今日赛程」列表面板口径一致：未来 5 个比赛日（今天 + 之后 4 天）
-  const weekCount = items.filter(f => dayKey(new Date(f.date)) <= dayKey(new Date(Date.now()+4*86400000))).length;
+  // 未来场次与「今日赛程」列表完全同口径：列表里有几场就是几场
+  const weekCount = upcomingCount("all");
   $("#hero-sub").innerHTML = todayCount
-    ? `今日 <b>${todayCount}</b> 场 · 未来 5 天 <b>${weekCount}</b> 场`
-    : `今日暂无比赛 · 未来 5 天 <b>${weekCount}</b> 场`;
+    ? `今日 <b>${todayCount}</b> 场 · 未来 5 个比赛日 <b>${weekCount}</b> 场`
+    : `今日暂无比赛 · 未来 5 个比赛日 <b>${weekCount}</b> 场`;
   $("#stat-leagues").textContent = (DATA.leagues || []).length;
   $("#stat-matches").textContent = niceNum((DATA.matches || []).length);
   $("#stat-teams").textContent = niceNum((DATA.teams || []).length);
