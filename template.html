@@ -2137,14 +2137,19 @@ function renderFixtures(){
   const now = Date.now();
   const statusOf = f => {
     const m = MATCH_BY_ID.get(String(f.id));
+    const st = f.state || (m && m.state) || "";
     const hs = (m && m.hs != null) ? m.hs : (f.hs != null ? f.hs : null);
     const as = (m && m.as != null) ? m.as : (f.as != null ? f.as : null);
     const score = (hs != null && as != null) ? `${hs}–${as}` : null;
-    if(f.state === "in") return { kind: "live", score };
-    if((m && m.hs != null && m.as != null) || f.state === "post") return { kind: "done", score };
     const t = +new Date(f.date);
+    // 未开赛（含 ESPN 占位 0:0 的场次）一律按日期判断，绝不能因为「有比分」就当成已结束
+    if(st === "pre") return { kind: "pre", score: null };
+    if(st === "in") return { kind: "live", score };
+    if(st === "post") return { kind: "done", score };
+    if(!st && !isNaN(t) && t > now) return { kind: "pre", score: null };
+    if(!st && m && m.hs != null && m.as != null) return { kind: "done", score };
     if(!isNaN(t) && t <= now) return { kind: "stale", score };
-    return { kind: "pre", score };
+    return { kind: "pre", score: null };
   };
   const note = $("#fixtures-note");
   if(note){
@@ -3507,8 +3512,9 @@ function renderMatch(id){
   setShareMeta(`${h.cn || h.name} vs ${a.cn || a.name} · 绿茵数据台`);
 
   const live = m.state === "in";          // 比分板标记进行中
-  const hasScore = m.hs != null && m.as != null;
-  const done = !live && hasScore;
+  const pre = m.state === "pre";          // 明确未开赛（ESPN 占位 0:0 不算比分）
+  const hasScore = !pre && m.hs != null && m.as != null;
+  const done = !live && hasScore && (m.state === "post" || m.state === undefined);
   const score = hasScore ? `${m.hs}–${m.as}` : "VS";
   const so = m.so && m.so[0] != null && m.so[1] != null ? `点球 ${m.so[0]}–${m.so[1]}` : "";
 

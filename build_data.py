@@ -696,6 +696,8 @@ def parse_schedule(d, league, season):
             continue
         c = comps[0]
         status = (c.get("status") or {}).get("type") or {}
+        state = status.get("state") or ""
+        started = state in ("in", "post") or bool(status.get("completed"))
         home = away = None
         for t in c.get("competitors", []):
             remember_team(t.get("team"))
@@ -716,11 +718,12 @@ def parse_schedule(d, league, season):
             "leagueCode": league["code"],
             "season": season,
             "completed": bool(status.get("completed")),
-            "state": status.get("state") or "",
+            "state": state,
             "home": str(home["team"]["id"]),
             "away": str(away["team"]["id"]),
-            "hs": to_int(hs),
-            "as": to_int(as_),
+            # 未开赛场次 ESPN 会给占位 0:0
+            "hs": to_int(hs) if started else None,
+            "as": to_int(as_) if started else None,
             "so": [to_int(so_h), to_int(so_a)] if so_h is not None and so_a is not None else None,
             "neutral": bool(c.get("neutralSite")),
             "venue": ((c.get("venue") or {}).get("fullName")) or "",
@@ -761,6 +764,8 @@ def parse_scoreboard(d, league):
             continue
         c = comps[0]
         status = (c.get("status") or {}).get("type") or {}
+        state = status.get("state") or ""
+        started = state in ("in", "post") or bool(status.get("completed"))
         home = away = None
         for t in c.get("competitors", []):
             remember_team(t.get("team"))
@@ -777,11 +782,12 @@ def parse_scoreboard(d, league):
             "leagueCode": league["code"],
             "season": None,
             "completed": bool(status.get("completed")),
-            "state": status.get("state") or "",
+            "state": state,
             "home": str(home["team"]["id"]),
             "away": str(away["team"]["id"]),
-            "hs": score_value(home),
-            "as": score_value(away),
+            # 未开赛场次 ESPN 会给占位 0:0，这里必须留空，否则前端会误判成已结束
+            "hs": score_value(home) if started else None,
+            "as": score_value(away) if started else None,
             "so": None,
             "neutral": bool(c.get("neutralSite")),
             "venue": ((c.get("venue") or {}).get("fullName")) or "",
@@ -2271,7 +2277,9 @@ def main():
             "id": ev["id"], "date": ev["date"], "league": ev["league"],
             "leagueCode": ev["leagueCode"],
             "home": ev["home"], "away": ev["away"], "venue": ev["venue"],
-            "state": ev["state"], "hs": ev.get("hs"), "as": ev.get("as"),
+            "state": ev["state"],
+            "hs": ev.get("hs") if ev.get("state") != "pre" else None,
+            "as": ev.get("as") if ev.get("state") != "pre" else None,
             "odds": odds_map.get(ev["id"]),
             **({"stats": ev.get("stats")} if ev.get("stats") else
                ({"stats": stats_map[ev["id"]]} if ev.get("completed") and stats_map.get(ev["id"]) else {})),
