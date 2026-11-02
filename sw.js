@@ -4,6 +4,7 @@
 const VERSION = "gyd-v2";
 const HTML_CACHE = VERSION + "-html";
 const STATIC_CACHE = VERSION + "-static";
+const CACHE_MAX_AGE = 10 * 60 * 1000; // HTML 缓存最长 10 分钟，超时改走网络优先
 
 self.addEventListener("install", () => {
   // 新版本立即接管，避免用户长时间停留在旧缓存
@@ -48,8 +49,16 @@ async function htmlStrategy(req) {
     return res;
   }).catch(() => null);
   if (cached) {
-    refresh.catch(() => {});
-    return cached;
+    // 站点每 30 分钟更新一轮：缓存超过 10 分钟就不再「先给旧页面」，
+    // 优先走网络（最多等 8 秒），拿不到才回退缓存，避免用户刷新后仍是旧数据。
+    const when = Date.parse(cached.headers.get("date") || "") || 0;
+    const stale = !when || (Date.now() - when) > CACHE_MAX_AGE;
+    if (!stale) {
+      refresh.catch(() => {});
+      return cached;
+    }
+    const fallback = new Promise(resolve => setTimeout(() => resolve(cached), 8000));
+    return Promise.race([refresh.then(res => res || cached), fallback]);
   }
   const res = await refresh;
   return res || new Response("网络暂不可用，请稍后重试。", {
