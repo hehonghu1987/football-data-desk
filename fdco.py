@@ -226,6 +226,25 @@ def _compact_side(row, kind):
     return None
 
 
+def _closing_ou(row):
+    o = _num(row.get("B365C>2.5")); u = _num(row.get("B365C<2.5"))
+    oa = _num(row.get("AvgC>2.5")); ua = _num(row.get("AvgC<2.5"))
+    if not o or not u:
+        return None
+    return {"b365": [round(o, 2), round(u, 2)],
+            "avg": [round(oa, 2), round(ua, 2)] if oa and ua else None}
+
+
+def _closing_ah(row):
+    line = _num(row.get("AHCh"))
+    h = _num(row.get("B365CAHH")); a = _num(row.get("B365CAHA"))
+    if line is None or not h or not a:
+        return None
+    av = [_num(row.get("AvgCAHH")), _num(row.get("AvgCAHA"))]
+    return {"line": line, "b365": [round(h, 2), round(a, 2)],
+            "avg": [round(x, 2) for x in av] if all(av) else None}
+
+
 def build(match_rows, teams, log=print):
     """把 football-data 的多机构盘口并入 match_rows（按比赛 id 建索引返回）。"""
     by_id = {}
@@ -330,6 +349,12 @@ def build(match_rows, teams, log=print):
         ou = _compact_side(r, "ou")
         if ou:
             rec["ou"] = ou
+        cou = _closing_ou(r)
+        if cou:
+            rec["closeOu"] = cou
+        cah = _closing_ah(r)
+        if cah:
+            rec["closeAh"] = cah
         xg = [_num(r.get("HxG")), _num(r.get("AxG"))]
         if all(v is not None for v in xg):
             rec["xg"] = [round(xg[0], 2), round(xg[1], 2)]

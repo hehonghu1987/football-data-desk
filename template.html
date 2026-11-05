@@ -1077,6 +1077,18 @@ html.js-boot #boot-skeleton{display:block}
       <div class="sum-grid" id="perf-summary-blend"></div>
       <h3 class="subhead" id="perf-mkt-head" hidden>对收盘线（市场基准）</h3>
       <div class="sum-grid" id="perf-mkt" hidden></div>
+      <h3 class="subhead" id="perf-split-head" hidden>分联赛 / 分市场（收盘价基准）</h3>
+      <div class="table-wrap" id="perf-split-wrap" hidden>
+        <table class="stats">
+          <caption class="sr-only">模型按联赛与市场的表现（收盘价为基准）</caption>
+          <thead><tr>
+            <th scope="col">联赛</th><th scope="col">样本</th>
+            <th scope="col">1X2 技能分</th><th scope="col">模型 / 收盘命中</th>
+            <th scope="col">大小球技能分</th>
+          </tr></thead>
+          <tbody id="perf-split-body"></tbody>
+        </table>
+      </div>
       <div class="table-hint" id="perf-mkt-note" hidden>用 football-data.co.uk 的多机构收盘价回测：模型概率取开赛前滚动数据（无未来信息），市场概率取收盘去水。技能分 = 1 − 模型 Brier / 收盘 Brier，为负说明模型目前还不如收盘线；「分歧 ≥3pp」按收盘价平注的 ROI 用于检验偏差能否下注，为负就说明不能。</div>
       <h3 class="subhead" id="perf-cal-head" hidden>校准曲线</h3>
       <div class="sum-grid" id="perf-cal-summary" hidden></div>
@@ -2525,6 +2537,7 @@ function renderModelPerf(){
     head.hidden = true;
     box.innerHTML = "";
     renderMarketBench(days, tile);
+    renderMarketSplit();
     return;
   }
   head.hidden = false;
@@ -2536,6 +2549,31 @@ function renderModelPerf(){
     tile("综合 Brier", (s2.brier / s2.n).toFixed(3), "越低越好")
   ].join("");
   renderMarketBench(days, tile);
+  renderMarketSplit();
+}
+
+/* 分联赛 / 分市场（收盘价基准），数据由构建期写入 DATA.mktsplit */
+function renderMarketSplit(){
+  const head = $("#perf-split-head"), wrap = $("#perf-split-wrap"), body = $("#perf-split-body");
+  if(!head || !wrap || !body) return;
+  const sp = DATA.mktsplit || {};
+  const rows = sp.byLeague || [];
+  if(!rows.length){
+    head.hidden = true; wrap.hidden = true;
+    return;
+  }
+  head.hidden = false; wrap.hidden = false;
+  const fmt = v => v == null ? "—" : (v > 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
+  const cls = v => v == null ? "" : (v > 0.005 ? "pos" : (v < -0.005 ? "neg" : ""));
+  const all = sp.x12 || {};
+  const ouAll = (sp.ou25 || {}).skill;
+  const cell = (name, n, s12, hitM, hitK, sou) =>
+    `<tr><td>${esc(name)}</td><td>${n}</td><td class="${cls(s12)}">${fmt(s12)}</td>` +
+    `<td>${hitM}% / ${hitK}%</td><td class="${cls(sou)}">${fmt(sou)}</td></tr>`;
+  body.innerHTML =
+    `<tr><td><b>全部</b></td><td>${all.n}</td><td class="${cls(all.skill)}">${fmt(all.skill)}</td>` +
+    `<td>${all.modelHit}% / ${all.mktHit}%</td><td class="${cls(ouAll)}">${fmt(ouAll)}</td></tr>` +
+    rows.map(r => cell(r.lg, r.n, r.skill, r.modelHit, r.mktHit, r.ouSkill)).join("");
 }
 
 /* 对收盘线（多机构收盘价）的市场基准回测，数据由构建期写入 DATA.mktbt */
