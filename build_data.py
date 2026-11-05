@@ -1102,10 +1102,13 @@ def load_odds_movement():
                     continue
                 rec = out.get(eid)
                 if rec is None:
-                    out[eid] = {"from": o, "to": o, "n": 1}
+                    out[eid] = {"from": o, "to": o, "n": 1, "series": [o]}
                 else:
                     rec["to"] = o
                     rec["n"] += 1
+                    rec.setdefault("series", [rec["from"]]).append(o)
+                    if len(rec["series"]) > 8:
+                        rec["series"] = rec["series"][-8:]
     return out
 
 
@@ -2237,6 +2240,19 @@ def main():
     corner_ratings = build_corner_ratings(match_rows)
     log(f"  攻防模型：{len(ratings)} 支球队；角球模型：{len(corner_ratings)} 支球队")
 
+    # 多机构赛前盘口（football-data.co.uk）：写成独立文件，比赛页按需加载，不增大首屏
+    try:
+        import fdco
+        fd_map = fdco.build(match_rows, teams, log)
+        if fd_map:
+            fd_path = os.path.join(DATA_DIR, "fdco.json")
+            with open(fd_path, "w", encoding="utf-8") as fh:
+                json.dump(fd_map, fh, ensure_ascii=False, separators=(",", ":"))
+            log(f"  多机构盘口文件：{len(fd_map)} 场，"
+                f"{os.path.getsize(fd_path) / 1024 / 1024:.2f} MB（data/fdco.json）")
+    except Exception as e:
+        log(f"  ⚠ 多机构盘口生成失败：{e}")
+
     fixture_events = [ev for ev in fixtures.values()
                       if ev["league"] in [lg["label"] for lg in leagues]
                       and ev["home"] in teams and ev["away"] in teams]
@@ -2289,9 +2305,14 @@ def main():
     moves = load_odds_movement()
     move_n = 0
     for fr in fixture_rows:
-        mv = movement_summary(moves.get(str(fr["id"])))
+        rec = moves.get(str(fr["id"]))
+        mv = movement_summary(rec)
         if mv:
             fr["mv"] = mv
+            series = (rec or {}).get("series") or []
+            if len(series) >= 2:
+                fr["mvs"] = [[round(p[0], 3), round(p[1], 3), round(p[2], 3)]
+                             for p in (_snap_probs(o) for o in series) if p]
             move_n += 1
     if move_n:
         log(f"  盘口异动：{move_n} 场（赛前快照变化 ≥{ODDS_MOVE_MIN*100:.0f} 个百分点）")

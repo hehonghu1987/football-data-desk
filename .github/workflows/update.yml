@@ -86,6 +86,10 @@ jobs:
           if [ -d fonts ]; then
             cp -R fonts dist/fonts
           fi
+          if [ -f data/fdco.json ]; then
+            mkdir -p dist/data
+            cp data/fdco.json dist/data/fdco.json
+          fi
           du -sh dist
 
       - name: 记录构建时间并归档

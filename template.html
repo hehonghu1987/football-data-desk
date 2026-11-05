@@ -719,6 +719,16 @@ table.stats tbody tr:last-child td{border-bottom:0}
 .mk-title{font-size:12px;font-weight:600;margin:0 0 4px}
 .mk-sub{font-size:10px;color:var(--muted);line-height:1.75;margin-bottom:12px}
 .mk-sub.mk-warn{color:var(--loss);margin-top:-6px}
+.fd-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.fd-card .mk-tbl{margin-top:8px}
+.fd-card .mk-tbl td:first-child,.fd-card .mk-tbl th:first-child{text-align:left}
+.fd-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12px;padding:8px 0;border-top:1px solid var(--line);color:var(--ink-2)}
+.fd-row:first-of-type{border-top:0}
+.fd-row .fd-k{color:var(--muted);min-width:92px;font-size:11px}
+.fd-note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.75}
+.mv-spark{display:block;width:100%;max-width:280px;height:38px;margin:2px 13px 12px}
+.mv-spark .ln{fill:none;stroke-width:2}
+.mv-spark .base{stroke:var(--line);stroke-width:1}
 .mk-wrap{display:grid;gap:12px}
 .mk-card{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
 .mk-card>.hd{font-size:10.5px;color:var(--muted);letter-spacing:.04em;padding:9px 13px;border-bottom:1px solid var(--line);background:var(--surface-2)}
@@ -1178,6 +1188,7 @@ html.js-boot #boot-skeleton{display:block}
     <div class="match-tools"><button class="chip-btn" id="export-match" type="button">导出图片</button></div>
     <div id="match-hero"></div>
     <div id="match-compare"></div>
+    <div id="match-books"></div>
 
     <section class="section insight" id="insight" hidden>
       <div class="section-head">
@@ -2984,17 +2995,38 @@ function marketRows(rows, mkLine, mkProbs, fmt){
   }).join("");
 }
 
+function mvSpark(m, mv){
+  const series = m && m.mvs;
+  if(!series || series.length < 2) return "";
+  const idx = { h: 0, d: 1, a: 2 }[mv && mv.k] ?? 0;
+  const vals = series.map(p => Number(p[idx]) * 100);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const span = Math.max(0.5, hi - lo);
+  const W = 280, H = 38, pad = 3;
+  const pts = vals.map((v, i) => {
+    const x = pad + (W - pad * 2) * (i / (vals.length - 1));
+    const y = H - pad - (H - pad * 2) * ((v - lo) / span);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const up = vals[vals.length - 1] >= vals[0];
+  const color = up ? "var(--loss)" : "var(--accent)";
+  return `<svg class="mv-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="赔率走势">
+    <line class="base" x1="0" y1="${H - pad}" x2="${W}" y2="${H - pad}"></line>
+    <polyline class="ln" points="${pts}" style="stroke:${color}"></polyline>
+  </svg>`;
+}
+
 function renderMarkets(m, pred, odds){
   const box = $("#mk-block");
   if(!box) return;
   box.hidden = true;
   box.innerHTML = "";
-  if(!pred) return;
   const cards = [];
   const ou = odds && odds.ou ? odds.ou : null;
   const ah = odds && odds.ah ? odds.ah : null;
 
-  if(pred.lines){
+  // 没有模型（冷门杯赛/样本不足）时，仍然展示盘口异动与多机构数据
+  if(pred && pred.lines){
     const rows = Object.keys(pred.lines)
       .sort((x, y) => Number(x) - Number(y))
       .map(k => ({ line: Number(k), p: pred.lines[k] }));
@@ -3006,7 +3038,7 @@ function renderMarkets(m, pred, odds){
       <tbody>${marketRows(rows, mkLine, mk, v => v.toFixed(1) + " 球")}</tbody></table></div>`);
   }
 
-  if(pred.ah){
+  if(pred && pred.ah){
     const rows = Object.keys(pred.ah)
       .sort((x, y) => Number(x) - Number(y))
       .map(k => ({ line: Number(k), p: pred.ah[k] }));
@@ -3018,7 +3050,7 @@ function renderMarkets(m, pred, odds){
       <tbody>${marketRows(rows, mkLine, mk, v => ahText(v))}</tbody></table></div>`);
   }
 
-  if(pred.corners){
+  if(pred && pred.corners){
     const c = pred.corners;
     const home = TEAMS.get(String(m.home)) || {};
     const away = TEAMS.get(String(m.away)) || {};
@@ -3044,12 +3076,13 @@ function renderMarkets(m, pred, odds){
         <span class="${cls}">${dv > 0 ? "+" : ""}${dv.toFixed(1)} pts</span>
         <span>最近采样 ${esc(fullTime(m.mv.t + ":00Z"))}</span>
       </div>
+      ${mvSpark(m, m.mv)}
       <div class="mk-sub" style="padding:0 13px 12px;margin:0">赔率向某一方向持续移动，通常反映资金与信息的变化，可结合模型概率一起看。</div>
     </div>`);
   }
 
   if(!cards.length) return;
-  const warn = pred.xlg
+  const warn = pred && pred.xlg
     ? `<div class="mk-sub mk-warn">本场为跨联赛对阵，模型向均值收缩后偏向保守，偏差绝对值会系统性偏大，参考性较低。</div>`
     : "";
   box.innerHTML = `<div class="mk-title">盘口对照</div>
@@ -3581,6 +3614,63 @@ function renderMatch(id){
   renderInsight(m);
 
   renderMatchH2H(h, a, m);
+  renderMatchBooks(m);
+}
+
+/* ---------- 多机构赛前盘口（football-data.co.uk，按需加载） ---------- */
+let FDCO = null, fdcoLoading = null;
+function loadFdco(){
+  if(FDCO) return Promise.resolve(FDCO);
+  if(!fdcoLoading){
+    fdcoLoading = fetch("data/fdco.json").then(r => r.ok ? r.json() : {}).catch(() => ({}))
+      .then(m => { FDCO = m || {}; return FDCO; });
+  }
+  return fdcoLoading;
+}
+function renderMatchBooks(m){
+  const box = $("#match-books");
+  if(!box) return;
+  box.innerHTML = "";
+  if(!m || m.hs == null) return;   // 只有已结束比赛有收盘盘口（复盘）
+  loadFdco().then(map => {
+    const fd = map && map[String(m.id)];
+    if(!fd) return;
+    box.innerHTML = fdcoCard(fd);
+  });
+}
+function fdcoCard(fd){
+  const bo = fd.bo || {};
+  const ix = fd.ix || null;
+  const order = ["B365","Pinnacle","Avg","Max"];
+  const label = {B365:"Bet365", Pinnacle:"Pinnacle", Avg:"平均", Max:"最高"};
+  const rows = order.filter(k => bo[k]).map(k => {
+    const o = bo[k];
+    return `<tr><td>${label[k] || k}</td><td>${o[0].toFixed(2)}</td><td>${o[1].toFixed(2)}</td><td>${o[2].toFixed(2)}</td></tr>`;
+  }).join("");
+  const consRow = ix && ix.cons ? `<tr><td>共识概率</td><td>${(ix.cons[0]*100).toFixed(1)}%</td><td>${(ix.cons[1]*100).toFixed(1)}%</td><td>${(ix.cons[2]*100).toFixed(1)}%</td></tr>` : "";
+  const chips = ix ? [
+    `<span>机构 <b>${ix.n}</b> 家</span>`,
+    `<span>返还率 <b>${(ix.pay*100).toFixed(1)}%</b></span>`,
+    ix.disp ? `<span>离散度 <b>${ix.disp.map(x=>x.toFixed(1)).join(" / ")}</b> pp</span>` : "",
+    ix.kelly ? `<span>凯利 <b>${ix.kelly.map(x=>x.toFixed(3)).join(" / ")}</b></span>` : ""
+  ].filter(Boolean).join("") : "";
+  const ah = fd.ah ? `<div class="fd-row"><span class="fd-k">亚盘让球</span><span>${ahText(fd.ah.line)}</span><span>Bet365 主 ${fd.ah.b365[0].toFixed(2)} / 客 ${fd.ah.b365[1].toFixed(2)}</span>${fd.ah.avg ? `<span>平均 ${fd.ah.avg.map(x=>x.toFixed(2)).join(" / ")}</span>` : ""}</div>` : "";
+  const ou = fd.ou ? `<div class="fd-row"><span class="fd-k">大小球 2.5</span><span>Bet365 大 ${fd.ou.b365[0].toFixed(2)} / 小 ${fd.ou.b365[1].toFixed(2)}</span>${fd.ou.avg ? `<span>平均 ${fd.ou.avg.map(x=>x.toFixed(2)).join(" / ")}</span>` : ""}</div>` : "";
+  const closing = fd.closing && fd.closing.avg ? `<div class="fd-row"><span class="fd-k">收盘（平均）</span><span>主 ${fd.closing.avg[0].toFixed(2)} / 平 ${fd.closing.avg[1].toFixed(2)} / 客 ${fd.closing.avg[2].toFixed(2)}</span></div>` : "";
+  const xg = fd.xg ? `<div class="fd-row"><span class="fd-k">xG（赛后）</span><span>主 ${fd.xg[0].toFixed(2)}</span><span>客 ${fd.xg[1].toFixed(2)}</span></div>` : "";
+  const ht = fd.ht ? `<div class="fd-row"><span class="fd-k">半场比分</span><span>${fd.ht[0]}–${fd.ht[1]}</span></div>` : "";
+  return `<section class="section">
+    <div class="section-head">
+      <h2 class="section-title">赛前盘口 · 多机构</h2>
+      <span class="section-note">football-data.co.uk · 收盘价</span>
+    </div>
+    <div class="fd-card">
+      ${chips ? `<div class="mk-corner">${chips}</div>` : ""}
+      <table class="mk-tbl"><thead><tr><th>机构</th><th>主胜</th><th>平</th><th>客胜</th></tr></thead><tbody>${rows}${consRow}</tbody></table>
+      ${ah}${ou}${closing}${xg}${ht}
+      <div class="fd-note">多机构盘口来自 football-data.co.uk（免费公开数据，覆盖五大联赛/英冠/荷甲/葡超/比甲/土超/希腊超/苏超的历史收盘价）。返还率越接近 100% 水位越低；离散度越大说明机构分歧越大；凯利指数 = 最高赔率 × 共识概率，>1 表示相对共识有溢价。</div>
+    </div>
+  </section>`;
 }
 
 /* 比赛页的双方历史交锋，支持按主客场筛选（以本场主队为参照） */
