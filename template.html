@@ -737,6 +737,16 @@ table.stats tbody tr:last-child td{border-bottom:0}
   .ix-row{grid-template-columns:44px minmax(0,1fr) 44px 64px;gap:6px;padding:9px 12px}
   .ix-row>*:nth-child(3),.ix-row>*:nth-child(4){display:none}
 }
+.dis-row{display:grid;grid-template-columns:58px minmax(0,1.1fr) 96px 96px 70px 58px;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px}
+.dis-row:last-child{border-bottom:0}
+.dis-head{color:var(--muted);font-size:11px;background:var(--surface-2)}
+.dis-row .ix-m{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dis-row .num{font-family:var(--font-mono);font-size:11.5px}
+.dis-row .gap{font-family:var(--font-mono);font-weight:600}
+@media(max-width:640px){
+  .dis-row{grid-template-columns:42px minmax(0,1fr) 56px 44px;gap:6px;padding:9px 12px}
+  .dis-row>*:nth-child(3),.dis-row>*:nth-child(4){display:none}
+}
 .pred-markets{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:11.5px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .pred-markets b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
 .fix-pred .hint{color:var(--muted)}
@@ -1096,6 +1106,14 @@ html.js-boot #boot-skeleton{display:block}
       <div class="table-hint">回测口径：先评估纯数据模型；有赛前盘口快照的比赛会再评估「市场 70% + 模型 30%」的综合预测，样本随每轮构建逐步积累。</div>
       <div class="table-hint">校准曲线横轴是模型给出的概率，纵轴是实际命中率；落在对角线上表示概率可信。点越靠右下说明模型系统性高估，越靠左上说明低估。每档至少 20 个样本才绘制，圆点大小代表样本量。</div>
       <div class="table-hint">「大小球技能分」用 Brier 分数与「永远猜本区间平均进球率」相比：大于 0 说明模型对大小球有判别力，接近 0 或为负说明这些概率不比平均值更有信息量，此时盘口对照里的偏差应视为校准参考，而不是可下注的边际。</div>
+    </section>
+
+    <section class="section" id="dis-board-sec" hidden>
+      <div class="section-head">
+        <h2 class="section-title">模型-市场分歧榜 · 近 7 天</h2>
+        <span class="section-note">模型概率 vs 收盘去水概率 · 分歧越大越值得复盘</span>
+      </div>
+      <div class="panel" id="dis-board"></div>
     </section>
 
     <section class="section" id="ix-board-sec" hidden>
@@ -2600,6 +2618,32 @@ function renderMarketBench(days, tile){
   ].join("");
 }
 
+function renderDisagreeBoard(){
+  const sec = $("#dis-board-sec"), box = $("#dis-board");
+  if(!sec || !box) return;
+  const list = DATA.disboard || [];
+  if(!list.length){ sec.hidden = true; return; }
+  sec.hidden = false;
+  const names = r => {
+    const h = TEAMS.get(String(r.h)) || {}, a = TEAMS.get(String(r.a)) || {};
+    return `<a href="#/team/${esc(h.id)}">${esc(h.cn || h.name || "")}</a> vs <a href="#/team/${esc(a.id)}">${esc(a.cn || a.name || "")}</a>`;
+  };
+  box.innerHTML = `<div class="dis-row dis-head"><span>日期</span><span>比赛</span><span>模型 主/平/客</span><span>市场 主/平/客</span><span>最大分歧</span><span>赛果</span></div>` +
+    list.map(r => {
+      const res = (r.res && r.res[0] != null) ? `${r.res[0]}–${r.res[1]}` : "—";
+      const topName = ["主胜", "平", "客胜"][r.top] || "";
+      const gapCls = r.gaps[r.top] > 0 ? "pos" : "neg";
+      return `<div class="dis-row" data-mid="${esc(r.id)}">
+        <span class="ix-d">${esc(String(r.d).slice(5))}</span>
+        <span class="ix-m">${names(r)}</span>
+        <span class="num">${(r.mp || []).map(v => Number(v).toFixed(0) + "%").join(" / ")}</span>
+        <span class="num">${(r.mk || []).map(v => Number(v).toFixed(0) + "%").join(" / ")}</span>
+        <span class="gap ${gapCls}">${topName} ${r.gaps[r.top] > 0 ? "+" : ""}${r.gaps[r.top]} pts</span>
+        <span>${esc(res)}</span>
+      </div>`;
+    }).join("");
+}
+
 function renderIndexBoard(){
   const sec = $("#ix-board-sec"), box = $("#ix-board");
   if(!sec || !box) return;
@@ -2633,6 +2677,7 @@ function renderHome(){
   renderFixtures();
   renderRecent();
   renderModelPerf();
+  renderDisagreeBoard();
   renderIndexBoard();
   renderIndex();
   syncIndexToggle();

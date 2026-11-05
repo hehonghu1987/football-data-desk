@@ -1741,6 +1741,70 @@ def corner_output(eh, ea):
     }
 
 
+LEAGUE_TEMPS = (0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2)
+
+
+def _brier3(probs, out):
+    return sum((probs[i] - (1.0 if i == out else 0.0)) ** 2 for i in range(3))
+
+
+def _temp_probs(p, T):
+    if T == 1.0:
+        return p
+    inv = 1.0 / T
+    q = [max(x, 1e-6) ** inv for x in p]
+    s = sum(q)
+    return [x / s for x in q]
+
+
+def build_league_temps(match_rows, fd_map, min_n=400):
+    """按联赛拟合 1X2 概率的温度缩放（用实际结果校准，不依赖市场）。
+
+    不同联赛模型系统性偏差不同（如西甲偏保守/意甲偏激进），按联赛各拟合一个温度。
+    样本不足 400 场的联赛用全局温度。
+    """
+    by_lg = {}
+    for m in match_rows:
+        pre = m.get("pre")
+        if not pre or m.get("hs") is None or m.get("as") is None:
+            continue
+        out = 0 if m["hs"] > m["as"] else (1 if m["hs"] == m["as"] else 2)
+        by_lg.setdefault(m.get("league") or "其他", []).append(
+            ([pre.get("ph"), pre.get("pd"), pre.get("pa")], out))
+    temps = {}
+    for lg, rows in by_lg.items():
+        if len(rows) < min_n:
+            continue
+        best = None
+        for T in LEAGUE_TEMPS:
+            b = sum(_brier3(_temp_probs(p, T), o) for p, o in rows) / len(rows)
+            if best is None or b < best[0]:
+                best = (b, T)
+        temps[lg] = best[1]
+    # 全局温度（给样本不足的联赛兜底）
+    all_rows = [r for rows in by_lg.values() for r in rows]
+    best_all = None
+    for T in LEAGUE_TEMPS:
+        b = sum(_brier3(_temp_probs(p, T), o) for p, o in all_rows) / len(all_rows)
+        if best_all is None or b < best_all[0]:
+            best_all = (b, T)
+    temps["__all__"] = best_all[1]
+    return temps
+
+
+def apply_league_temps(match_rows, temps):
+    """把联赛温度应用到历史 pre 的 1X2 概率上（与线上预测口径一致）。"""
+    for m in match_rows:
+        pre = m.get("pre")
+        if not pre:
+            continue
+        T = temps.get(m.get("league")) or temps.get("__all__") or 1.0
+        if T == 1.0:
+            continue
+        p = _temp_probs([pre.get("ph"), pre.get("pd"), pre.get("pa")], T)
+        pre["ph"], pre["pd"], pre["pa"] = [round(x, 3) for x in p]
+
+
 def build_market_split(match_rows, fd_map):
     """按联赛 / 按市场拆分模型表现（收盘价为基准）。"""
     rows = []
@@ -1806,6 +1870,45 @@ def build_market_split(match_rows, fd_map):
                  "skill": agg(rows)["ouSkill"] if rows else None},
         "byLeague": leagues[:12],
     }
+
+
+def build_disagree_board(match_rows, fd_map, days=7, limit=10):
+    """近 N 天「模型 vs 收盘市场」分歧最大的比赛（复盘用）。"""
+    from datetime import datetime as _dt, timezone as _tz
+    now = _dt.now(_tz.utc)
+    rows = []
+    for m in match_rows:
+        rec = fd_map.get(str(m.get("id")))
+        pre = m.get("pre")
+        if not rec or not pre or m.get("hs") is None:
+            continue
+        close = (rec.get("closing") or {}).get("avg") or (rec.get("closing") or {}).get("b365")
+        if not close:
+            continue
+        try:
+            d = _dt.fromisoformat((m.get("date") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if (now - d).days > days:
+            continue
+        inv = [1 / x for x in close]
+        tot = sum(inv)
+        mk = [round(x / tot, 3) for x in inv]
+        mp = [pre.get("ph"), pre.get("pd"), pre.get("pa")]
+        if None in mp:
+            continue
+        gaps = [round((mp[i] - mk[i]) * 100, 1) for i in range(3)]
+        top = max(range(3), key=lambda i: abs(gaps[i]))
+        rows.append({
+            "id": str(m["id"]), "d": m["date"][:10], "lg": m.get("league"),
+            "h": m.get("home"), "a": m.get("away"),
+            "mp": [round(x * 100, 1) for x in mp],
+            "mk": [round(x * 100, 1) for x in mk],
+            "gaps": gaps, "top": top, "maxGap": abs(gaps[top]),
+            "res": [m.get("hs"), m.get("as")],
+        })
+    rows.sort(key=lambda r: -r["maxGap"])
+    return rows[:limit]
 
 
 def build_index_board(match_rows, fd_map, days=7, limit=10):
@@ -2451,6 +2554,18 @@ def main():
         m["pre"] = pre_map.get(m["id"])
     log(f"  赛前预期进球：{len(pre_map)} 场")
 
+    # 按联赛校准 1X2 概率温度（用实际结果拟合），并同步到历史 pre，保证回测口径一致
+    ltemps = {}
+    if fd_map:
+        try:
+            ltemps = build_league_temps(match_rows, fd_map)
+            apply_league_temps(match_rows, ltemps)
+            log("  联赛温度校准：" + "、".join(
+                f"{k}×{v}" for k, v in ltemps.items() if k != "__all__"))
+        except Exception as e:
+            ltemps = {}
+            log(f"  ⚠ 联赛温度校准失败：{e}")
+
     FIVE = ("英超", "西甲", "意甲", "德甲", "法甲")
     team_rows = []
     for t in teams.values():
@@ -2506,6 +2621,7 @@ def main():
     mktbt = {}
     mktsplit = {}
     ixboard = []
+    disboard = []
     if fd_map:
         try:
             mktbt = build_market_backtest(match_rows, fd_map)
@@ -2519,6 +2635,13 @@ def main():
         except Exception as e:
             mktsplit = {}
             log(f"  ⚠ 分市场回测失败：{e}")
+        try:
+            disboard = build_disagree_board(match_rows, fd_map)
+            if disboard:
+                log(f"  模型-市场分歧榜：{len(disboard)} 场（近 7 天）")
+        except Exception as e:
+            disboard = []
+            log(f"  ⚠ 分歧榜生成失败：{e}")
         try:
             ixboard = build_index_board(match_rows, fd_map)
             if ixboard:
@@ -2561,6 +2684,12 @@ def main():
     log(f"  半场进球占比：{ht_ratio:.3f}（全场 {ht_ratio*100:.1f}% 的进球发生在上半场）")
     fixture_rows = []
     for ev in fixture_events:
+        _pred = predict_match(ev["home"], ev["away"], ev["leagueCode"],
+                              ratings, corner_ratings, ht_ratio)
+        _T = ltemps.get(ev.get("league")) or ltemps.get("__all__") or 1.0
+        if _pred and _T != 1.0:
+            _p = _temp_probs([_pred["ph"], _pred["pd"], _pred["pa"]], _T)
+            _pred["ph"], _pred["pd"], _pred["pa"] = [round(x, 3) for x in _p]
         fixture_rows.append({
             "id": ev["id"], "date": ev["date"], "league": ev["league"],
             "leagueCode": ev["leagueCode"],
@@ -2571,8 +2700,7 @@ def main():
             "odds": odds_map.get(ev["id"]),
             **({"stats": ev.get("stats")} if ev.get("stats") else
                ({"stats": stats_map[ev["id"]]} if ev.get("completed") and stats_map.get(ev["id"]) else {})),
-            "pred": predict_match(ev["home"], ev["away"], ev["leagueCode"],
-                                  ratings, corner_ratings, ht_ratio),
+            "pred": _pred,
         })
     fixture_rows.sort(key=lambda f: f["date"] or "")
 
@@ -2637,7 +2765,9 @@ def main():
         "lineups": lineups,
         "mktbt": mktbt,
         "mktsplit": mktsplit,
+        "ltemps": ltemps,
         "ixboard": ixboard,
+        "disboard": disboard,
     }
     compact_payload(payload)
     out_json = os.path.join(DATA_DIR, "matches.json")
