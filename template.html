@@ -726,6 +726,9 @@ table.stats tbody tr:last-child td{border-bottom:0}
 .fd-row:first-of-type{border-top:0}
 .fd-row .fd-k{color:var(--muted);min-width:92px;font-size:11px}
 .fd-note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.75}
+.pred-markets{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:11.5px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.pred-markets b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+.fix-pred .hint{color:var(--muted)}
 .mv-spark{display:block;width:100%;max-width:280px;height:38px;margin:2px 13px 12px}
 .mv-spark .ln{fill:none;stroke-width:2}
 .mv-spark .base{stroke:var(--line);stroke-width:1}
@@ -2222,7 +2225,12 @@ function renderFixtures(){
         } else if(fst.kind === "stale"){
           predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : ""}<span>数据截止 ${esc(dataStamp())}</span></div>`;
         } else if(pd && fbp){
-          predLine = `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span></div>`;
+          const o25 = pd.lines ? pd.lines["2.5"] : null;
+          const btts = pd.btts != null ? pd.btts : null;
+          const hints = [];
+          if(o25 != null) hints.push(o25 >= 0.5 ? `大2.5 ${Math.round(o25*100)}%` : `小2.5 ${Math.round((1-o25)*100)}%`);
+          if(btts != null) hints.push(`双方进球 ${Math.round(btts*100)}%`);
+          predLine = `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span>${hints.length ? `<span class="hint">${hints.join(" · ")}</span>` : ""}</div>`;
         }
         return `<div class="fix-row" data-mid="${esc(f.id)}">
           <div class="fix-time">${fmtTime(f.date)}</div>
@@ -3272,7 +3280,17 @@ function renderPreMatch(m){
         <div><div class="k">平</div><div class="v">${pct(final[1])}</div>${comp(1)}</div>
         <div><div class="k">客胜</div><div class="v">${pct(final[2])}</div>${comp(2)}</div>
       </div>
-      <div class="pred-facts">${facts}</div>`;
+      <div class="pred-facts">${facts}</div>
+      ${(() => {
+        const dc = (a,b) => pct(final[a] + final[b]);
+        const bttsP = pred.btts != null ? Math.round(pred.btts * 100) : null;
+        const tops = (pred.top || []).slice(0, 3);
+        return `<div class="pred-markets">
+          <span>双重机会 <b>1X ${dc(0,1)}</b> · <b>12 ${dc(0,2)}</b> · <b>X2 ${dc(1,2)}</b></span>
+          ${bttsP != null ? `<span>双方进球 <b>${bttsP}%</b>（模型）</span>` : ""}
+          ${tops.length ? `<span>最可能比分 ${tops.map(t => `<b>${esc(t[0])}</b> ${Math.round(t[1]*100)}%`).join(" ")}</span>` : ""}
+        </div>`;
+      })()}`;
     $("#pred-card").hidden = false;
     renderMarkets(m, pred, odds);
   } else if(ip){
