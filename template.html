@@ -1064,6 +1064,9 @@ html.js-boot #boot-skeleton{display:block}
       <div class="sum-grid" id="perf-summary"></div>
       <h3 class="subhead" id="perf-blend-head" hidden>含市场权重的综合预测</h3>
       <div class="sum-grid" id="perf-summary-blend"></div>
+      <h3 class="subhead" id="perf-mkt-head" hidden>对收盘线（市场基准）</h3>
+      <div class="sum-grid" id="perf-mkt" hidden></div>
+      <div class="table-hint" id="perf-mkt-note" hidden>用 football-data.co.uk 的多机构收盘价回测：模型概率取开赛前滚动数据（无未来信息），市场概率取收盘去水。技能分 = 1 − 模型 Brier / 收盘 Brier，为负说明模型目前还不如收盘线；「分歧 ≥3pp」按收盘价平注的 ROI 用于检验偏差能否下注，为负就说明不能。</div>
       <h3 class="subhead" id="perf-cal-head" hidden>校准曲线</h3>
       <div class="sum-grid" id="perf-cal-summary" hidden></div>
       <div class="cal-wrap" id="perf-cal" hidden></div>
@@ -2502,6 +2505,7 @@ function renderModelPerf(){
   if(!s2.n){
     head.hidden = true;
     box.innerHTML = "";
+    renderMarketBench(days, tile);
     return;
   }
   head.hidden = false;
@@ -2511,6 +2515,31 @@ function renderModelPerf(){
     tile("综合方向命中", `${Math.round(s2.hit / s2.n * 100)}%`, `较纯模型 ${diff >= 0 ? "+" : ""}${diff} 个百分点`),
     tile("综合高信心", s2.favN ? `${Math.round(s2.favHit / s2.favN * 100)}%` : "—", s2.favN ? `概率 ≥50% 的 ${s2.favN} 场` : "暂无高信心场次"),
     tile("综合 Brier", (s2.brier / s2.n).toFixed(3), "越低越好")
+  ].join("");
+  renderMarketBench(days, tile);
+}
+
+/* 对收盘线（多机构收盘价）的市场基准回测，数据由构建期写入 DATA.mktbt */
+function renderMarketBench(days, tile){
+  const mb = ((DATA.mktbt || {})[String(days)]) || ((DATA.mktbt || {}).all);
+  const head = $("#perf-mkt-head"), box = $("#perf-mkt"), note = $("#perf-mkt-note");
+  if(!head || !box) return;
+  if(!mb || !mb.n){
+    head.hidden = true; box.hidden = true; if(note) note.hidden = true;
+    return;
+  }
+  head.hidden = false; box.hidden = false; if(note) note.hidden = false;
+  const skillCls = mb.skill == null ? "" : (mb.skill > 0.005 ? "pos" : (mb.skill < -0.005 ? "neg" : ""));
+  const roiCls = mb.bigRoi == null ? "" : (mb.bigRoi > 0 ? "pos" : "neg");
+  box.innerHTML = [
+    tile("收盘线样本", `${mb.n} 场`, "有收盘价的历史比赛"),
+    tile("模型方向命中", `${mb.modelHit}%`, `收盘线 ${mb.mktHit}%`),
+    `<div class="sum-tile"><div class="l">对收盘线技能分</div><div class="v ${skillCls}">${
+      mb.skill == null ? "—" : (mb.skill > 0 ? "+" : "") + (mb.skill * 100).toFixed(1) + "%"}</div><div class="s">1 − 模型Brier/收盘Brier，>0 才优于市场</div></div>`,
+    `<div class="sum-tile"><div class="l">分歧≥3pp 平注 ROI</div><div class="v ${roiCls}">${
+      mb.bigRoi == null ? "—" : (mb.bigRoi > 0 ? "+" : "") + mb.bigRoi + "%"}</div><div class="s">${
+      mb.bigN} 注 · 命中 ${mb.bigHit == null ? "—" : mb.bigHit + "%"} · 按收盘价</div></div>`,
+    `<div class="sum-tile"><div class="l">Brier 模型 / 收盘</div><div class="v">${mb.brierModel}</div><div class="s">收盘线 ${mb.brierMkt}，越低越好</div></div>`
   ].join("");
 }
 
@@ -3283,8 +3312,9 @@ function renderPreMatch(m){
       <div class="pred-facts">${facts}</div>
       ${(() => {
         const dc = (a,b) => pct(final[a] + final[b]);
-        const bttsP = pred.btts != null ? Math.round(pred.btts * 100) : null;
-        const tops = (pred.top || []).slice(0, 3);
+        // 已结束比赛只有赛前模型（pre），没有 btts / top，别硬取
+        const bttsP = pred && pred.btts != null ? Math.round(pred.btts * 100) : null;
+        const tops = (pred && pred.top) ? pred.top.slice(0, 3) : [];
         return `<div class="pred-markets">
           <span>双重机会 <b>1X ${dc(0,1)}</b> · <b>12 ${dc(0,2)}</b> · <b>X2 ${dc(1,2)}</b></span>
           ${bttsP != null ? `<span>双方进球 <b>${bttsP}%</b>（模型）</span>` : ""}
@@ -3653,10 +3683,10 @@ function renderMatchBooks(m){
   loadFdco().then(map => {
     const fd = map && map[String(m.id)];
     if(!fd) return;
-    box.innerHTML = fdcoCard(fd);
+    box.innerHTML = fdcoCard(fd, m);
   });
 }
-function fdcoCard(fd){
+function fdcoCard(fd, m){
   const bo = fd.bo || {};
   const ix = fd.ix || null;
   const order = ["B365","Pinnacle","Avg","Max"];
@@ -3672,6 +3702,19 @@ function fdcoCard(fd){
     ix.disp ? `<span>离散度 <b>${ix.disp.map(x=>x.toFixed(1)).join(" / ")}</b> pp</span>` : "",
     ix.kelly ? `<span>凯利 <b>${ix.kelly.map(x=>x.toFixed(3)).join(" / ")}</b></span>` : ""
   ].filter(Boolean).join("") : "";
+  let vs = "";
+  if(m && m.pre && m.pre.ph != null && fd.closing && fd.closing.avg){
+    const close = fd.closing.avg;
+    const inv = [1/close[0], 1/close[1], 1/close[2]];
+    const tot = inv[0] + inv[1] + inv[2];
+    const mk = inv.map(x => x / tot);
+    const mp = [m.pre.ph, m.pre.pd, m.pre.pa];
+    const edge = mp.map((p, i) => (p - mk[i]) * 100);
+    vs = `<div class="fd-row"><span class="fd-k">模型 vs 收盘</span>` +
+      `<span>模型 ${mp.map(v => (v*100).toFixed(0) + "%").join(" / ")}</span>` +
+      `<span>市场 ${mk.map(v => (v*100).toFixed(0) + "%").join(" / ")}</span>` +
+      `<span>偏差 ${edge.map(v => (v > 0 ? "+" : "") + v.toFixed(1)).join(" / ")} pts</span></div>`;
+  }
   const ah = fd.ah ? `<div class="fd-row"><span class="fd-k">亚盘让球</span><span>${ahText(fd.ah.line)}</span><span>Bet365 主 ${fd.ah.b365[0].toFixed(2)} / 客 ${fd.ah.b365[1].toFixed(2)}</span>${fd.ah.avg ? `<span>平均 ${fd.ah.avg.map(x=>x.toFixed(2)).join(" / ")}</span>` : ""}</div>` : "";
   const ou = fd.ou ? `<div class="fd-row"><span class="fd-k">大小球 2.5</span><span>Bet365 大 ${fd.ou.b365[0].toFixed(2)} / 小 ${fd.ou.b365[1].toFixed(2)}</span>${fd.ou.avg ? `<span>平均 ${fd.ou.avg.map(x=>x.toFixed(2)).join(" / ")}</span>` : ""}</div>` : "";
   const closing = fd.closing && fd.closing.avg ? `<div class="fd-row"><span class="fd-k">收盘（平均）</span><span>主 ${fd.closing.avg[0].toFixed(2)} / 平 ${fd.closing.avg[1].toFixed(2)} / 客 ${fd.closing.avg[2].toFixed(2)}</span></div>` : "";
@@ -3685,7 +3728,7 @@ function fdcoCard(fd){
     <div class="fd-card">
       ${chips ? `<div class="mk-corner">${chips}</div>` : ""}
       <table class="mk-tbl"><thead><tr><th>机构</th><th>主胜</th><th>平</th><th>客胜</th></tr></thead><tbody>${rows}${consRow}</tbody></table>
-      ${ah}${ou}${closing}${xg}${ht}
+      ${vs}${ah}${ou}${closing}${xg}${ht}
       <div class="fd-note">多机构盘口来自 football-data.co.uk（免费公开数据，覆盖五大联赛/英冠/荷甲/葡超/比甲/土超/希腊超/苏超的历史收盘价）。返还率越接近 100% 水位越低；离散度越大说明机构分歧越大；凯利指数 = 最高赔率 × 共识概率，>1 表示相对共识有溢价。</div>
     </div>
   </section>`;

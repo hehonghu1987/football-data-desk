@@ -1734,6 +1734,74 @@ STAT_ORDER = ("shots", "sot", "corners", "offsides", "yellow", "red",
               "fouls", "possession", "blocked", "saves")
 
 
+def build_market_backtest(match_rows, fd_map):
+    """用多机构收盘价回测赛前模型：Brier / 方向命中 / 收盘线技能分。
+
+    模型概率取自 build_pre_match 的滚动输出（只使用开赛前数据，无未来泄漏），
+    市场概率来自 football-data.co.uk 的收盘平均赔率（去水）。
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    now = _dt.now(_tz.utc)
+    rows = []
+    for m in match_rows:
+        fd = fd_map.get(str(m["id"]))
+        pre = m.get("pre")
+        if not fd or not pre or m.get("hs") is None or m.get("as") is None:
+            continue
+        close = (fd.get("closing") or {}).get("avg") or (fd.get("closing") or {}).get("b365")
+        if not close or len(close) != 3:
+            continue
+        inv = [1 / x for x in close]
+        tot = sum(inv)
+        mk = [x / tot for x in inv]
+        mp = [pre.get("ph"), pre.get("pd"), pre.get("pa")]
+        if None in mp:
+            continue
+        out = 0 if m["hs"] > m["as"] else (1 if m["hs"] == m["as"] else 2)
+        try:
+            dt = _dt.fromisoformat((m.get("date") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        edges = [mp[i] - mk[i] for i in range(3)]
+        top = max(range(3), key=lambda i: edges[i])
+        rows.append({"dt": dt, "mp": mp, "mk": mk, "out": out,
+                     "top": top, "edge": edges[top], "close": close})
+
+    def agg(sel):
+        n = len(sel)
+        if not n:
+            return {"n": 0}
+        def brier(ps):
+            return sum(sum((ps[k][i] - (1.0 if i == sel[k]["out"] else 0.0)) ** 2
+                           for i in range(3)) for k in range(n)) / n
+        bm, bk = brier([r["mp"] for r in sel]), brier([r["mk"] for r in sel])
+        model_hit = sum(1 for r in sel if max(range(3), key=lambda i: r["mp"][i]) == r["out"])
+        mkt_hit = sum(1 for r in sel if max(range(3), key=lambda i: r["mk"][i]) == r["out"])
+        big = [r for r in sel if r["edge"] >= 0.03]
+        big_hit = sum(1 for r in big if r["top"] == r["out"])
+        profit = sum((r["close"][r["top"]] - 1) if r["top"] == r["out"] else -1 for r in big)
+        avg_edge = sum(abs(r["edge"]) for r in sel) / n
+        return {
+            "n": n,
+            "brierModel": round(bm, 4),
+            "brierMkt": round(bk, 4),
+            "skill": round(1 - bm / bk, 4) if bk else None,
+            "modelHit": round(model_hit / n * 100, 1),
+            "mktHit": round(mkt_hit / n * 100, 1),
+            "bigN": len(big),
+            "bigHit": round(big_hit / len(big) * 100, 1) if big else None,
+            "bigRoi": round(profit / len(big) * 100, 1) if big else None,
+            "avgEdge": round(avg_edge * 100, 2),
+        }
+
+    out = {}
+    for key, days in (("30", 30), ("90", 90), ("365", 365), ("all", None)):
+        sel = rows if days is None else [r for r in rows if (now - r["dt"]).days <= days]
+        out[key] = agg(sel)
+    log(f"  收盘线回测：样本 {len(rows)} 场，近30天 {out['30'].get('n', 0)} 场")
+    return out
+
+
 def compact_payload(payload):
     """压缩页面体积：统计数组化、场地去重、移除前端不用的字段。"""
     venues = []
@@ -2251,7 +2319,15 @@ def main():
             log(f"  多机构盘口文件：{len(fd_map)} 场，"
                 f"{os.path.getsize(fd_path) / 1024 / 1024:.2f} MB（data/fdco.json）")
     except Exception as e:
+        fd_map = {}
         log(f"  ⚠ 多机构盘口生成失败：{e}")
+
+    mktbt = {}
+    if fd_map:
+        try:
+            mktbt = build_market_backtest(match_rows, fd_map)
+        except Exception as e:
+            log(f"  ⚠ 收盘线回测失败：{e}")
 
     fixture_events = [ev for ev in fixtures.values()
                       if ev["league"] in [lg["label"] for lg in leagues]
@@ -2360,6 +2436,7 @@ def main():
         "matches": match_rows,
         "fixtures": fixture_rows,
         "lineups": lineups,
+        "mktbt": mktbt,
     }
     compact_payload(payload)
     out_json = os.path.join(DATA_DIR, "matches.json")
