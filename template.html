@@ -726,6 +726,17 @@ table.stats tbody tr:last-child td{border-bottom:0}
 .fd-row:first-of-type{border-top:0}
 .fd-row .fd-k{color:var(--muted);min-width:92px;font-size:11px}
 .fd-note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.75}
+.ix-row{display:grid;grid-template-columns:58px minmax(0,1fr) 44px 64px 104px 70px 58px;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px}
+.ix-row:last-child{border-bottom:0}
+.ix-head{color:var(--muted);font-size:11px;background:var(--surface-2)}
+.ix-row .ix-m{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ix-m a{color:inherit;text-decoration:none}
+.ix-m a:hover{text-decoration:underline}
+.ix-row .ix-d{color:var(--muted);font-family:var(--font-mono);font-size:11px}
+@media(max-width:640px){
+  .ix-row{grid-template-columns:44px minmax(0,1fr) 44px 64px;gap:6px;padding:9px 12px}
+  .ix-row>*:nth-child(3),.ix-row>*:nth-child(4){display:none}
+}
 .pred-markets{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:11.5px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .pred-markets b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
 .fix-pred .hint{color:var(--muted)}
@@ -1073,6 +1084,14 @@ html.js-boot #boot-skeleton{display:block}
       <div class="table-hint">回测口径：先评估纯数据模型；有赛前盘口快照的比赛会再评估「市场 70% + 模型 30%」的综合预测，样本随每轮构建逐步积累。</div>
       <div class="table-hint">校准曲线横轴是模型给出的概率，纵轴是实际命中率；落在对角线上表示概率可信。点越靠右下说明模型系统性高估，越靠左上说明低估。每档至少 20 个样本才绘制，圆点大小代表样本量。</div>
       <div class="table-hint">「大小球技能分」用 Brier 分数与「永远猜本区间平均进球率」相比：大于 0 说明模型对大小球有判别力，接近 0 或为负说明这些概率不比平均值更有信息量，此时盘口对照里的偏差应视为校准参考，而不是可下注的边际。</div>
+    </section>
+
+    <section class="section" id="ix-board-sec" hidden>
+      <div class="section-head">
+        <h2 class="section-title">指数榜 · 近 7 天</h2>
+        <span class="section-note">多机构收盘盘口 · 离散度越大分歧越大 · 凯利 = 最高价 × 共识概率</span>
+      </div>
+      <div class="panel" id="ix-board"></div>
     </section>
 
     <section class="section">
@@ -2543,6 +2562,28 @@ function renderMarketBench(days, tile){
   ].join("");
 }
 
+function renderIndexBoard(){
+  const sec = $("#ix-board-sec"), box = $("#ix-board");
+  if(!sec || !box) return;
+  const list = DATA.ixboard || [];
+  if(!list.length){ sec.hidden = true; return; }
+  sec.hidden = false;
+  box.innerHTML = `<div class="ix-row ix-head"><span>日期</span><span>比赛</span><span>机构</span><span>返还率</span><span>离散度 主/平/客</span><span>最高凯利</span><span>赛果</span></div>` +
+    list.map(r => {
+      const h = TEAMS.get(String(r.h)) || {}, a = TEAMS.get(String(r.a)) || {};
+      const res = (r.res && r.res[0] != null) ? `${r.res[0]}–${r.res[1]}` : "—";
+      return `<div class="ix-row" data-mid="${esc(r.id)}">
+        <span class="ix-d">${esc(String(r.d).slice(5))}</span>
+        <span class="ix-m"><a href="#/team/${esc(h.id)}">${esc(h.cn || h.name || "")}</a> vs <a href="#/team/${esc(a.id)}">${esc(a.cn || a.name || "")}</a></span>
+        <span>${r.n}</span>
+        <span>${(r.pay * 100).toFixed(1)}%</span>
+        <span>${(r.disp || []).map(x => Number(x).toFixed(1)).join(" / ")}</span>
+        <span>${r.maxKelly != null ? Number(r.maxKelly).toFixed(3) : "—"}</span>
+        <span>${esc(res)}</span>
+      </div>`;
+    }).join("");
+}
+
 function renderHome(){
   state.id = null;
   $("#home-view").hidden = false;
@@ -2554,6 +2595,7 @@ function renderHome(){
   renderFixtures();
   renderRecent();
   renderModelPerf();
+  renderIndexBoard();
   renderIndex();
   syncIndexToggle();
 }

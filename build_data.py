@@ -1715,6 +1715,38 @@ def corner_output(eh, ea):
     }
 
 
+def build_index_board(match_rows, fd_map, days=7, limit=10):
+    """近 N 天「机构分歧 / 凯利」榜：复盘用，展示多机构盘口里最值得看的几场。"""
+    from datetime import datetime as _dt, timezone as _tz
+    now = _dt.now(_tz.utc)
+    rows = []
+    for m in match_rows:
+        rec = fd_map.get(str(m.get("id")))
+        if not rec or m.get("hs") is None:
+            continue
+        ix = rec.get("ix") or {}
+        if not ix.get("n") or ix["n"] < 4 or not ix.get("disp"):
+            continue
+        try:
+            d = _dt.fromisoformat((m.get("date") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if (now - d).days > days:
+            continue
+        disp = ix["disp"]
+        kelly = ix.get("kelly") or [None, None, None]
+        rows.append({
+            "id": str(m["id"]), "d": m["date"][:10], "lg": m.get("league"),
+            "h": m.get("home"), "a": m.get("away"),
+            "n": ix["n"], "pay": ix["pay"], "disp": disp,
+            "kelly": kelly,
+            "maxDisp": max(disp), "maxKelly": max(k for k in kelly if k is not None) if any(k is not None for k in kelly) else None,
+            "res": [m.get("hs"), m.get("as")],
+        })
+    rows.sort(key=lambda r: (-r["maxDisp"], r["d"]))
+    return rows[:limit]
+
+
 def build_ht_ratio(match_rows, fd_map, days=730):
     """用 football-data 的半场/全场比分估计「半场进球占全场比例」，供半场盘模型使用。"""
     from datetime import datetime as _dt, timezone as _tz
@@ -2379,11 +2411,18 @@ def main():
     log(f"  攻防模型：{len(ratings)} 支球队；角球模型：{len(corner_ratings)} 支球队")
 
     mktbt = {}
+    ixboard = []
     if fd_map:
         try:
             mktbt = build_market_backtest(match_rows, fd_map)
         except Exception as e:
             log(f"  ⚠ 收盘线回测失败：{e}")
+        try:
+            ixboard = build_index_board(match_rows, fd_map)
+            if ixboard:
+                log(f"  机构分歧榜：{len(ixboard)} 场（近 7 天）")
+        except Exception as e:
+            log(f"  ⚠ 机构分歧榜生成失败：{e}")
 
     fixture_events = [ev for ev in fixtures.values()
                       if ev["league"] in [lg["label"] for lg in leagues]
@@ -2495,6 +2534,7 @@ def main():
         "fixtures": fixture_rows,
         "lineups": lineups,
         "mktbt": mktbt,
+        "ixboard": ixboard,
     }
     compact_payload(payload)
     out_json = os.path.join(DATA_DIR, "matches.json")
