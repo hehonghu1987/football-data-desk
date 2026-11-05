@@ -1446,8 +1446,8 @@ def fetch_team_league(team_id):
         code = None
     write_cache(name, {"league": code})
     return code
-RATING_HALF_LIFE = 300.0
-RATING_SHRINK = 8.0
+RATING_HALF_LIFE = 450.0
+RATING_SHRINK = 4.0
 
 # 盘口输出网格：进球线 / 亚盘让球线 / 角球线
 GRID_N = 11                       # 比分网格上限，保证 4.5 球线与亚盘尾部分量
@@ -1483,6 +1483,14 @@ def parse_match_date(s):
         return None
 
 
+def _match_goals(m):
+    """评分用的进球代理：football-data 提供 xG 时优先用 xG，否则用实际进球。"""
+    xh, xa = m.get("xgh"), m.get("xga")
+    if xh is not None and xa is not None:
+        return float(xh), float(xa)
+    return m.get("hs"), m.get("as")
+
+
 def build_ratings(match_rows):
     """按联赛基准计算各队主客场攻防强度（时间衰减 + 向均值收缩）。"""
     today = date.today()
@@ -1496,6 +1504,9 @@ def build_ratings(match_rows):
             continue
         if m.get("hs") is None or m.get("as") is None:
             continue
+        hg, ag = _match_goals(m)
+        if hg is None or ag is None:
+            continue
         d = parse_match_date(m.get("date"))
         if not d:
             continue
@@ -1505,17 +1516,17 @@ def build_ratings(match_rows):
         w = 0.5 ** (age / RATING_HALF_LIFE)
         lg = m["leagueCode"]
         lg_sum[lg]["w"] += w
-        lg_sum[lg]["hg"] += w * m["hs"]
-        lg_sum[lg]["ag"] += w * m["as"]
+        lg_sum[lg]["hg"] += w * hg
+        lg_sum[lg]["ag"] += w * ag
         h = team_sum[m["home"]][lg]
         a = team_sum[m["away"]][lg]
         h["wh"] += w
-        h["hgf"] += w * m["hs"]
-        h["hga"] += w * m["as"]
+        h["hgf"] += w * hg
+        h["hga"] += w * ag
         h["hn"] += 1
         a["wa"] += w
-        a["agf"] += w * m["as"]
-        a["aga"] += w * m["hs"]
+        a["agf"] += w * ag
+        a["aga"] += w * hg
         a["an"] += 1
 
     baselines = {}
@@ -1704,7 +1715,31 @@ def corner_output(eh, ea):
     }
 
 
-def predict_match(home_id, away_id, league_code, ratings, corner_ratings=None):
+def build_ht_ratio(match_rows, fd_map, days=730):
+    """用 football-data 的半场/全场比分估计「半场进球占全场比例」，供半场盘模型使用。"""
+    from datetime import datetime as _dt, timezone as _tz
+    now = _dt.now(_tz.utc)
+    ht_goals = ft_goals = 0
+    for m in match_rows:
+        if m.get("hs") is None or m.get("as") is None:
+            continue
+        rec = fd_map.get(str(m.get("id")))
+        if not rec or not rec.get("ht"):
+            continue
+        try:
+            d = _dt.fromisoformat((m.get("date") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if (now - d).days > days:
+            continue
+        ht_goals += rec["ht"][0] + rec["ht"][1]
+        ft_goals += m["hs"] + m["as"]
+    if ft_goals <= 0:
+        return 0.44
+    return round(min(max(ht_goals / ft_goals, 0.3), 0.6), 4)
+
+
+def predict_match(home_id, away_id, league_code, ratings, corner_ratings=None, ht_ratio=None):
     rh = ratings.get(str(home_id))
     ra = ratings.get(str(away_id))
     if not rh or not ra:
@@ -1724,6 +1759,15 @@ def predict_match(home_id, away_id, league_code, ratings, corner_ratings=None):
     out = poisson_probs(lh, la)
     out["nH"], out["nA"] = rh["n"], ra["n"]
     out["xlg"] = rh["lg"] != ra["lg"]
+    # 半场盘：用全场预期进球 × 半场进球占比估算（占比来自历史半场/全场比分）
+    r = ht_ratio if ht_ratio is not None else 0.44
+    half = poisson_probs(lh * r, la * r)
+    out["ht"] = {
+        "r": round(r, 3),
+        "xgH": half["xgH"], "xgA": half["xgA"],
+        "ph": half["ph"], "pd": half["pd"], "pa": half["pa"],
+        "o05": half["lines"]["0.5"], "o15": half["lines"]["1.5"],
+    }
     if corner_ratings:
         eh, ea = corner_probs(home_id, away_id, corner_ratings)
         out["corners"] = corner_output(eh, ea)
@@ -1881,12 +1925,13 @@ def build_pre_match(match_rows):
                 # 各条进球线的大球概率，按 GOAL_LINES 顺序存千分比整数以压缩体积
                 "o": [int(round(p["lines"][f"{ln:.1f}"] * 1000)) for ln in GOAL_LINES],
             }
-        # 记录本场结果
+        # 记录本场结果（有 xG 用 xG，保证滚动序列与评级同口径）
+        hg, ag = _match_goals(m)
         if base is None:
             base = lg[code] = {"w": 0.0, "hg": 0.0, "ag": 0.0, "last": day}
-        for key, val in (("w", 1.0), ("hg", m["hs"]), ("ag", m["as"])):
+        for key, val in (("w", 1.0), ("hg", hg), ("ag", ag)):
             base[key] = base.get(key, 0.0) + val
-        for tid, gf, ga in ((m["home"], m["hs"], m["as"]), (m["away"], m["as"], m["hs"])):
+        for tid, gf, ga in ((m["home"], hg, ag), (m["away"], ag, hg)):
             item = tm[tid].get(code)
             if item is None:
                 item = tm[tid][code] = {
@@ -2251,6 +2296,31 @@ def main():
                 "mkt": odds_market_probs(ev["leagueCode"], eid),
             })
     match_rows.sort(key=lambda m: m["date"] or "", reverse=True)
+
+    # 多机构赛前盘口（football-data.co.uk）：先取 xG 供评级/赛前模型使用，
+    # 盘口本身写成独立文件，比赛页按需加载，不增大首屏。
+    fd_map = {}
+    try:
+        import fdco
+        fd_map = fdco.build(match_rows, teams, log)
+        if fd_map:
+            xg_n = 0
+            for m in match_rows:
+                rec = fd_map.get(str(m["id"]))
+                if rec and rec.get("xg"):
+                    m["xgh"], m["xga"] = rec["xg"]
+                    xg_n += 1
+            if xg_n:
+                log(f"  xG 特征：{xg_n} 场纳入评级与赛前模型")
+            fd_path = os.path.join(DATA_DIR, "fdco.json")
+            with open(fd_path, "w", encoding="utf-8") as fh:
+                json.dump(fd_map, fh, ensure_ascii=False, separators=(",", ":"))
+            log(f"  多机构盘口文件：{len(fd_map)} 场，"
+                f"{os.path.getsize(fd_path) / 1024 / 1024:.2f} MB（data/fdco.json）")
+    except Exception as e:
+        fd_map = {}
+        log(f"  ⚠ 多机构盘口生成失败：{e}")
+
     pre_map = build_pre_match(match_rows)
     for m in match_rows:
         m["pre"] = pre_map.get(m["id"])
@@ -2308,20 +2378,6 @@ def main():
     corner_ratings = build_corner_ratings(match_rows)
     log(f"  攻防模型：{len(ratings)} 支球队；角球模型：{len(corner_ratings)} 支球队")
 
-    # 多机构赛前盘口（football-data.co.uk）：写成独立文件，比赛页按需加载，不增大首屏
-    try:
-        import fdco
-        fd_map = fdco.build(match_rows, teams, log)
-        if fd_map:
-            fd_path = os.path.join(DATA_DIR, "fdco.json")
-            with open(fd_path, "w", encoding="utf-8") as fh:
-                json.dump(fd_map, fh, ensure_ascii=False, separators=(",", ":"))
-            log(f"  多机构盘口文件：{len(fd_map)} 场，"
-                f"{os.path.getsize(fd_path) / 1024 / 1024:.2f} MB（data/fdco.json）")
-    except Exception as e:
-        fd_map = {}
-        log(f"  ⚠ 多机构盘口生成失败：{e}")
-
     mktbt = {}
     if fd_map:
         try:
@@ -2360,6 +2416,8 @@ def main():
                 ev["stats"] = live_stats[ev["id"]]
         log(f"  即时统计：{len(live_stats)}/{len(live_events)} 场进行中的比赛")
 
+    ht_ratio = build_ht_ratio(match_rows, fd_map) if fd_map else 0.44
+    log(f"  半场进球占比：{ht_ratio:.3f}（全场 {ht_ratio*100:.1f}% 的进球发生在上半场）")
     fixture_rows = []
     for ev in fixture_events:
         fixture_rows.append({
@@ -2373,7 +2431,7 @@ def main():
             **({"stats": ev.get("stats")} if ev.get("stats") else
                ({"stats": stats_map[ev["id"]]} if ev.get("completed") and stats_map.get(ev["id"]) else {})),
             "pred": predict_match(ev["home"], ev["away"], ev["leagueCode"],
-                                  ratings, corner_ratings),
+                                  ratings, corner_ratings, ht_ratio),
         })
     fixture_rows.sort(key=lambda f: f["date"] or "")
 

@@ -3075,6 +3075,16 @@ function renderMarkets(m, pred, odds){
       <tbody>${marketRows(rows, mkLine, mk, v => v.toFixed(1) + " 球")}</tbody></table></div>`);
   }
 
+  if(pred && pred.ht){
+    const h = pred.ht;
+    cards.push(`<div class="mk-card">
+      <div class="hd">半场盘 · 模型（半场进球占比 ${(h.r*100).toFixed(0)}%，半场 xG ${Number(h.xgH).toFixed(2)}–${Number(h.xgA).toFixed(2)}）</div>
+      <div class="mk-corner">
+        <span>半场主胜 <b>${pct(h.ph)}</b></span><span>半场平 <b>${pct(h.pd)}</b></span><span>半场客胜 <b>${pct(h.pa)}</b></span>
+        <span>半场大 0.5 <b>${pct(h.o05)}</b></span><span>半场大 1.5 <b>${pct(h.o15)}</b></span>
+      </div></div>`);
+  }
+
   if(pred && pred.ah){
     const rows = Object.keys(pred.ah)
       .sort((x, y) => Number(x) - Number(y))
