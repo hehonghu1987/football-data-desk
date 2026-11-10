@@ -749,6 +749,31 @@ table.stats tbody tr:last-child td{border-bottom:0}
 }
 .pred-markets{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:11.5px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .pred-markets b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+/* ---------- 积分榜 ---------- */
+.st-wrap{overflow-x:auto}
+table.st{width:100%;border-collapse:collapse;font-size:12.5px}
+table.st th,table.st td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.st th:nth-child(2),table.st td:nth-child(2){text-align:left}
+table.st th{color:var(--muted);font-size:11px;font-weight:500}
+table.st tr:last-child td{border-bottom:0}
+table.st .rk{font-family:var(--font-mono);color:var(--muted);width:34px;text-align:center}
+table.st .tm{display:flex;align-items:center;gap:8px;min-width:0}
+table.st .tm a{color:inherit;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+table.st .tm a:hover{text-decoration:underline}
+.st-group{font-size:11px;color:var(--muted);padding:8px 12px;background:var(--surface-2)}
+.st-select{height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;padding:0 8px;max-width:160px}
+@media(max-width:640px){table.st th.hide-s,table.st td.hide-s{display:none}}
+
+/* ---------- 比赛事件 ---------- */
+.tl{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:2px 0}
+.tl-row{display:grid;grid-template-columns:46px 22px minmax(0,1fr) minmax(60px,auto);gap:8px;align-items:center;padding:7px 14px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.tl-row:last-child{border-bottom:0}
+.tl-min{font-family:var(--font-mono);font-size:11px;color:var(--muted);text-align:center}
+.tl-ic{text-align:center;font-size:12px}
+.tl-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-row.away .tl-name{text-align:right}
+.tl-side{font-size:10.5px;color:var(--muted);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-row.away .tl-side{text-align:left}
 .fix-pred .hint{color:var(--muted)}
 .mv-spark{display:block;width:100%;max-width:280px;height:38px;margin:2px 13px 12px}
 .mv-spark .ln{fill:none;stroke-width:2}
@@ -1073,6 +1098,15 @@ html.js-boot #boot-skeleton{display:block}
       <div class="panel" id="recent-panel"></div>
     </section>
 
+    <section class="section" id="standings-sec" hidden>
+      <div class="section-head">
+        <h2 class="section-title" id="standings-title">积分榜</h2>
+        <select class="st-select" id="standings-select" aria-label="选择联赛积分榜"></select>
+        <span class="section-note" id="standings-note"></span>
+      </div>
+      <div class="panel st-wrap" id="standings-panel"></div>
+    </section>
+
     <section class="section" id="model-perf">
       <div class="section-head">
         <h2 class="section-title">模型表现</h2>
@@ -1243,6 +1277,7 @@ html.js-boot #boot-skeleton{display:block}
     <div class="match-tools"><button class="chip-btn" id="export-match" type="button">导出图片</button></div>
     <div id="match-hero"></div>
     <div id="match-compare"></div>
+    <div id="match-timeline" hidden></div>
     <div id="match-books"></div>
 
     <section class="section insight" id="insight" hidden>
@@ -1597,6 +1632,7 @@ const state = {
   q: "",
   side: "all",
   comp: "all",
+  standingsLg: null,
   h2hOpen: false,
   h2hOpp: null,
   h2hSide: "all",
@@ -2535,6 +2571,52 @@ function renderCalibration(days){
      + `<span><i class="k2"></i>大 2.5 球</span><span>虚线 = 完美校准</span></div>`;
 }
 
+/* ---------- 积分榜（联赛页签联动） ---------- */
+function renderStandings(){
+  const sec = $("#standings-sec"), panel = $("#standings-panel");
+  const title = $("#standings-title"), note = $("#standings-note"), sel = $("#standings-select");
+  if(!sec || !panel) return;
+  const st = DATA.standings || {};
+  const keys = Object.keys(st);
+  if(!keys.length){ sec.hidden = true; panel.innerHTML = ""; return; }
+  sec.hidden = false;
+  if(sel){
+    if(state.standingsLg && !st[state.standingsLg]) state.standingsLg = null;
+    if(!state.standingsLg){
+      state.standingsLg = st["英超"] ? "英超" : keys[0];
+    }
+    sel.innerHTML = keys.map(k => `<option value="${esc(k)}"${k === state.standingsLg ? " selected" : ""}>${esc(k)}</option>`).join("");
+  }
+  const lg = state.standingsLg || keys[0];
+  const groups = st[lg] || [];
+  if(title) title.textContent = "积分榜";
+  if(note) note.textContent = groups.length > 1 ? `${groups.length} 个小组` : "排名 · 场次 · 胜平负 · 进球 · 积分";
+  panel.innerHTML = groups.map(g => {
+    const head = (groups.length > 1) ? `<div class="st-group">${esc(g.name || "")}</div>` : "";
+    const rows = (g.rows || []).map(r => {
+      const t = TEAMS.get(String(r.id)) || {};
+      const gd = r.gd == null ? "—" : (r.gd > 0 ? "+" + r.gd : String(r.gd));
+      return `<tr>
+        <td class="rk">${r.rank == null ? "—" : r.rank}</td>
+        <td><div class="tm">${badge(t, "sm")}<a href="#/team/${esc(r.id)}">${esc(t.cn || t.name || r.id)}</a></div></td>
+        <td>${r.gp == null ? "—" : r.gp}</td>
+        <td class="hide-s">${r.w == null ? "—" : r.w}</td>
+        <td class="hide-s">${r.d == null ? "—" : r.d}</td>
+        <td class="hide-s">${r.l == null ? "—" : r.l}</td>
+        <td class="hide-s">${r.gf == null ? "—" : r.gf}</td>
+        <td class="hide-s">${r.ga == null ? "—" : r.ga}</td>
+        <td class="hide-s">${gd}</td>
+        <td><b>${r.pts == null ? "—" : r.pts}</b></td>
+      </tr>`;
+    }).join("");
+    return head + `<table class="st">
+      <thead><tr><th>#</th><th>球队</th><th>场</th>
+      <th class="hide-s">胜</th><th class="hide-s">平</th><th class="hide-s">负</th>
+      <th class="hide-s">进</th><th class="hide-s">失</th><th class="hide-s">净</th><th>分</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+  }).join("");
+}
+
 function renderModelPerf(){
   const days = state.perfDays || 30;
   $$("#perf-seg [data-days]").forEach(b => b.setAttribute("aria-pressed", String(Number(b.dataset.days) === days)));
@@ -2670,6 +2752,34 @@ function renderIndexBoard(){
     }).join("");
 }
 
+/* ---------- 比赛事件时间轴 ---------- */
+function renderMatchTimeline(m){
+  const box = $("#match-timeline");
+  if(!box) return;
+  const evs = m && m.ev;
+  if(!evs || !evs.length){ box.hidden = true; box.innerHTML = ""; return; }
+  const icons = { g: "⚽", og: "⚽", p: "⚽", y: "🟨", r: "🟥", pm: "⛔" };
+  const labels = { g: "进球", og: "乌龙球", p: "点球", y: "黄牌", r: "红牌", pm: "点球未进" };
+  const h = TEAMS.get(String(m.home)) || {};
+  const a = TEAMS.get(String(m.away)) || {};
+  box.hidden = false;
+  box.innerHTML = `<section class="section">
+    <div class="section-head">
+      <h2 class="section-title">比赛事件</h2>
+      <span class="section-note">进球 · 红黄牌 · 点球</span>
+    </div>
+    <div class="tl">${evs.map(([min, code, side, player]) => {
+      const away = side === 1;
+      return `<div class="tl-row ${away ? "away" : "home"}" title="${esc(labels[code] || code)}">
+        <span class="tl-min">${esc(min || "")}</span>
+        <span class="tl-ic">${icons[code] || "•"}</span>
+        <span class="tl-name">${esc(player || "")}</span>
+        <span class="tl-side">${esc(away ? (a.cn || a.name || "") : (h.cn || h.name || ""))}</span>
+      </div>`;
+    }).join("")}</div>
+  </section>`;
+}
+
 function renderHome(){
   state.id = null;
   $("#home-view").hidden = false;
@@ -2680,6 +2790,7 @@ function renderHome(){
   renderTabs();
   renderFixtures();
   renderRecent();
+  renderStandings();
   renderModelPerf();
   renderDisagreeBoard();
   renderIndexBoard();
@@ -2736,10 +2847,16 @@ $("#perf-seg").addEventListener("click", e => {
   renderModelPerf();
 });
 
+$("#standings-select")?.addEventListener("change", e => {
+  state.standingsLg = e.target.value;
+  renderStandings();
+});
+
 $("#cat-tabs").addEventListener("click", e => {
   const b = e.target.closest("[data-league]");
   if(!b) return;
   const lg = b.dataset.league;
+  if(lg !== "all") state.standingsLg = lg;
   const next = lg === "all" ? "#/" : "#/league/" + encodeURIComponent(lg);
   if(location.hash === next){
     state.league = lg;
@@ -2976,6 +3093,17 @@ function closeH2H(){
   $("#h2h-toggle").setAttribute("aria-pressed", "false");
 }
 
+function teamRank(tid){
+  const st = DATA.standings || {};
+  for(const lg of Object.keys(st)){
+    for(const g of st[lg]){
+      const row = (g.rows || []).find(r => String(r.id) === String(tid));
+      if(row && row.rank != null) return { lg, rank: row.rank };
+    }
+  }
+  return null;
+}
+
 function renderTeam(id){
   const t = TEAMS.get(String(id));
   if(!t){ location.hash = "#/"; return; }
@@ -3006,7 +3134,7 @@ function renderTeam(id){
       <div class="team-id">
         <div class="team-name">${esc(t.cn || t.name)}</div>
         <div class="team-en">${esc(t.name || "")}${loc}</div>
-        <div class="team-leagues">${(t.leagues || []).slice().sort(compSort).map(l => `<span class="league-chip pill"><span class="tdot" style="background:${LEAGUE_DOT[l] || "var(--muted)"}"></span>${esc(l)}</span>`).join("")}</div>
+        <div class="team-leagues">${(t.leagues || []).slice().sort(compSort).map(l => `<span class="league-chip pill"><span class="tdot" style="background:${LEAGUE_DOT[l] || "var(--muted)"}"></span>${esc(l)}</span>`).join("")}${(() => { const r = teamRank(id); return r ? `<span class="league-chip pill">${esc(r.lg)} 第 ${r.rank}</span>` : ""; })()}</div>
       </div>
       <div class="team-count">
         <div class="n">${state.all.length}</div>
@@ -3805,6 +3933,7 @@ function renderMatch(id){
   renderInsight(m);
 
   renderMatchH2H(h, a, m);
+  renderMatchTimeline(m);
   renderMatchBooks(m);
 }
 
@@ -4006,6 +4135,7 @@ function route(){
     const known = lg === "all" || (DATA.leagues || []).some(l => l.label === lg);
     if(known){
       state.league = lg;
+      if(lg !== "all") state.standingsLg = lg;
       renderHome();
       window.scrollTo({top: 0, behavior: "auto"});
       return;

@@ -74,6 +74,15 @@ LEAGUES = [
      "support_for": ["法甲"]},
     {"label": "巴西杯", "code": "bra.copa_do_brazil", "cat": "brazil", "hidden_tab": True, "seasons": SEASONS,
      "support_for": ["巴西甲"]},
+    # 欧洲二三线联赛：只取本赛季，打开比分板以获得未来赛程（此前仅有跨赛事历史）
+    {"label": "荷甲", "code": "ned.1", "cat": "major", "seasons": SEASONS[:1], "team_limit": 40},
+    {"label": "葡超", "code": "por.1", "cat": "major", "seasons": SEASONS[:1], "team_limit": 40},
+    {"label": "比甲", "code": "bel.1", "cat": "major", "seasons": SEASONS[:1], "team_limit": 40},
+    {"label": "土超", "code": "tur.1", "cat": "major", "seasons": SEASONS[:1], "team_limit": 40},
+    {"label": "希腊超", "code": "gre.1", "cat": "major", "seasons": SEASONS[:1], "team_limit": 40},
+    {"label": "奥甲", "code": "aut.1", "cat": "major", "seasons": SEASONS[:1], "team_limit": 24},
+    {"label": "苏超", "code": "sco.1", "cat": "major", "seasons": SEASONS[:1], "team_limit": 24},
+    {"label": "挪超", "code": "nor.1", "cat": "major", "seasons": SEASONS[:1], "team_limit": 24},
     # 国家队赛事（cat=national）：赛季用自然年，友谊赛取近 3 年控制请求量
     {"label": "欧国联", "code": "uefa.nations", "cat": "national",
      "seasons": SEASONS[:3], "team_limit": 300},
@@ -916,6 +925,80 @@ def stats_for_summary(league_code, event_id, d):
     if not hid or not aid:
         return None
     return stats_from_core(league_code, event_id, hid, aid)
+
+
+STANDINGS_KEYS = {"GP": "gp", "W": "w", "D": "d", "L": "l", "F": "gf", "A": "ga",
+                  "GD": "gd", "P": "pts", "R": "rank"}
+
+
+def fetch_standings(league, refresh=False):
+    """ESPN 积分榜（site.api v2）。国家队赛事可能分多组。"""
+    code = league["code"]
+    name = f"st_{code}.json"
+    path = os.path.join(CACHE_DIR, name)
+    raw = read_cache(name)
+    if not refresh and raw is not None and cache_age(raw, path) < 6 * 3600:
+        return raw.get("groups") or []
+    try:
+        d = get_json(f"https://site.api.espn.com/apis/v2/sports/soccer/{code}/standings")
+    except Exception as e:
+        log(f"  积分榜失败 {league['label']}: {e}")
+        return (raw or {}).get("groups") or []
+    groups = []
+    for ch in (d.get("children") or []):
+        st = ch.get("standings") or {}
+        rows = []
+        for ent in (st.get("entries") or []):
+            team = ent.get("team") or {}
+            stats = {x.get("abbreviation") or x.get("name"): x.get("value")
+                     for x in (ent.get("stats") or [])}
+            row = {"id": str(team.get("id"))}
+            for abbr, key in STANDINGS_KEYS.items():
+                v = stats.get(abbr)
+                if key == "rank" or key in ("gp", "w", "d", "l", "gf", "ga", "gd", "pts"):
+                    row[key] = None if v is None else (int(v) if float(v).is_integer() else round(v, 1))
+            if row.get("pts") is not None or row.get("w") is not None:
+                rows.append(row)
+        if rows:
+            groups.append({"name": ch.get("name") or league["label"],
+                           "abbr": ch.get("abbreviation") or "", "rows": rows})
+    out = {"groups": groups}
+    write_cache(name, {**out, "_t": time.time()})
+    return groups
+
+
+EVENT_TYPES = {
+    "goal": "g", "goal - header": "g", "own goal": "og", "penalty - scored": "p",
+    "yellow card": "y", "red card": "r", "penalty - missed": "pm", "penalty - saved": "pm",
+}
+
+
+def fetch_events(league_code, event_id):
+    """比赛关键事件（进球/点球/红黄牌）。缓存 30 天，供比赛页时间轴使用。"""
+    name = f"evt_{league_code}_{event_id}.json"
+    path = os.path.join(CACHE_DIR, name)
+    raw = read_cache(name)
+    if raw is not None and cache_age(raw, path) < 30 * 86400:
+        return raw.get("ev") or []
+    try:
+        d = get_json(f"{API}/{league_code}/summary?event={event_id}")
+    except Exception:
+        return (raw or {}).get("ev") or []
+    evs = []
+    for e in (d.get("keyEvents") or []):
+        typ = ((e.get("type") or {}).get("text") or "").strip().lower()
+        code = EVENT_TYPES.get(typ)
+        if not code:
+            continue
+        team_id = str(((e.get("team") or {}).get("id")) or "")
+        parts = [(p.get("athlete") or {}).get("displayName") for p in (e.get("participants") or [])]
+        player = next((p for p in parts if p), "")
+        clock = ((e.get("clock") or {}).get("displayValue") or "").strip()
+        evs.append([clock, code, team_id, player])
+        if len(evs) >= 24:
+            break
+    write_cache(name, {"ev": evs, "_t": time.time()})
+    return evs
 
 
 def fetch_summary(league_code, event_id):
@@ -2350,6 +2433,13 @@ def main():
             extra.setdefault(code, set()).add(t["id"])
     for code, ids in extra.items():
         label = EURO_DOMESTIC[code]
+        if any(l["label"] == label for l in leagues):
+            # 已静态收录（有独立赛程），只补充球队赛事归属，不再重复加联赛
+            for tid in ids:
+                t = teams.get(tid)
+                if t and label not in t["leagues"]:
+                    t["leagues"].append(label)
+            continue
         for tid in ids:
             t = teams[tid]
             if label not in t["currentLeagues"]:
@@ -2789,6 +2879,55 @@ def main():
         "source": "ESPN",
         "season": f"{CURRENT_SEASON}/{(CURRENT_SEASON + 1) % 100:02d}",
     }
+    # 积分榜（俱乐部联赛 + 国家队小组赛）
+    standings = {}
+    st_leagues = [lg for lg in leagues if not lg.get("hidden_tab")]
+    if st_leagues:
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            futs = {ex.submit(fetch_standings, lg, args.refresh): lg["label"]
+                    for lg in st_leagues}
+            for fut in as_completed(futs):
+                try:
+                    groups = fut.result()
+                except Exception:
+                    groups = []
+                if groups:
+                    standings[futs[fut]] = groups
+        log(f"  积分榜：{len(standings)} 个赛事")
+
+    # 近期比赛的进球/红黄牌时间轴（比赛页展示；30 天前的比赛不抓，控制体积与请求）
+    try:
+        from datetime import datetime as _dt2, timedelta as _td2
+        cutoff = (_dt2.now() - _td2(days=30)).isoformat()
+        ev_jobs = [m for m in match_rows
+                   if (m.get("date") or "") >= cutoff and m.get("leagueCode")]
+        ev_n = 0
+        if ev_jobs:
+            with ThreadPoolExecutor(max_workers=args.workers) as ex:
+                futs = {ex.submit(fetch_events, m["leagueCode"], m["id"]): m
+                        for m in ev_jobs}
+                for fut in as_completed(futs):
+                    m = futs[fut]
+                    try:
+                        raw_evs = fut.result()
+                    except Exception:
+                        continue
+                    out = []
+                    for clock, code, tid, player in raw_evs:
+                        if str(tid) == str(m["home"]):
+                            side = 0
+                        elif str(tid) == str(m["away"]):
+                            side = 1
+                        else:
+                            continue
+                        out.append([clock, code, side, player_cn(player) or player])
+                    if out:
+                        m["ev"] = out
+                        ev_n += 1
+        log(f"  比赛事件：{ev_n}/{len(ev_jobs)} 场（近 30 天）")
+    except Exception as e:
+        log(f"  ⚠ 比赛事件抓取失败：{e}")
+
     payload = {
         "meta": meta,
         "leagues": [{"label": l["label"], "code": l["code"], "cat": l["cat"],
@@ -2798,6 +2937,7 @@ def main():
         "matches": match_rows,
         "fixtures": fixture_rows,
         "lineups": lineups,
+        "standings": standings,
         "mktbt": mktbt,
         "mktsplit": mktsplit,
         "ltemps": ltemps,
