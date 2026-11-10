@@ -2710,6 +2710,39 @@ function renderStandings(){
   }).join("");
   const atk = attackTable(lg);
   if(atk) panel.innerHTML += atk;
+  const sc = scorersTable(lg);
+  if(sc) panel.innerHTML += sc;
+}
+
+/* 近 30 天射手榜：来自比赛事件（进球/点球） */
+function scorersTable(league){
+  const since = Date.now() - 30 * 86400000;
+  const agg = new Map();
+  for(const m of (DATA.matches || [])){
+    if(!m.ev || m.hide) continue;
+    if(league && league !== "all" && m.league !== league) continue;
+    if(new Date(m.date).getTime() < since) continue;
+    for(const e of m.ev){
+      const code = e[1], side = e[2], player = e[3];
+      if(!player || !(code === "g" || code === "p")) continue;
+      const tid = String(side === 0 ? m.home : m.away);
+      const key = player + "|" + tid;
+      const a = agg.get(key) || { player, tid, goals: 0, team: "" };
+      a.goals += 1;
+      agg.set(key, a);
+    }
+  }
+  if(agg.size < 5) return "";
+  const rows = Array.from(agg.values()).sort((x, y) => y.goals - x.goals).slice(0, 12);
+  if(rows[0].goals < 2) return "";
+  return `<div class="st-group">近 30 天射手榜</div>
+    <table class="st"><thead><tr><th>#</th><th>球员</th><th>球队</th><th>进球</th></tr></thead>
+    <tbody>${rows.map((r, i) => {
+      const t = TEAMS.get(String(r.tid)) || {};
+      return `<tr><td class="rk">${i + 1}</td><td>${esc(r.player)}</td>
+        <td><div class="tm">${badge(t, "sm")}<a href="#/team/${esc(r.tid)}">${esc(t.cn || t.name || r.tid)}</a></div></td>
+        <td><b>${r.goals}</b></td></tr>`;
+    }).join("")}</tbody></table>`;
 }
 
 /* 近 365 天球队攻防榜（从站内比赛数据实时汇总） */
