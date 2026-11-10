@@ -160,6 +160,8 @@ def main():
     # 目标日期：今天有比赛就今天，否则取下一个有比赛的日子
     by_day = defaultdict(list)
     for f in fixtures:
+        if f.get("hide"):
+            continue   # 小球队杯赛不进简报
         try:
             d = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).astimezone(BJ)
         except Exception:

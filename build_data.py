@@ -36,6 +36,11 @@ CURRENT_SEASON = _season_code()
 # 滚动保留最近 5 个赛季，避免页面数据无限增长
 SEASONS = list(range(CURRENT_SEASON, CURRENT_SEASON - 5, -1))
 
+# 国内杯赛里大量低级别球队对碰：默认隐藏这类场次，只保留有「热门球队」参与的
+CUP_HIDE_LEAGUES = {"足总杯", "英联杯", "国王杯", "意大利杯", "德国杯", "法国杯", "巴西杯"}
+HOT_LEAGUES = {"英超", "西甲", "意甲", "德甲", "法甲", "英冠", "巴西甲",
+               "欧冠", "欧联杯", "欧协联", "欧冠资格赛", "欧联杯资格赛", "欧协联资格赛"}
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.path.join(ROOT, "cache")
 DATA_DIR = os.path.join(ROOT, "data")
@@ -55,20 +60,29 @@ LEAGUES = [
     {"label": "英冠", "code": "eng.2", "cat": "champ", "seasons": SEASONS},
     {"label": "巴西甲", "code": "bra.1", "cat": "brazil", "seasons": SEASONS},
     # 国内杯赛：不单独列分类，只补充到相关球队的历史里
-    {"label": "足总杯", "code": "eng.fa", "cat": "major", "seasons": SEASONS,
+    {"label": "足总杯", "code": "eng.fa", "cat": "major", "hidden_tab": True, "seasons": SEASONS,
      "support_for": ["英超", "英冠"], "core_schedule": True},
-    {"label": "英联杯", "code": "eng.league_cup", "cat": "major", "seasons": SEASONS,
+    {"label": "英联杯", "code": "eng.league_cup", "cat": "major", "hidden_tab": True, "seasons": SEASONS,
      "support_for": ["英超", "英冠"]},
-    {"label": "国王杯", "code": "esp.copa_del_rey", "cat": "major", "seasons": SEASONS,
+    {"label": "国王杯", "code": "esp.copa_del_rey", "cat": "major", "hidden_tab": True, "seasons": SEASONS,
      "support_for": ["西甲"]},
-    {"label": "意大利杯", "code": "ita.coppa_italia", "cat": "major", "seasons": SEASONS,
+    {"label": "意大利杯", "code": "ita.coppa_italia", "cat": "major", "hidden_tab": True, "seasons": SEASONS,
      "support_for": ["意甲"]},
-    {"label": "德国杯", "code": "ger.dfb_pokal", "cat": "major", "seasons": SEASONS,
+    {"label": "德国杯", "code": "ger.dfb_pokal", "cat": "major", "hidden_tab": True, "seasons": SEASONS,
      "support_for": ["德甲"]},
-    {"label": "法国杯", "code": "fra.coupe_de_france", "cat": "major", "seasons": SEASONS,
+    {"label": "法国杯", "code": "fra.coupe_de_france", "cat": "major", "hidden_tab": True, "seasons": SEASONS,
      "support_for": ["法甲"]},
-    {"label": "巴西杯", "code": "bra.copa_do_brazil", "cat": "brazil", "seasons": SEASONS,
+    {"label": "巴西杯", "code": "bra.copa_do_brazil", "cat": "brazil", "hidden_tab": True, "seasons": SEASONS,
      "support_for": ["巴西甲"]},
+    # 国家队赛事（cat=national）：赛季用自然年，友谊赛取近 3 年控制请求量
+    {"label": "欧国联", "code": "uefa.nations", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 300},
+    {"label": "国际友谊赛", "code": "fifa.friendly", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 300},
+    {"label": "世界杯", "code": "fifa.world", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 120},
+    {"label": "欧洲杯", "code": "uefa.euro", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 60},
 ]
 
 CATEGORIES = [
@@ -76,6 +90,7 @@ CATEGORIES = [
      "desc": "英超、西甲、意甲、德甲、法甲，以及欧冠、欧联杯"},
     {"id": "champ", "label": "英冠", "desc": "英格兰足球冠军联赛"},
     {"id": "brazil", "label": "巴西甲", "desc": "巴西足球甲级联赛"},
+    {"id": "national", "label": "国家队", "desc": "欧国联、世界杯、欧洲杯、国际友谊赛"},
 ]
 
 # ESPN displayName -> 中文名 / 搜索别名
@@ -510,19 +525,20 @@ def merge_cn_extra():
     if _CN_EXTRA_DONE:
         return 0
     _CN_EXTRA_DONE = True
-    path = os.path.join(ROOT, "team_cn_extra.json")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return 0
-    if not isinstance(data, dict):
-        return 0
     added = 0
-    for name, cn in data.items():
-        if name and cn and name not in CN:
-            CN[name] = (cn, [])
-            added += 1
+    for fname in ("team_cn_extra.json", "team_cn_national.json"):
+        path = os.path.join(ROOT, fname)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        for name, cn in data.items():
+            if name and cn and name not in CN:
+                CN[name] = (cn, [])
+                added += 1
     return added
 
 
@@ -661,7 +677,8 @@ def fetch_teams(league, refresh=False):
     cached = None if refresh else read_cache(name, max_age=6 * 3600)
     if cached is not None:
         return cached
-    d = get_json(f"{API}/{league['code']}/teams?limit=60")
+    limit = league.get("team_limit", 60)
+    d = get_json(f"{API}/{league['code']}/teams?limit={limit}")
     teams = []
     for item in d["sports"][0]["leagues"][0]["teams"]:
         t = item["team"]
@@ -1328,7 +1345,8 @@ def player_cn(name):
     return PLAYER_CN.get(name) or name
 
 
-RATING_LEAGUES = {"eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "eng.2", "bra.1"}
+RATING_LEAGUES = {"eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "eng.2", "bra.1",
+                  "uefa.nations", "fifa.friendly", "fifa.world", "uefa.euro"}
 
 # 欧战球队的国内联赛（仅 ESPN 公开可用的联赛）；标签用于页面显示
 EURO_DOMESTIC = {
@@ -2502,12 +2520,18 @@ def main():
     all_done = {eid for eid, ev in events.items()
                 if ev["completed"] and ev["league"] in league_labels}
 
+    # 热门球队：参加过五大联赛/英冠/巴西甲/欧战的队伍；杯赛里没有热门球队的场次默认隐藏
+    hot_ids = {tid for tid, t in teams.items()
+               if any(lg in HOT_LEAGUES for lg in (t.get("leagues") or []))}
+    log(f"  热门球队：{len(hot_ids)} 支")
+    hidden_n = 0
+
     match_rows = []
     for eid in all_done:
         ev = events[eid]
         if ev["league"] in league_labels:
             st = stats_map.get(eid)
-            match_rows.append({
+            row = {
                 "id": eid,
                 "date": ev["date"],
                 "league": ev["league"],
@@ -2522,7 +2546,12 @@ def main():
                 "venue": ev["venue"],
                 "stats": st,
                 "mkt": odds_market_probs(ev["leagueCode"], eid),
-            })
+            }
+            if (ev["league"] in CUP_HIDE_LEAGUES
+                    and ev["home"] not in hot_ids and ev["away"] not in hot_ids):
+                row["hide"] = 1
+                hidden_n += 1
+            match_rows.append(row)
     match_rows.sort(key=lambda m: m["date"] or "", reverse=True)
 
     # 多机构赛前盘口（football-data.co.uk）：先取 xG 供评级/赛前模型使用，
@@ -2702,7 +2731,12 @@ def main():
                ({"stats": stats_map[ev["id"]]} if ev.get("completed") and stats_map.get(ev["id"]) else {})),
             "pred": _pred,
         })
+        if (ev["league"] in CUP_HIDE_LEAGUES
+                and ev["home"] not in hot_ids and ev["away"] not in hot_ids):
+            fixture_rows[-1]["hide"] = 1
+            hidden_n += 1
     fixture_rows.sort(key=lambda f: f["date"] or "")
+    log(f"  小球队杯赛隐藏：{hidden_n} 场")
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()
@@ -2757,7 +2791,8 @@ def main():
     }
     payload = {
         "meta": meta,
-        "leagues": [{"label": l["label"], "code": l["code"], "cat": l["cat"]} for l in leagues],
+        "leagues": [{"label": l["label"], "code": l["code"], "cat": l["cat"],
+                     "hidden": bool(l.get("hidden_tab"))} for l in leagues],
         "categories": CATEGORIES,
         "teams": team_rows,
         "matches": match_rows,

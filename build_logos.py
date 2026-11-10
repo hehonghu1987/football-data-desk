@@ -39,7 +39,11 @@ def main():
         print("缺少 data/matches.json，无法确定球队列表")
         return 1
     payload = json.load(open(DATA, encoding="utf-8"))
-    ids = [str(t["id"]) for t in payload["teams"]]
+    # 隐藏在站内的低级别杯赛球队不下载队徽（省流量、省仓库体积）
+    HIDDEN_CUPS = {"足总杯", "英联杯", "国王杯", "意大利杯", "德国杯", "法国杯", "巴西杯"}
+    visible = [t for t in payload["teams"]
+               if not t.get("leagues") or any(lg not in HIDDEN_CUPS for lg in t["leagues"])]
+    ids = [str(t["id"]) for t in visible]
     custom = {str(t["id"]): t.get("logo") or "" for t in payload["teams"]}
 
     os.makedirs(OUT, exist_ok=True)

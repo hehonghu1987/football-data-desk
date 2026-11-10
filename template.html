@@ -1453,6 +1453,7 @@ function teamDot(t){
 const TEAMS = new Map((DATA.teams || []).map(t => [String(t.id), t]));
 const MATCH_BY_ID = new Map([...(DATA.matches || []), ...(DATA.fixtures || [])].map(m => [String(m.id), m]));
 const LEAGUE_CAT = new Map((DATA.leagues || []).map(l => [l.label, l.cat]));
+const NATIONAL_LEAGUES = new Set((DATA.leagues || []).filter(l => l.cat === "national").map(l => l.label));
 const LEAGUE_DOT = {
   "英超":"#6B2C91","西甲":"#D97706","意甲":"#2563A8","德甲":"#C0392B",
   "法甲":"#1D4E89","欧冠":"#1B3C8C","欧联杯":"#C2650F","英冠":"#0F766E","巴西甲":"#1E8E3E",
@@ -1971,7 +1972,7 @@ async function exportDailyCard(){
 
   const today = DATA.fixtures || [];
   const list = today
-    .filter(f => f.pred)
+    .filter(f => f.pred && !f.hide)
     .sort((x, y2) => new Date(x.date) - new Date(y2.date))
     .slice(0, 8);
   if(!list.length){ toast("暂无可导出的比赛"); return; }
@@ -2134,12 +2135,13 @@ function renderHero(){
   $("#hero-date").textContent = `${now.getMonth()+1}.${pad2(now.getDate())}`;
   $("#hero-weekday").textContent = dtfWeek.format(now);
   const fixtures = (DATA.fixtures || []).filter(f => {
+    if(f.hide) return false;
     const d = new Date(f.date);
     return !isNaN(d) && dayKey(d) >= TODAY_KEY;
   });
   // 今日赛程只放未开赛/进行中，已结束的在「最近赛果」；统计口径把两边合并，才是当天/未来 5 天的真实场次
   const results = (DATA.matches || []).filter(m => {
-    if(m.hs == null || !m.date) return false;
+    if(m.hide || m.hs == null || !m.date) return false;
     const d = new Date(m.date);
     return !isNaN(d) && dayKey(d) >= TODAY_KEY;
   });
@@ -2160,7 +2162,7 @@ function renderHero(){
 function renderTabs(){
   const tabs = $("#cat-tabs");
   const all = [{ id: "all", label: "全部" }].concat(
-    (DATA.leagues || []).map(l => ({ id: l.label, label: l.label }))
+    (DATA.leagues || []).filter(l => !l.hidden).map(l => ({ id: l.label, label: l.label }))
   ).map(o => ({ id: o.id, label: o.label, n: upcomingCount(o.id) }));
   // 只显示近期有比赛的联赛；当前选中的联赛始终保留，避免选中项消失
   const opts = all.filter(o => o.id === "all" || o.n > 0 || o.id === state.league);
@@ -2184,6 +2186,7 @@ function upcomingCount(league){
   const start = new Date(TODAY_KEY + "T00:00:00");
   const days = new Set();
   for(const f of leagueFixtureList(league)){
+    if(f.hide) continue;
     const d = new Date(f.date);
     if(isNaN(d) || d < start) continue;
     days.add(dayKey(d));
@@ -2192,6 +2195,7 @@ function upcomingCount(league){
   const keepSet = new Set(keep);
   let n = 0;
   for(const f of leagueFixtureList(league)){
+    if(f.hide) continue;
     const d = new Date(f.date);
     if(isNaN(d) || d < start) continue;
     if(keepSet.has(dayKey(d))) n++;
@@ -2208,7 +2212,7 @@ function leagueTeams(league){
 function renderFixtures(){
   const panel = $("#fixtures-panel");
   const list = leagueFixtureList(state.league).filter(f =>
-    new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
+    !f.hide && new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
   );
   const now = Date.now();
   const statusOf = f => {
@@ -2298,7 +2302,7 @@ function renderFixtures(){
 
 function renderRecent(){
   const panel = $("#recent-panel");
-  const list = leagueMatchList(state.league).filter(m => m.hs != null).slice(0, 10);
+  const list = leagueMatchList(state.league).filter(m => m.hs != null && !m.hide).slice(0, 10);
   if(!list.length){
     panel.innerHTML = `<div class="empty">该分类暂无已结束的比赛数据。</div>`;
     return;
@@ -3330,6 +3334,9 @@ function formBlock(tid){
 
 function lineupBlock(tid){
   const t = TEAMS.get(String(tid));
+  // 国家队的球员译名覆盖不足，暂不展示参考首发（避免整屏英文）
+  const cur = (t && t.currentLeagues) || [];
+  if(cur.some(l => NATIONAL_LEAGUES.has(l))) return "";
   const lu = (DATA.lineups || {})[String(tid)];
   if(!lu || !(lu.p || []).length) return "";
   const rows = lu.p.map(p => `<li>
@@ -3350,7 +3357,8 @@ function renderPreMatch(m){
   const odds = isUpcoming ? m.odds : null;
   const pred = isUpcoming ? m.pred : null;
   const pre = isUpcoming ? null : m.pre;
-  const hasLineup = isUpcoming && !!((DATA.lineups || {})[String(m.home)] || (DATA.lineups || {})[String(m.away)]);
+  const isNational = NATIONAL_LEAGUES.has(m.league);
+  const hasLineup = isUpcoming && !isNational && !!((DATA.lineups || {})[String(m.home)] || (DATA.lineups || {})[String(m.away)]);
   const hasMarket = isUpcoming ? !!odds : !!m.mkt;
   const mkBox = $("#mk-block");
   if(mkBox){ mkBox.hidden = true; mkBox.innerHTML = ""; }
