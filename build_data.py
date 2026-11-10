@@ -2978,7 +2978,21 @@ def main():
             return
         with open(tpl_path, "r", encoding="utf-8") as f:
             tpl = f.read()
-        js = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+        # 首屏瘦身：只内联近 400 天比赛（覆盖 30/90/365 天模型回测窗口），
+        # 更早的历史写入 data/history.json，由前端空闲时或进球队页时懒加载
+        from datetime import datetime as _dt3, timedelta as _td3, timezone as _tz3
+        cut = (_dt3.now(_tz3.utc) - _td3(days=400)).isoformat()
+        recent, history = [], []
+        for m in payload["matches"]:
+            (recent if (m.get("date") or "") >= cut else history).append(m)
+        hist_path = os.path.join(DATA_DIR, "history.json")
+        with open(hist_path, "w", encoding="utf-8") as f:
+            json.dump({"matches": history}, f, ensure_ascii=False, separators=(",", ":"))
+        log(f"  首屏内联比赛 {len(recent)} 场；历史懒加载 {len(history)} 场"
+            f"（{os.path.getsize(hist_path)/1024/1024:.2f} MB）")
+        html_payload = dict(payload)
+        html_payload["matches"] = recent
+        js = json.dumps(html_payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
         html = tpl.replace("__DATA_JSON__", js)
         out_html = os.path.join(ROOT, "football_database.html")
         with open(out_html, "w", encoding="utf-8") as f:

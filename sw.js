@@ -30,7 +30,7 @@ self.addEventListener("fetch", event => {
     return;
   }
   const p = url.pathname;
-  if (p.includes("/logos/") || p.includes("/fonts/") || /\.(png|jpe?g|webp|svg|woff2?|ico)$/i.test(p)) {
+  if (p.includes("/logos/") || p.includes("/fonts/") || /\.(png|jpe?g|webp|svg|woff2?|ico|json)$/i.test(p)) {
     event.respondWith(staticStrategy(req));
   }
 });

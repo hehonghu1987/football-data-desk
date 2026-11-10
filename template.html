@@ -25,6 +25,7 @@
 <meta name="twitter:image" content="https://hehonghu1987.github.io/football-data-desk/og-image.png">
 <link rel="apple-touch-icon" href="og-icon.png">
 <link rel="icon" href="og-icon.png" type="image/png">
+<link rel="prefetch" href="data/history.json" as="fetch" crossorigin>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebSite","name":"绿茵数据台","alternateName":"MATCH DATA DESK","url":"https://hehonghu1987.github.io/football-data-desk/","description":"足球赛程比分、技术统计与攻防模型预测，覆盖五大联赛、欧冠、欧联杯、英冠、巴西甲及各国杯赛，含进球线、亚盘与角球盘口概率。","inLanguage":"zh-CN","publisher":{"@type":"Organization","name":"绿茵数据台"},"about":[{"@type":"Thing","name":"足球赛程与比分"},{"@type":"Thing","name":"足球技术统计"},{"@type":"Thing","name":"足球比赛模型预测"}]}
 </script>
@@ -1501,7 +1502,7 @@ function teamDot(t){
 
 /* ---------- data indexes ---------- */
 const TEAMS = new Map((DATA.teams || []).map(t => [String(t.id), t]));
-const MATCH_BY_ID = new Map([...(DATA.matches || []), ...(DATA.fixtures || [])].map(m => [String(m.id), m]));
+let MATCH_BY_ID = new Map();
 const LEAGUE_CAT = new Map((DATA.leagues || []).map(l => [l.label, l.cat]));
 const NATIONAL_LEAGUES = new Set((DATA.leagues || []).filter(l => l.cat === "national").map(l => l.label));
 const LEAGUE_DOT = {
@@ -1534,17 +1535,50 @@ function matchCat(m){
 }
 
 const BY_TEAM = new Map();
-for(const m of (DATA.matches || [])){
-  for(const tid of [String(m.home), String(m.away)]){
-    let arr = BY_TEAM.get(tid);
-    if(!arr){ arr = []; BY_TEAM.set(tid, arr); }
-    arr.push(m);
+function rebuildIndexes(){
+  MATCH_BY_ID = new Map([...(DATA.matches || []), ...(DATA.fixtures || [])].map(m => [String(m.id), m]));
+  BY_TEAM.clear();
+  for(const m of (DATA.matches || [])){
+    for(const tid of [String(m.home), String(m.away)]){
+      let arr = BY_TEAM.get(tid);
+      if(!arr){ arr = []; BY_TEAM.set(tid, arr); }
+      arr.push(m);
+    }
+  }
+  for(const arr of BY_TEAM.values()){
+    arr.sort((a,b) => String(b.date||"").localeCompare(String(a.date||"")));
   }
 }
-for(const arr of BY_TEAM.values()){
-  arr.sort((a,b) => String(b.date||"").localeCompare(String(a.date||"")));
-}
+rebuildIndexes();
 function teamMatches(tid){ return (BY_TEAM.get(String(tid)) || []).slice(0, 30); }
+
+/* ---------- 历史比赛懒加载（首屏只内联近 400 天） ---------- */
+let HISTORY_LOADED = false, HISTORY_LOADING = null;
+function loadHistory(){
+  if(HISTORY_LOADED) return Promise.resolve();
+  if(HISTORY_LOADING) return HISTORY_LOADING;
+  HISTORY_LOADING = fetch("data/history.json")
+    .then(r => r.ok ? r.json() : null)
+    .then(h => {
+      if(h && Array.isArray(h.matches) && h.matches.length){
+        DATA.matches = (DATA.matches || []).concat(h.matches);
+        rebuildIndexes();
+      }
+      HISTORY_LOADED = true;
+      onHistoryLoaded();
+    })
+    .catch(() => { HISTORY_LOADING = null; });   // 失败可重试（弱网/离线）
+  return HISTORY_LOADING;
+}
+function onHistoryLoaded(){
+  if(state.id && !$("#team-view").hidden){ renderTeam(state.id); return; }
+  if(!$("#match-view").hidden) return;
+  if(!$("#home-view").hidden){
+    renderIndex();
+    syncIndexToggle();
+    renderModelPerf();
+  }
+}
 
 const LEAGUE_COUNT = {};
 for(const l of (DATA.leagues || [])) LEAGUE_COUNT[l.label] = 0;
@@ -3242,6 +3276,7 @@ function renderTeam(id){
   state.h2hSide = "all";
   state.h2hComp = "all";
   state.all = teamMatches(id);
+  if(!HISTORY_LOADED) loadHistory();
   $("#team-h2h").hidden = true;
   $("#h2h-toggle").setAttribute("aria-pressed", "false");
   $("#home-view").hidden = true;
@@ -4285,6 +4320,18 @@ function route(){
       window.scrollTo({top: 0, behavior: "auto"});
       return;
     }
+    if(!HISTORY_LOADED){
+      loadHistory().then(() => {
+        if(MATCH_BY_ID.has(String(id))){
+          renderMatch(id);
+          window.scrollTo({top: 0, behavior: "auto"});
+        } else if(!MATCH_BY_ID.has(String(id))){
+          state.league = "all";
+          renderHome();
+        }
+      });
+      return;
+    }
   }
   const cleanHome = h === "" || h === "#" || h === "#/" ;
   if(!cleanHome){
@@ -4299,6 +4346,11 @@ function route(){
 window.addEventListener("hashchange", route);
 route();
 bootReady();
+if("requestIdleCallback" in window){
+  requestIdleCallback(() => loadHistory(), { timeout: 5000 });
+} else {
+  setTimeout(() => loadHistory(), 2000);
+}
 })();
 </script>
 <div class="fresh-bar" id="fresh-bar">

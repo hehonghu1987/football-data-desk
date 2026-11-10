@@ -93,6 +93,13 @@ jobs:
             mkdir -p dist/data
             cp data/fdco.json dist/data/fdco.json
           fi
+          if [ -f data/history.json ]; then
+            mkdir -p dist/data
+            cp data/history.json dist/data/history.json
+          fi
+          if [ -f 404.html ]; then
+            cp 404.html dist/404.html
+          fi
           du -sh dist
 
       - name: 记录构建时间并归档
