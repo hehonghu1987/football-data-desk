@@ -190,6 +190,7 @@ def main():
     pages = []
     now = datetime.now().astimezone()
 
+    team_paths = {}
     for tid, t in teams.items():
         ms = by_team.get(tid) or []
         if not ms:
@@ -309,7 +310,156 @@ def main():
 
         with open(os.path.join(teams_dir, path), "w", encoding="utf-8") as fh:
             fh.write(page(title, desc, body, canonical))
+        team_paths[tid] = path
         pages.append((canonical, fmt_date(recent[0].get("date"))))
+
+    # ---- 比赛静态页：未来赛程 + 近 30 天赛果 ----
+    match_dir = os.path.join(OUT, "matches")
+    os.makedirs(match_dir, exist_ok=True)
+    now_iso = now.isoformat()
+    cutoff = (now - timedelta(days=30)).isoformat()
+    match_pages = []
+
+    def team_link(tid):
+        t = teams.get(str(tid)) or {}
+        nm = esc(t.get("cn") or t.get("name") or tid)
+        path = team_paths.get(str(tid))
+        return f'<a href="../teams/{path}">{nm}</a>' if path else nm
+
+    def pct(v):
+        return "—" if v is None else f"{v * 100:.0f}%"
+
+    def render_match(m, is_fixture):
+        home, away = m.get("home"), m.get("away")
+        ht = teams.get(str(home)) or {}
+        at = teams.get(str(away)) or {}
+        hname = esc(ht.get("cn") or ht.get("name") or home)
+        aname = esc(at.get("cn") or at.get("name") or away)
+        done = m.get("hs") is not None and m.get("as") is not None
+        score = f'{m["hs"]}–{m["as"]}' if done else "VS"
+        pred = m.get("pred") or {}
+        pre = m.get("pre") or {}
+        cards = []
+        if done:
+            cards.append(f'<div class="card"><div class="k">比分</div><div class="v">{score}</div></div>')
+        if pred:
+            cards.append(f'<div class="card"><div class="k">模型 主/平/客</div><div class="v">{pct(pred.get("ph"))} / {pct(pred.get("pd"))} / {pct(pred.get("pa"))}</div></div>')
+            cards.append(f'<div class="card"><div class="k">预期进球</div><div class="v">{pred.get("xgH")}–{pred.get("xgA")}</div></div>')
+        elif pre:
+            cards.append(f'<div class="card"><div class="k">赛前模型 主/平/客</div><div class="v">{pct(pre.get("ph"))} / {pct(pre.get("pd"))} / {pct(pre.get("pa"))}</div></div>')
+            cards.append(f'<div class="card"><div class="k">赛前预期进球</div><div class="v">{pre.get("xh")}–{pre.get("xa")}</div></div>')
+        body = f"<h1>{hname} vs {aname}</h1>"
+        body += (f'<p class="sub">{esc(m.get("league"))} · {fmt_date(m.get("date"))} · '
+                 f'{esc(m.get("venue") or "")} {"· 已结束" if done else "· 赛前"}</p>')
+        if cards:
+            body += '<div class="cards">' + "".join(cards) + "</div>"
+        # 模型市场
+        if pred:
+            rows = []
+            if pred.get("lines"):
+                for k in sorted(pred["lines"], key=lambda x: float(x))[:5]:
+                    rows.append(f'<tr><td>大 {k} 球</td><td>{pct(pred["lines"][k])}</td>'
+                                f'<td>小 {k} 球</td><td>{pct(1 - pred["lines"][k])}</td></tr>')
+            if pred.get("btts") is not None:
+                rows.append(f'<tr><td>双方进球</td><td>{pct(pred["btts"])}</td><td></td><td></td></tr>')
+            if pred.get("corners"):
+                c = pred["corners"]
+                rows.append(f'<tr><td>期望角球</td><td>{c.get("exp")}</td>'
+                            f'<td>大 9.5</td><td>{pct((c.get("over") or {}).get("9.5"))}</td></tr>')
+            if rows:
+                body += ("<h2>模型预测</h2><table><thead><tr><th>市场</th><th>概率</th>"
+                         "<th>市场</th><th>概率</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table>")
+        # 盘口
+        odds = m.get("odds") if is_fixture else None
+        if odds:
+            ml = odds.get("ml") or {}
+            ah = odds.get("ah") or {}
+            ou = odds.get("ou") or {}
+            orows = []
+            if ml:
+                orows.append(f'<tr><td>欧赔 主/平/客</td><td>{ml.get("h")} / {ml.get("d")} / {ml.get("a")}</td></tr>')
+            if ah:
+                orows.append(f'<tr><td>亚盘 让球</td><td>{ah.get("line")} · 主 {ah.get("h")} / 客 {ah.get("a")}</td></tr>')
+            if ou:
+                orows.append(f'<tr><td>大小球</td><td>{ou.get("line")} · 大 {ou.get("over")} / 小 {ou.get("under")}</td></tr>')
+            if orows:
+                body += ("<h2>赛前盘口</h2><table><thead><tr><th>市场</th><th>赔率</th></tr></thead>"
+                         "<tbody>" + "".join(orows) + "</tbody></table>")
+        # 事件
+        evs = m.get("ev") or []
+        if evs:
+            icons = {"g": "⚽", "og": "⚽", "p": "⚽", "y": "🟨", "r": "🟥", "pm": "⛔"}
+            er = "".join(f'<tr><td>{esc(e[0])}</td><td>{icons.get(e[1], "•")}</td><td>{esc(e[3])}</td>'
+                         f'<td>{hname if e[2] == 0 else aname}</td></tr>' for e in evs)
+            body += ("<h2>比赛事件</h2><table><thead><tr><th>时间</th><th></th><th>球员</th><th>球队</th>"
+                     "</tr></thead><tbody>" + er + "</tbody></table>")
+        body += ('<h2>相关页面</h2><div class="chips">'
+                 f'<a class="chip" href="../teams/{team_paths.get(str(home), "")}">{hname} 球队页</a>'
+                 f'<a class="chip" href="../teams/{team_paths.get(str(away), "")}">{aname} 球队页</a>'
+                 f'<a class="chip" href="/football-data-desk/#/match/{esc(m.get("id"))}">在数据台查看</a>'
+                 '<a class="chip" href="index.html">全部比赛</a></div>')
+        body += (f'<div class="foot">数据来源 ESPN 公开接口，最后更新 '
+                 f'{now.strftime("%Y-%m-%d %H:%M")}（北京时间）。预测不代表确定结果。</div>')
+        ld = json.dumps({
+            "@context": "https://schema.org", "@type": "SportsEvent",
+            "name": f"{ht.get('cn') or ht.get('name')} vs {at.get('cn') or at.get('name')}",
+            "startDate": m.get("date"),
+            "eventStatus": "https://schema.org/EventScheduled",
+            "location": {"@type": "Place", "name": m.get("venue") or ""},
+            "competitor": [{"@type": "SportsTeam", "name": ht.get("cn") or ht.get("name")},
+                           {"@type": "SportsTeam", "name": at.get("cn") or at.get("name")}],
+        }, ensure_ascii=False)
+        body += f'\n<script type="application/ld+json">{ld}</script>'
+        return body
+
+    for m in fixtures:
+        if m.get("hide") or m.get("date") is None:
+            continue
+        path = f'{m.get("id")}.html'
+        title = f'{((teams.get(str(m.get("home"))) or {}).get("cn") or "主队")} vs ' \
+                f'{((teams.get(str(m.get("away"))) or {}).get("cn") or "客队")} · {m.get("league")} 赛前'
+        desc = f'{m.get("league")} {fmt_date(m.get("date"))} 赛前分析：模型概率、盘口与双方近期数据。'
+        canonical = f'{SITE}/matches/{path}'
+        body = render_match(m, True)
+        with open(os.path.join(match_dir, path), "w", encoding="utf-8") as fh:
+            fh.write(page(title, desc, body, canonical))
+        match_pages.append((canonical, fmt_date(m.get("date"))))
+
+    for m in matches:
+        if m.get("hide") or (m.get("date") or "") < cutoff:
+            continue
+        path = f'{m.get("id")}.html'
+        hcn = (teams.get(str(m.get("home"))) or {}).get("cn") or "主队"
+        acn = (teams.get(str(m.get("away"))) or {}).get("cn") or "客队"
+        title = f'{hcn} {m.get("hs")}–{m.get("as")} {acn} · {m.get("league")} 战报'
+        desc = f'{m.get("league")} {fmt_date(m.get("date"))} {hcn} {m.get("hs")}–{m.get("as")} {acn}，含技术统计、模型预测与比赛事件。'
+        canonical = f'{SITE}/matches/{path}'
+        body = render_match(m, False)
+        with open(os.path.join(match_dir, path), "w", encoding="utf-8") as fh:
+            fh.write(page(title, desc, body, canonical))
+        match_pages.append((canonical, fmt_date(m.get("date"))))
+
+    # 比赛索引页
+    if match_pages:
+        up = [m for m in fixtures if not m.get("hide") and m.get("date")]
+        rec = sorted([m for m in matches if not m.get("hide") and (m.get("date") or "") >= cutoff],
+                     key=lambda x: x.get("date") or "", reverse=True)[:60]
+        def link(m):
+            hcn = (teams.get(str(m.get("home"))) or {}).get("cn") or "主队"
+            acn = (teams.get(str(m.get("away"))) or {}).get("cn") or "客队"
+            return (f'<a class="chip" href="{m.get("id")}.html">{esc(hcn)} vs {esc(acn)}'
+                    f'（{fmt_date(m.get("date"))}）</a>')
+        ib = ('<h1>比赛索引</h1><p class="sub">未来赛程与近 30 天赛果的静态页，含模型预测、盘口与比赛事件。</p>'
+              '<h2>未来赛程</h2><div class="chips">' + "".join(link(m) for m in up[:120]) + '</div>'
+              '<h2>近期赛果</h2><div class="chips">' + "".join(link(m) for m in rec) + '</div>'
+              '<div class="foot">比分每 30 分钟自动更新。</div>')
+        with open(os.path.join(match_dir, "index.html"), "w", encoding="utf-8") as fh:
+            fh.write(page(f"{BRAND} · 比赛索引", f"{BRAND}比赛索引：赛程、比分、模型预测与盘口。",
+                          ib, f"{SITE}/matches/index.html"))
+        pages.append((f"{SITE}/matches/index.html", now.strftime("%Y-%m-%d")))
+    for u, d in match_pages:
+        pages.append((u, d))
+    print(f"已生成 {len(match_pages)} 个比赛静态页")
 
     # 索引页
     idx = []

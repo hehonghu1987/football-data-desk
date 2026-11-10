@@ -92,6 +92,27 @@ LEAGUES = [
      "seasons": SEASONS[:3], "team_limit": 120},
     {"label": "欧洲杯", "code": "uefa.euro", "cat": "national",
      "seasons": SEASONS[:3], "team_limit": 60},
+    # 世预赛 / 洲际杯（ESPN 代码已逐个验证可用）
+    {"label": "世预赛欧洲区", "code": "fifa.worldq.uefa", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 80},
+    {"label": "世预赛南美区", "code": "fifa.worldq.conmebol", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 20},
+    {"label": "世预赛非洲区", "code": "fifa.worldq.caf", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 80},
+    {"label": "世预赛亚洲区", "code": "fifa.worldq.afc", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 80},
+    {"label": "世预赛中北美区", "code": "fifa.worldq.concacaf", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 60},
+    {"label": "世预赛大洋洲区", "code": "fifa.worldq.ofc", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 30},
+    {"label": "欧洲杯预选赛", "code": "uefa.euroq", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 80},
+    {"label": "美洲杯", "code": "conmebol.america", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 30},
+    {"label": "非洲杯", "code": "caf.nations", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 40},
+    {"label": "金杯赛", "code": "concacaf.gold", "cat": "national",
+     "seasons": SEASONS[:3], "team_limit": 30},
 ]
 
 CATEGORIES = [

@@ -77,6 +77,9 @@ jobs:
             cp -R seo/teams dist/teams
             cp seo/sitemap.xml dist/sitemap.xml
           fi
+          if [ -d seo/matches ]; then
+            cp -R seo/matches dist/matches
+          fi
           if [ -d daily ]; then
             cp -R daily dist/daily
           fi

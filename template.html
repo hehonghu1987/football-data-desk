@@ -330,6 +330,10 @@ input{font:inherit}
 }
 
 /* ---------- fixtures ---------- */
+.day-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0 0}
+.day-btn{width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-size:16px;line-height:1;cursor:pointer}
+.day-btn:hover{border-color:var(--line-strong)}
+#day-input{height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;padding:0 8px;color-scheme:light}
 .day-head{
   display:flex;align-items:center;gap:9px;
   padding:10px 16px;background:var(--surface-2);
@@ -763,6 +767,10 @@ table.st .tm a:hover{text-decoration:underline}
 .st-group{font-size:11px;color:var(--muted);padding:8px 12px;background:var(--surface-2)}
 .st-select{height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;padding:0 8px;max-width:160px}
 @media(max-width:640px){table.st th.hide-s,table.st td.hide-s{display:none}}
+@media(max-width:640px){
+  .table-wrap table.stats th:first-child,.table-wrap table.stats td:first-child{position:sticky;left:0;background:var(--surface);z-index:1;box-shadow:1px 0 0 var(--line)}
+  .table-wrap table.stats th:nth-child(2),.table-wrap table.stats td:nth-child(2){position:sticky;left:54px;background:var(--surface);z-index:1;box-shadow:1px 0 0 var(--line)}
+}
 
 /* ---------- 比赛事件 ---------- */
 .tl{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:2px 0}
@@ -1086,6 +1094,13 @@ html.js-boot #boot-skeleton{display:block}
         <h2 class="section-title" id="fixtures-title">今日赛程</h2>
         <button class="chip-btn export-btn" id="export-daily" type="button">导出赛程卡片</button>
         <span class="section-note" id="fixtures-note">时间为本地时区 · 未来 5 个比赛日</span>
+      </div>
+      <div class="day-bar" id="day-bar">
+        <button class="day-btn" id="day-prev" type="button" aria-label="前一天">‹</button>
+        <input type="date" id="day-input" aria-label="选择日期">
+        <button class="day-btn" id="day-next" type="button" aria-label="后一天">›</button>
+        <button class="chip-btn" id="day-today" type="button">今天</button>
+        <button class="chip-btn" id="day-window" type="button">近期赛程</button>
       </div>
       <div class="panel" id="fixtures-panel"></div>
     </section>
@@ -1633,6 +1648,7 @@ const state = {
   side: "all",
   comp: "all",
   standingsLg: null,
+  day: null,
   h2hOpen: false,
   h2hOpp: null,
   h2hSide: "all",
@@ -2200,8 +2216,15 @@ function renderTabs(){
   const all = [{ id: "all", label: "全部" }].concat(
     (DATA.leagues || []).filter(l => !l.hidden).map(l => ({ id: l.label, label: l.label }))
   ).map(o => ({ id: o.id, label: o.label, n: upcomingCount(o.id) }));
-  // 只显示近期有比赛的联赛；当前选中的联赛始终保留，避免选中项消失
-  const opts = all.filter(o => o.id === "all" || o.n > 0 || o.id === state.league);
+  // 全部非隐藏赛事都展示（无近期比赛的联赛也能点进去看积分榜/赛果）；
+  // 有近期比赛的排在前面，其余按常见赛事顺序
+  const orderIdx = id => { const i = LEAGUE_ORDER.indexOf(id); return i < 0 ? 999 : i; };
+  const opts = all.slice().sort((a, b) => {
+    const an = a.id === "all" ? -1 : (a.n > 0 ? 0 : 1);
+    const bn = b.id === "all" ? -1 : (b.n > 0 ? 0 : 1);
+    if(an !== bn) return an - bn;
+    return orderIdx(a.id) - orderIdx(b.id);
+  });
   tabs.innerHTML = opts.map(o => {
     return `<button type="button" class="cat-tab" role="tab" data-league="${esc(o.id)}" aria-selected="${state.league === o.id}">
       ${esc(o.label)}<span class="n">${o.n}</span>
@@ -2245,31 +2268,97 @@ function leagueTeams(league){
   return all.filter(t => cur(t).includes(league) || (t.leagues || []).includes(league));
 }
 
+function fixtureStatus(f){
+  const m = MATCH_BY_ID.get(String(f.id));
+  const st = f.state || (m && m.state) || "";
+  const hs = (m && m.hs != null) ? m.hs : (f.hs != null ? f.hs : null);
+  const as = (m && m.as != null) ? m.as : (f.as != null ? f.as : null);
+  const score = (hs != null && as != null) ? `${hs}–${as}` : null;
+  const t = +new Date(f.date);
+  if(st === "pre") return { kind: "pre", score: null };
+  if(st === "in") return { kind: "live", score };
+  if(st === "post") return { kind: "done", score };
+  if(!st && !isNaN(t) && t > Date.now()) return { kind: "pre", score: null };
+  if(!st && m && m.hs != null && m.as != null) return { kind: "done", score };
+  if(!isNaN(t) && t <= Date.now()) return { kind: "stale", score };
+  return { kind: "pre", score: null };
+}
+
+function fixtureRowHtml(f, forceStatus){
+  const h = TEAMS.get(String(f.home)), a = TEAMS.get(String(f.away));
+  if(!h || !a) return "";
+  const pd = f.pred;
+  const fip = f.odds ? impliedProbs(f.odds.ml) : null;
+  const fbp = pd ? (fip ? blendProbs(pd, fip, 0.7) : [pd.ph, pd.pd, pd.pa]) : null;
+  const fst = forceStatus || fixtureStatus(f);
+  let predLine = "";
+  if(fst.kind === "done"){
+    predLine = `<div class="fix-pred"><span class="tag tag-done">已结束</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : `<span>赛果待更新</span>`}</div>`;
+  } else if(fst.kind === "live"){
+    predLine = `<div class="fix-pred"><span class="tag tag-live">进行中</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : `<span>开赛中</span>`}<span>每 30 分钟更新</span></div>`;
+  } else if(fst.kind === "stale"){
+    predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : ""}<span>数据截止 ${esc(dataStamp())}</span></div>`;
+  } else if(pd && fbp){
+    const o25 = pd.lines ? pd.lines["2.5"] : null;
+    const btts = pd.btts != null ? pd.btts : null;
+    const hints = [];
+    if(o25 != null) hints.push(o25 >= 0.5 ? `大2.5 ${Math.round(o25*100)}%` : `小2.5 ${Math.round((1-o25)*100)}%`);
+    if(btts != null) hints.push(`双方进球 ${Math.round(btts*100)}%`);
+    predLine = `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span>${hints.length ? `<span class="hint">${hints.join(" · ")}</span>` : ""}</div>`;
+  }
+  return `<div class="fix-row" data-mid="${esc(f.id)}">
+    <div class="fix-time">${fmtTime(f.date)}</div>
+    <div>${leagueChip(f.league)}</div>
+    <a class="fix-team home" href="#/team/${esc(h.id)}">${teamDot(h)}<span class="name">${esc(h.cn || h.name)}</span></a>
+    <div class="fix-vs">VS</div>
+    <a class="fix-team away" href="#/team/${esc(a.id)}"><span class="name">${esc(a.cn || a.name)}</span>${teamDot(a)}</a>
+    ${predLine}
+  </div>`;
+}
+
+/* 指定日期的全部比赛：未来赛程 + 已结束赛果 */
+function dayEntries(key){
+  const out = [], seen = new Set();
+  for(const f of (DATA.fixtures || [])){
+    const d = new Date(f.date);
+    if(isNaN(d) || dayKey(d) !== key || f.hide) continue;
+    out.push(f); seen.add(String(f.id));
+  }
+  for(const m of (DATA.matches || [])){
+    if(m.hide || m.hs == null) continue;
+    const d = new Date(m.date);
+    if(isNaN(d) || dayKey(d) !== key || seen.has(String(m.id))) continue;
+    out.push({ id: m.id, date: m.date, league: m.league, home: m.home, away: m.away,
+               state: "post", hs: m.hs, as: m.as });
+  }
+  out.sort((x, y) => new Date(x.date) - new Date(y.date));
+  return out;
+}
+
 function renderFixtures(){
   const panel = $("#fixtures-panel");
+  const note = $("#fixtures-note");
+
+  if(state.day){
+    const all = dayEntries(state.day).filter(f => state.league === "all" || f.league === state.league);
+    const [y, mo, da] = state.day.split("-").map(Number);
+    const label = `${mo}月${da}日`;
+    $("#fixtures-title").textContent = (state.league === "all" ? "" : state.league + " · ") + label;
+    if(note){ note.textContent = `${all.length} 场 · 按开赛时间排序`; note.classList.remove("warn"); }
+    if(!all.length){
+      panel.innerHTML = `<div class="empty">${label} 暂无比赛。<br>可以换一天，或点「近期赛程」回到未来 5 个比赛日。</div>`;
+      return;
+    }
+    panel.innerHTML = `<div class="day-head"><b>${label}</b><span class="wd">${dtfWeek.format(new Date(y, mo-1, da))}</span><span class="cnt">${all.length} 场</span></div>` +
+      all.map(f => fixtureRowHtml(f)).join("");
+    return;
+  }
+
   const list = leagueFixtureList(state.league).filter(f =>
     !f.hide && new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
   );
-  const now = Date.now();
-  const statusOf = f => {
-    const m = MATCH_BY_ID.get(String(f.id));
-    const st = f.state || (m && m.state) || "";
-    const hs = (m && m.hs != null) ? m.hs : (f.hs != null ? f.hs : null);
-    const as = (m && m.as != null) ? m.as : (f.as != null ? f.as : null);
-    const score = (hs != null && as != null) ? `${hs}–${as}` : null;
-    const t = +new Date(f.date);
-    // 未开赛（含 ESPN 占位 0:0 的场次）一律按日期判断，绝不能因为「有比分」就当成已结束
-    if(st === "pre") return { kind: "pre", score: null };
-    if(st === "in") return { kind: "live", score };
-    if(st === "post") return { kind: "done", score };
-    if(!st && !isNaN(t) && t > now) return { kind: "pre", score: null };
-    if(!st && m && m.hs != null && m.as != null) return { kind: "done", score };
-    if(!isNaN(t) && t <= now) return { kind: "stale", score };
-    return { kind: "pre", score: null };
-  };
-  const note = $("#fixtures-note");
   if(note){
-    const started = list.some(f => statusOf(f).kind !== "pre");
+    const started = list.some(f => fixtureStatus(f).kind !== "pre");
     if(started){
       note.textContent = `数据截止 ${dataStamp()} · 比分每 30 分钟刷新`;
       note.classList.add("warn");
@@ -2295,44 +2384,14 @@ function renderFixtures(){
     return;
   }
   panel.innerHTML = keys.map(k => {
-    const rows = groups.get(k).sort((a,b) => String(a.date).localeCompare(String(b.date)));
+    const rows = groups.get(k).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const [y, mo, da] = k.split("-").map(Number);
-    const dt = new Date(y, mo-1, da);
+    const dt = new Date(y, mo - 1, da);
     let label = `${mo}月${da}日`;
     if(k === TODAY_KEY) label = "今天";
     else if(k === TOMORROW_KEY) label = "明天";
     return `<div class="day-head"><b>${label}</b><span class="wd">${dtfWeek.format(dt)}</span><span class="cnt">${rows.length} 场</span></div>` +
-      rows.map(f => {
-        const h = TEAMS.get(String(f.home)), a = TEAMS.get(String(f.away));
-        if(!h || !a) return "";
-        const pd = f.pred;
-        const fip = f.odds ? impliedProbs(f.odds.ml) : null;
-        const fbp = pd ? (fip ? blendProbs(pd, fip, 0.7) : [pd.ph, pd.pd, pd.pa]) : null;
-        const fst = statusOf(f);
-        let predLine = "";
-        if(fst.kind === "done"){
-          predLine = `<div class="fix-pred"><span class="tag tag-done">已结束</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : `<span>赛果待更新</span>`}</div>`;
-        } else if(fst.kind === "live"){
-          predLine = `<div class="fix-pred"><span class="tag tag-live">进行中</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : `<span>开赛中</span>`}<span>每 30 分钟更新</span></div>`;
-        } else if(fst.kind === "stale"){
-          predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : ""}<span>数据截止 ${esc(dataStamp())}</span></div>`;
-        } else if(pd && fbp){
-          const o25 = pd.lines ? pd.lines["2.5"] : null;
-          const btts = pd.btts != null ? pd.btts : null;
-          const hints = [];
-          if(o25 != null) hints.push(o25 >= 0.5 ? `大2.5 ${Math.round(o25*100)}%` : `小2.5 ${Math.round((1-o25)*100)}%`);
-          if(btts != null) hints.push(`双方进球 ${Math.round(btts*100)}%`);
-          predLine = `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span>${hints.length ? `<span class="hint">${hints.join(" · ")}</span>` : ""}</div>`;
-        }
-        return `<div class="fix-row" data-mid="${esc(f.id)}">
-          <div class="fix-time">${fmtTime(f.date)}</div>
-          <div>${leagueChip(f.league)}</div>
-          <a class="fix-team home" href="#/team/${esc(h.id)}">${teamDot(h)}<span class="name">${esc(h.cn || h.name)}</span></a>
-          <div class="fix-vs">VS</div>
-          <a class="fix-team away" href="#/team/${esc(a.id)}"><span class="name">${esc(a.cn || a.name)}</span>${teamDot(a)}</a>
-          ${predLine}
-        </div>`;
-      }).join("");
+      rows.map(f => fixtureRowHtml(f)).join("");
   }).join("");
 }
 
@@ -2615,6 +2674,49 @@ function renderStandings(){
       <th class="hide-s">进</th><th class="hide-s">失</th><th class="hide-s">净</th><th>分</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
   }).join("");
+  const atk = attackTable(lg);
+  if(atk) panel.innerHTML += atk;
+}
+
+/* 近 365 天球队攻防榜（从站内比赛数据实时汇总） */
+function attackTable(league){
+  const since = Date.now() - 365 * 86400000;
+  const agg = new Map();
+  for(const m of (DATA.matches || [])){
+    if(m.league !== league || m.hide || m.hs == null) continue;
+    if(new Date(m.date).getTime() < since) continue;
+    for(const [tid, gf, ga, side] of [[m.home, m.hs, m.as, 0], [m.away, m.as, m.hs, 1]]){
+      const a = agg.get(String(tid)) || { n: 0, gf: 0, ga: 0, sh: 0, sot: 0, co: 0 };
+      a.n += 1; a.gf += gf; a.ga += ga;
+      if(m.st && m.st[side]){
+        a.sh += m.st[side][0] || 0;
+        a.sot += m.st[side][1] || 0;
+        a.co += m.st[side][2] || 0;
+      }
+      agg.set(String(tid), a);
+    }
+  }
+  if(agg.size < 4) return "";
+  const rows = Array.from(agg.entries()).map(([tid, a]) => ({ tid, ...a }))
+    .sort((x, y) => y.gf - x.gf).slice(0, 24);
+  return `<div class="st-group">近一年攻防榜（按进球排序）</div>
+    <table class="st"><thead><tr><th>#</th><th>球队</th><th>场</th><th>进</th><th>失</th>
+    <th class="hide-s">场均进</th><th class="hide-s">场均失</th>
+    <th class="hide-s">场均射门</th><th class="hide-s">场均射正</th><th class="hide-s">场均角球</th></tr></thead>
+    <tbody>${rows.map((r, i) => {
+      const t = TEAMS.get(String(r.tid)) || {};
+      const n = r.n || 1;
+      return `<tr>
+        <td class="rk">${i + 1}</td>
+        <td><div class="tm">${badge(t, "sm")}<a href="#/team/${esc(r.tid)}">${esc(t.cn || t.name || r.tid)}</a></div></td>
+        <td>${r.n}</td><td><b>${r.gf}</b></td><td>${r.ga}</td>
+        <td class="hide-s">${(r.gf / n).toFixed(2)}</td>
+        <td class="hide-s">${(r.ga / n).toFixed(2)}</td>
+        <td class="hide-s">${(r.sh / n).toFixed(1)}</td>
+        <td class="hide-s">${(r.sot / n).toFixed(1)}</td>
+        <td class="hide-s">${(r.co / n).toFixed(1)}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
 }
 
 function renderModelPerf(){
@@ -2788,6 +2890,7 @@ function renderHome(){
   setShareMeta(null);
   renderHero();
   renderTabs();
+  syncDayBar();
   renderFixtures();
   renderRecent();
   renderStandings();
@@ -2845,6 +2948,30 @@ $("#perf-seg").addEventListener("click", e => {
   if(!b) return;
   state.perfDays = Number(b.dataset.days);
   renderModelPerf();
+});
+
+function syncDayBar(){
+  const inp = $("#day-input");
+  if(inp) inp.value = state.day || "";
+  const win = $("#day-window");
+  if(win) win.classList.toggle("on", !state.day);
+}
+
+function shiftDay(delta){
+  const base = state.day || dayKey(new Date());
+  const d = new Date(base + "T00:00:00");
+  d.setDate(d.getDate() + delta);
+  state.day = dayKey(d);
+  syncDayBar();
+  renderFixtures();
+}
+
+$("#day-prev")?.addEventListener("click", () => shiftDay(-1));
+$("#day-next")?.addEventListener("click", () => shiftDay(1));
+$("#day-today")?.addEventListener("click", () => { state.day = dayKey(new Date()); syncDayBar(); renderFixtures(); });
+$("#day-window")?.addEventListener("click", () => { state.day = null; syncDayBar(); renderFixtures(); });
+$("#day-input")?.addEventListener("change", e => {
+  if(e.target.value){ state.day = e.target.value; syncDayBar(); renderFixtures(); }
 });
 
 $("#standings-select")?.addEventListener("change", e => {
