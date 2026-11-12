@@ -997,6 +997,71 @@ STANDINGS_KEYS = {"GP": "gp", "W": "w", "D": "d", "L": "l", "F": "gf", "A": "ga"
                   "GD": "gd", "P": "pts", "R": "rank"}
 
 
+def _dec_odds(american):
+    try:
+        a = float(american)
+    except (TypeError, ValueError):
+        return None
+    if not a:
+        return None
+    return round(1 + (a / 100 if a > 0 else 100 / (-a)), 2)
+
+
+def fetch_event_odds(league_code, event_id):
+    """ESPN 核心接口的多机构赛前赔率（DraftKings / Bet365 等）。缓存 20 分钟。"""
+    name = f"evodds_{league_code}_{event_id}.json"
+    path = os.path.join(CACHE_DIR, name)
+    raw = read_cache(name)
+    if raw is not None and cache_age(raw, path) < 20 * 60:
+        return raw.get("books") or []
+    try:
+        d = get_json(f"{CORE}/leagues/{league_code}/events/{event_id}/competitions/{event_id}/odds?limit=25")
+    except Exception:
+        return (raw or {}).get("books") or []
+    books = []
+    for it in (d.get("items") or []):
+        prov = ((it.get("provider") or {}).get("name") or "").strip()
+        if not prov:
+            continue
+        home = it.get("homeTeamOdds") or {}
+        away = it.get("awayTeamOdds") or {}
+        cur_h = ((home.get("current") or {}).get("moneyLine") or {})
+        cur_a = ((away.get("current") or {}).get("moneyLine") or {})
+        h = (cur_h.get("decimal") or _dec_odds(home.get("moneyLine"))
+             or (home.get("odds") or {}).get("value"))
+        a = (cur_a.get("decimal") or _dec_odds(away.get("moneyLine"))
+             or (away.get("odds") or {}).get("value"))
+        dd = it.get("drawOdds") or {}
+        dr = _dec_odds(dd.get("moneyLine")) or dd.get("value")
+        b = {"book": prov}
+        if h and a and dr:
+            b["m"] = [h, dr, a]
+            oh = ((home.get("open") or {}).get("moneyLine") or {}).get("decimal")
+            oa = ((away.get("open") or {}).get("moneyLine") or {}).get("decimal")
+            if oh and oa:
+                b["o"] = [oh, dr, oa]
+        ah = None
+        if it.get("spread") is not None:
+            ah = {"line": it.get("spread"),
+                  "h": _dec_odds(home.get("spreadOdds")),
+                  "a": _dec_odds(away.get("spreadOdds"))}
+        if ah and ah.get("h") is None and ah.get("a") is None:
+            ah = None
+        ou = None
+        if it.get("overUnder") is not None:
+            ou = {"line": it.get("overUnder"),
+                  "over": _dec_odds(it.get("overOdds")),
+                  "under": _dec_odds(it.get("underOdds"))}
+        if ah:
+            b["ah"] = ah
+        if ou:
+            b["ou"] = ou
+        if b.get("m") or ah or ou:
+            books.append(b)
+    write_cache(name, {"books": books, "_t": time.time()})
+    return books
+
+
 def fetch_standings(league, refresh=False):
     """ESPN 积分榜（site.api v2）。国家队赛事可能分多组。"""
     code = league["code"]
@@ -2623,7 +2688,7 @@ def main():
     today = datetime.now()
     fixtures = {}
     sb_jobs = []
-    for offset in range(-1, 9):
+    for offset in range(-1, 13):   # 多取几天，国际比赛周后恢复的联赛也能提前展示赔率
         ds = (today + timedelta(days=offset)).strftime("%Y%m%d")
         for lg in leagues:
             if lg.get("no_scoreboard"):
@@ -2942,6 +3007,26 @@ def main():
             hidden_n += 1
     fixture_rows.sort(key=lambda f: f["date"] or "")
     log(f"  小球队杯赛隐藏：{hidden_n} 场")
+
+    # 多机构赛前赔率（ESPN 核心接口：DraftKings / Bet365 …）
+    try:
+        book_jobs = [f for f in fixture_rows if f.get("leagueCode")]
+        books_n = 0
+        if book_jobs:
+            with ThreadPoolExecutor(max_workers=args.workers) as ex:
+                futs = {ex.submit(fetch_event_odds, f["leagueCode"], f["id"]): f for f in book_jobs}
+                for fut in as_completed(futs):
+                    f = futs[fut]
+                    try:
+                        bk = fut.result()
+                    except Exception:
+                        bk = []
+                    if bk:
+                        f["books"] = bk
+                        books_n += 1
+        log(f"  多家机构赔率：{books_n}/{len(book_jobs)} 场")
+    except Exception as e:
+        log(f"  ⚠ 多机构赔率抓取失败：{e}")
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()

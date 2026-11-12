@@ -1075,6 +1075,17 @@ html{scroll-behavior:smooth}
 .more-leagues[open]>summary::after{content:" ▴"}
 .more-leagues-row{position:absolute;z-index:40;left:0;top:calc(100% + 6px);display:flex;flex-wrap:wrap;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:var(--shadow);min-width:320px;max-width:min(760px,84vw)}
 
+/* 多机构赔率比价表 */
+.books-wrap{overflow-x:auto;background:var(--surface)}
+table.books{width:100%;border-collapse:collapse;font-size:12px;min-width:620px}
+table.books th,table.books td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.books th:first-child,table.books td:first-child{text-align:left}
+table.books thead th{font-size:10.5px;color:var(--muted);font-weight:500}
+table.books tbody tr:last-child td{border-bottom:0}
+table.books .bk{font-weight:600}
+table.books .mv{font-size:10px;color:var(--muted)}
+table.books .mv b{color:var(--ink)}
+
 /* 高信心推荐 */
 .tag-conf{background:#FEF3C7;color:#8A5A12;border-color:#F2D089}
 .conf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -1146,7 +1157,7 @@ html{scroll-behavior:smooth}
     <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
     <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
     <p><a href="/football-data-desk/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
-    <p>数据来源 ESPN 公开接口，赔率来自 DraftKings（经 ESPN），每 30 分钟自动更新。</p>
+    <p>数据来源 ESPN 公开接口，赔率来自 ESPN 的多家合作机构（DraftKings / Bet365 等），每 30 分钟自动更新。</p>
   </div>
 </noscript>
 <header class="topbar">
@@ -1481,7 +1492,7 @@ html{scroll-behavior:smooth}
       <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
       <div class="lineup-compare" id="lineup-compare"></div>
 
-      <div class="pred-note">赔率来源 DraftKings（经 ESPN 接口）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+      <div class="pred-note">赔率来源 ESPN 多家合作机构（DraftKings / Bet365 等）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
     </section>
 
     <section class="section" id="match-h2h">
@@ -1530,7 +1541,7 @@ html{scroll-behavior:smooth}
 
 <footer class="footer">
   <div class="row">
-    <span>数据来源：ESPN 公开接口 · 赔率来自 DraftKings（经 ESPN）· 缺失项以 — 表示</span>
+    <span>数据来源：ESPN 公开接口 · 赔率来自 ESPN 多家合作机构（DraftKings / Bet365 等）· 缺失项以 — 表示</span>
     <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
   </div>
   <div class="row">
@@ -2280,7 +2291,7 @@ async function exportMatchCard(m){
   }
 
   cFootNote(ctx, [
-    "数据来源 ESPN · 赔率 DraftKings · 模型基于近三个赛季攻防数据",
+    "数据来源 ESPN · 赔率来自多家机构 · 模型基于近三个赛季攻防数据",
     "预测仅供参考，不代表确定结果",
     "hehonghu1987.github.io/football-data-desk"
   ]);
@@ -2544,6 +2555,46 @@ function leagueTeams(league){
   return all.filter(t => cur(t).includes(league) || (t.leagues || []).includes(league));
 }
 
+/* 多机构赔率：共识去水概率 / 最集中的盘口线 */
+function marketProbs(m){
+  const books = (m && m.books) || [];
+  let sum = null, n = 0;
+  for(const b of books){
+    if(!b.m || b.m.length < 3) continue;
+    const inv = b.m.map(x => 1 / x);
+    const tot = inv[0] + inv[1] + inv[2];
+    if(!tot) continue;
+    const p = inv.map(x => x / tot);
+    sum = sum ? sum.map((v, i) => v + p[i]) : p.slice();
+    n++;
+  }
+  if(n) return sum.map(v => v / n);
+  if(m && m.odds && m.odds.ml) return impliedProbs(m.odds.ml);
+  return null;
+}
+function consensusLine(m, key){
+  const books = ((m && m.books) || []).filter(b => b[key] && b[key].line != null);
+  if(!books.length) return null;
+  const cnt = new Map();
+  for(const b of books){
+    const k = String(b[key].line);
+    cnt.set(k, (cnt.get(k) || 0) + 1);
+  }
+  let best = null, bestN = 0;
+  for(const [k, n] of cnt) if(n > bestN){ best = k; bestN = n; }
+  const line = Number(best);
+  let h = 0, hn = 0, a = 0, an = 0, over = 0, on = 0, under = 0, un = 0;
+  for(const b of books){
+    if(String(b[key].line) !== best) continue;
+    if(b[key].h != null){ h += b[key].h; hn++; }
+    if(b[key].a != null){ a += b[key].a; an++; }
+    if(b[key].over != null){ over += b[key].over; on++; }
+    if(b[key].under != null){ under += b[key].under; un++; }
+  }
+  return { line, h: hn ? h / hn : null, a: an ? a / an : null,
+           over: on ? over / on : null, under: un ? under / un : null, n: bestN };
+}
+
 function fixtureStatus(f){
   const m = MATCH_BY_ID.get(String(f.id));
   const st = f.state || (m && m.state) || "";
@@ -2564,7 +2615,7 @@ function fixtureRowHtml(f, forceStatus){
   const h = TEAMS.get(String(f.home)), a = TEAMS.get(String(f.away));
   if(!h || !a) return "";
   const pd = f.pred;
-  const fip = f.odds ? impliedProbs(f.odds.ml) : null;
+  const fip = (f.books && f.books.length) ? marketProbs(f) : (f.odds ? impliedProbs(f.odds.ml) : null);
   const fbp = pd ? (fip ? blendProbs(pd, fip, 0.7) : [pd.ph, pd.pd, pd.pa]) : null;
   const fst = forceStatus || fixtureStatus(f);
   let predLine = "";
@@ -2677,7 +2728,7 @@ function renderFixtures(){
 function confFinal(f){
   const p = f.pred;
   if(!p) return null;
-  const od = f.odds ? impliedProbs(f.odds.ml) : null;
+  const od = (f.books && f.books.length) ? marketProbs(f) : (f.odds ? impliedProbs(f.odds.ml) : null);
   return od ? blendProbs(p, od, 0.7) : [p.ph, p.pd, p.pa];
 }
 function renderConfidence(){
@@ -3892,7 +3943,7 @@ function renderMarkets(m, pred, odds){
     ? `<div class="mk-sub mk-warn">本场为跨联赛对阵，模型向均值收缩后偏向保守，偏差绝对值会系统性偏大，参考性较低。</div>`
     : "";
   box.innerHTML = `<div class="mk-title">盘口对照</div>
-    <div class="mk-sub">模型 = 纯数据模型概率；市场 = DraftKings 赔率去水后的隐含概率（仅与市场同线时可对照）。偏差 = 模型 − 市场，单位为百分点；仅供参考，不代表存在投注价值。</div>
+    <div class="mk-sub">模型 = 纯数据模型概率；市场 = 多家机构共识赔率去水后的隐含概率（仅与市场同线时可对照）。偏差 = 模型 − 市场，单位为百分点；仅供参考，不代表存在投注价值。</div>
     ${warn}
     <div class="mk-sub">大小球口径的模型判别力有限（「模型表现」里的大小球技能分可查），该部分偏差更适合当作校准参考，不宜直接当作下注边际。</div>
     <div class="mk-wrap">${cards.join("")}</div>`;
@@ -3998,39 +4049,97 @@ function renderPreMatch(m){
     ? `${fullTime(m.date)} · ${m.venue || ""}`
     : "赛前模型 · 基于该场开赛前的数据";
 
-  const ip = odds ? impliedProbs(odds.ml) : (!isUpcoming ? (m.mkt || null) : null);
+  const ip = odds ? marketProbs(m) : (!isUpcoming ? (m.mkt || null) : null);
   const cells = [];
   if(odds){
-    cells.push(`<div class="odds-cell">
-      <div class="l">欧赔 · 胜平负</div>
-      <div class="odds-three">
-        <div><div class="k">主胜</div><div class="o">${odds.ml.h.toFixed(2)}</div><div class="p">${pct(ip[0])}</div></div>
-        <div><div class="k">平</div><div class="o">${odds.ml.d.toFixed(2)}</div><div class="p">${pct(ip[1])}</div></div>
-        <div><div class="k">客胜</div><div class="o">${odds.ml.a.toFixed(2)}</div><div class="p">${pct(ip[2])}</div></div>
-      </div>
-      <div class="odds-src">${esc(odds.provider || "")} · 小数赔率 / 去水概率</div>
-    </div>`);
-    if(odds.ah){
+    const books = (m.books || []).filter(b => b.m || b.ah || b.ou);
+    if(books.length){
+      const ipc = marketProbs(m) || ip;
       cells.push(`<div class="odds-cell">
-        <div class="l">亚盘 · 让球</div>
-        <div class="odds-line"><b>${ahText(odds.ah.line)}</b></div>
-        <div class="odds-two">
-          <div><div class="k">主队</div><div class="o">${odds.ah.h ? odds.ah.h.toFixed(2) : "—"}</div></div>
-          <div><div class="k">客队</div><div class="o">${odds.ah.a ? odds.ah.a.toFixed(2) : "—"}</div></div>
+        <div class="l">欧赔 · 共识（${books.length} 家）</div>
+        <div class="odds-three">
+          <div><div class="k">主胜</div><div class="o">${(1 / ipc[0]).toFixed(2)}</div><div class="p">${pct(ipc[0])}</div></div>
+          <div><div class="k">平</div><div class="o">${(1 / ipc[1]).toFixed(2)}</div><div class="p">${pct(ipc[1])}</div></div>
+          <div><div class="k">客胜</div><div class="o">${(1 / ipc[2]).toFixed(2)}</div><div class="p">${pct(ipc[2])}</div></div>
         </div>
-        <div class="odds-src">让球方：${Number(odds.ah.line) < 0 ? "主队" : Number(odds.ah.line) > 0 ? "客队" : "平手"}</div>
+        <div class="odds-src">多家机构去水共识 · 小数赔率</div>
       </div>`);
-    }
-    if(odds.ou){
+      const ahc = consensusLine(m, "ah");
+      if(ahc) cells.push(`<div class="odds-cell">
+        <div class="l">亚盘 · 共识（${ahc.n} 家同线）</div>
+        <div class="odds-line"><b>${ahText(ahc.line)}</b></div>
+        <div class="odds-two">
+          <div><div class="k">主队</div><div class="o">${ahc.h ? ahc.h.toFixed(2) : "—"}</div></div>
+          <div><div class="k">客队</div><div class="o">${ahc.a ? ahc.a.toFixed(2) : "—"}</div></div>
+        </div>
+        <div class="odds-src">让球方：${ahc.line < 0 ? "主队" : ahc.line > 0 ? "客队" : "平手"}</div>
+      </div>`);
+      const ouc = consensusLine(m, "ou");
+      if(ouc) cells.push(`<div class="odds-cell">
+        <div class="l">大小球 · 共识（${ouc.n} 家同线）</div>
+        <div class="odds-line"><b>${Number(ouc.line).toFixed(1)} 球</b></div>
+        <div class="odds-two">
+          <div><div class="k">大球</div><div class="o">${ouc.over ? ouc.over.toFixed(2) : "—"}</div></div>
+          <div><div class="k">小球</div><div class="o">${ouc.under ? ouc.under.toFixed(2) : "—"}</div></div>
+        </div>
+        <div class="odds-src">盘口线 ${Number(ouc.line).toFixed(1)}</div>
+      </div>`);
+      const rows = books.map(b => {
+        const mm = b.m || [null, null, null];
+        const ahb = b.ah || {}, oub = b.ou || {};
+        const mv = (b.o && b.o[0] && mm[0]) ? `<span class="mv">${b.o[0].toFixed(2)}→<b>${mm[0].toFixed(2)}</b></span>` : "—";
+        return `<tr>
+          <td class="bk">${esc(b.book)}</td>
+          <td>${mm[0] ? mm[0].toFixed(2) : "—"}</td>
+          <td>${mm[1] ? mm[1].toFixed(2) : "—"}</td>
+          <td>${mm[2] ? mm[2].toFixed(2) : "—"}</td>
+          <td>${ahb.line != null ? ahText(ahb.line) : "—"}</td>
+          <td>${ahb.h ? ahb.h.toFixed(2) : "—"}</td>
+          <td>${ahb.a ? ahb.a.toFixed(2) : "—"}</td>
+          <td>${oub.line != null ? Number(oub.line).toFixed(1) : "—"}</td>
+          <td>${oub.over ? oub.over.toFixed(2) : "—"}</td>
+          <td>${oub.under ? oub.under.toFixed(2) : "—"}</td>
+          <td>${mv}</td>
+        </tr>`;
+      }).join("");
+      cells.push(`<div class="books-wrap" style="grid-column:1/-1">
+        <table class="books">
+          <thead><tr><th>机构</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th><th>主胜开盘→即时</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`);
+    } else {
       cells.push(`<div class="odds-cell">
-        <div class="l">大小球</div>
-        <div class="odds-line"><b>${Number(odds.ou.line).toFixed(1)} 球</b></div>
-        <div class="odds-two">
-          <div><div class="k">大球</div><div class="o">${odds.ou.over ? odds.ou.over.toFixed(2) : "—"}</div></div>
-          <div><div class="k">小球</div><div class="o">${odds.ou.under ? odds.ou.under.toFixed(2) : "—"}</div></div>
+        <div class="l">欧赔 · 胜平负</div>
+        <div class="odds-three">
+          <div><div class="k">主胜</div><div class="o">${odds.ml.h.toFixed(2)}</div><div class="p">${pct(ip[0])}</div></div>
+          <div><div class="k">平</div><div class="o">${odds.ml.d.toFixed(2)}</div><div class="p">${pct(ip[1])}</div></div>
+          <div><div class="k">客胜</div><div class="o">${odds.ml.a.toFixed(2)}</div><div class="p">${pct(ip[2])}</div></div>
         </div>
-        <div class="odds-src">盘口线 ${odds.ou.line}</div>
+        <div class="odds-src">${esc(odds.provider || "")} · 小数赔率 / 去水概率</div>
       </div>`);
+      if(odds.ah){
+        cells.push(`<div class="odds-cell">
+          <div class="l">亚盘 · 让球</div>
+          <div class="odds-line"><b>${ahText(odds.ah.line)}</b></div>
+          <div class="odds-two">
+            <div><div class="k">主队</div><div class="o">${odds.ah.h ? odds.ah.h.toFixed(2) : "—"}</div></div>
+            <div><div class="k">客队</div><div class="o">${odds.ah.a ? odds.ah.a.toFixed(2) : "—"}</div></div>
+          </div>
+          <div class="odds-src">让球方：${Number(odds.ah.line) < 0 ? "主队" : Number(odds.ah.line) > 0 ? "客队" : "平手"}</div>
+        </div>`);
+      }
+      if(odds.ou){
+        cells.push(`<div class="odds-cell">
+          <div class="l">大小球</div>
+          <div class="odds-line"><b>${Number(odds.ou.line).toFixed(1)} 球</b></div>
+          <div class="odds-two">
+            <div><div class="k">大球</div><div class="o">${odds.ou.over ? odds.ou.over.toFixed(2) : "—"}</div></div>
+            <div><div class="k">小球</div><div class="o">${odds.ou.under ? odds.ou.under.toFixed(2) : "—"}</div></div>
+          </div>
+          <div class="odds-src">盘口线 ${odds.ou.line}</div>
+        </div>`);
+      }
     }
   }
   $("#odds-grid").innerHTML = cells.length ? cells.join("")
@@ -4187,7 +4296,7 @@ function renderInsight(m){
   const upcoming = m.hs == null && m.as == null;
   const model = upcoming ? m.pred : m.pre;
   const odds = upcoming ? m.odds : null;
-  const ip = odds ? impliedProbs(odds.ml) : (!upcoming ? (m.mkt || null) : null);
+  const ip = odds ? marketProbs(m) : (!upcoming ? (m.mkt || null) : null);
   const xh = model ? (model.xgH != null ? model.xgH : model.xh) : null;
   const xa = model ? (model.xgA != null ? model.xgA : model.xa) : null;
   const bullets = [];
@@ -4575,7 +4684,7 @@ function renderMatch(id){
       if(live) return "";
       const p = m.pred;
       if(!p) return "";
-      const fip = m.odds ? impliedProbs(m.odds.ml) : null;
+      const fip = m.odds ? marketProbs(m) : null;
       const fp = fip ? blendProbs(p, fip, 0.7) : [p.ph, p.pd, p.pa];
       const o25 = p.lines ? p.lines["2.5"] : null;
       const bits = [
