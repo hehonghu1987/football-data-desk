@@ -1015,6 +1015,9 @@ ODDSAPI_LEAGUES = {
     "意甲": "soccer_italy_serie_a",
     "德甲": "soccer_germany_bundesliga",
     "法甲": "soccer_france_ligue_one",
+    "欧冠": "soccer_uefa_champs_league",
+    "欧联杯": "soccer_uefa_europa_league",
+    "欧国联": "soccer_uefa_nations_league",
 }
 ODDSAPI_STATE = os.path.join(ROOT, "odds_snapshots", "oddsapi_state.json")
 ODDSAPI_BOOKS = os.path.join(ROOT, "odds_snapshots", "oddsapi_books.json")
@@ -1155,11 +1158,22 @@ def fetch_oddsapi_books(fixture_rows, teams):
             return
 
     by_league = {}
+    now_utc = datetime.utcnow()
     for f in fixture_rows:
-        if f.get("league") in ODDSAPI_LEAGUES and f.get("date"):
-            by_league.setdefault(f["league"], []).append(f)
+        lab = f.get("league")
+        if lab not in ODDSAPI_LEAGUES or not f.get("date"):
+            continue
+        try:
+            ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        # 只抓「最近 2 小时 ~ 未来 48 小时」有比赛的联赛；其余联赛用快照，避免空刷额度
+        if not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=48)):
+            continue
+        by_league.setdefault(lab, []).append(f)
     targets = [(lab, ODDSAPI_LEAGUES[lab]) for lab in ODDSAPI_LEAGUES if lab in by_league]
     if not targets:
+        log("  Odds API：48 小时内没有需要刷新的联赛，跳过")
         return
 
     total_books = 0
