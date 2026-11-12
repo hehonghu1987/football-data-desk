@@ -4370,18 +4370,37 @@ function renderInsight(m){
     bullets.push({ k: "交锋记录", t });
   }
 
-  // 5) 战术与阵容
+  // 5) 战术与阵容（只讲风格/打法，不堆控球射门角球数字）
   if(upcoming){
     const lh = (DATA.lineups || {})[String(h.id)];
     const la = (DATA.lineups || {})[String(a.id)];
     const hav = teamAvg(h.id), aav = teamAvg(a.id);
+    const styleOf = av => {
+      if(!av || av.poss == null) return [];
+      const tags = [];
+      tags.push(av.poss >= 56 ? "偏控球推进" : av.poss <= 44 ? "偏防守反击" : "攻守较均衡");
+      if(av.shots != null && av.shots >= 15) tags.push("进攻投入大");
+      else if(av.shots != null && av.shots <= 10) tags.push("进攻更谨慎");
+      if(av.sot != null && av.shots && av.sot / av.shots >= 0.36) tags.push("射门质量高");
+      if(av.corners != null && av.corners >= 6) tags.push("边路与定位球威胁多");
+      if(av.yellow != null && av.yellow >= 2) tags.push("对抗强硬");
+      return tags;
+    };
+    const hStyle = styleOf(hav), aStyle = styleOf(aav);
     let t = "";
     if(lh && la && lh.f && la.f) t += `参考阵型：${hn} ${lh.f}，${an} ${la.f}。`;
+    if(hStyle.length || aStyle.length){
+      t += `打法上，${hn}${hStyle.slice(0, 2).join("、") || "风格不明显"}；${an}${aStyle.slice(0, 2).join("、") || "风格不明显"}。`;
+    }
     if(hav.poss != null && aav.poss != null){
-      t += `近 30 场场均控球 ${hav.poss.toFixed(0)}% / ${aav.poss.toFixed(0)}%，射门 ${hav.shots ? hav.shots.toFixed(1) : "—"} / ${aav.shots ? aav.shots.toFixed(1) : "—"}，角球 ${hav.corners ? hav.corners.toFixed(1) : "—"} / ${aav.corners ? aav.corners.toFixed(1) : "—"}。`;
-      if(hav.poss - aav.poss >= 8) t += ` ${hn}更可能掌握球权，${an}需要依靠转换和反击。`;
-      else if(aav.poss - hav.poss >= 8) t += ` ${an}更可能掌握球权，${hn}需要依靠转换和反击。`;
-      else t += ` 双方控球风格接近，中场争夺可能决定走势。`;
+      const d = hav.poss - aav.poss;
+      t += d >= 6
+        ? `预计${hn}更主动控球，${an}会收缩防线、等待转换和反击机会。`
+        : d <= -6
+          ? `预计${an}掌握更多球权，${hn}需要靠主场压迫和定位球制造机会。`
+          : "双方控球思路接近，中场逼抢和转换效率会决定比赛节奏。";
+    } else if(lh && la && lh.f && la.f){
+      t += "两队阵型结构不同，边路对位和中场人数优势会是关键。";
     }
     if(t) bullets.push({ k: "战术阵容", t });
   } else if(m.stats){
@@ -4488,35 +4507,34 @@ function renderInsight(m){
     bullets.push({ k: "角球与定位球", t });
   }
 
-  // 11) 战术推演（阵型 + 控球/射门风格 + 对抗强度）
+  // 11) 可能出场与伤停说明
   if(upcoming){
     const lh = (DATA.lineups || {})[String(h.id)];
     const la = (DATA.lineups || {})[String(a.id)];
-    const hav = teamAvg(h.id), aav = teamAvg(a.id);
+    const starters = lu => ((lu && lu.p) || []).filter(x => x.p !== "SUB").map(x => x.n).filter(Boolean);
+    const hsx = starters(lh), asx = starters(la);
     let t = "";
-    if(lh && la && lh.f && la.f) t += `阵型上，${hn}可能用 ${lh.f}，${an}可能用 ${la.f}。`;
-    if(hav.poss != null && aav.poss != null){
-      const d = hav.poss - aav.poss;
-      t += d >= 8 ? `${hn}更可能控球推进，${an}顺势收缩打转换` : (d <= -8 ? `${an}更可能掌握球权，${hn}需要靠反击和定位球` : "双方控球接近，中场拼抢会决定节奏");
-      if(hav.shots && aav.shots) t += `；近 30 场场均射门 ${hav.shots.toFixed(1)} 对 ${aav.shots.toFixed(1)}`;
-      if(hav.sot && aav.sot) t += `，射正 ${hav.sot.toFixed(1)} 对 ${aav.sot.toFixed(1)}`;
-      if(hav.corners && aav.corners) t += `，角球 ${hav.corners.toFixed(1)} 对 ${aav.corners.toFixed(1)}`;
+    if(hsx.length || asx.length){
+      t += "可能出场（按最近比赛首发推断，非官方名单）：";
+      if(hsx.length) t += `${hn} ${hsx.slice(0, 3).join("、")}`;
+      if(asx.length) t += `${hsx.length ? "；" : ""}${an} ${asx.slice(0, 3).join("、")}`;
       t += "。";
     }
-    const hy = havYellow(h.id), ay = havYellow(a.id);
-    if(hy != null && ay != null){
-      t += `对抗强度方面，两队近 30 场场均黄牌合计 ${(hy + ay).toFixed(1)} 张${hy + ay >= 5 ? "，比赛可能比较火爆" : ""}。`;
-    }
-    if(t) bullets.push({ k: "战术推演", t });
+    t += "伤停方面，ESPN 公开接口暂不提供足球伤停明细，暂无法给出确切缺阵原因与名单；临场若有核心球员缺阵，可参考下方「核心球员」判断进攻端的变化。";
+    bullets.push({ k: "战术推演", t });
     // 核心球员（名单数据加载后才有）
     const rp = (ROSTERS && ROSTERS[String(h.id)]) || [];
     const rap = (ROSTERS && ROSTERS[String(a.id)]) || [];
     const best = pl => (pl || []).slice().sort((x, y) => (y.g || 0) - (x.g || 0))[0];
     const bp = best(rp), bpp = best(rap);
+    const luh = (DATA.lineups || {})[String(h.id)], lua = (DATA.lineups || {})[String(a.id)];
+    const inStart = (lu, name) => !!((lu && lu.p) || []).some(x => x.n === name && x.p !== "SUB");
     const kp = [];
-    if(bp && (bp.g || 0) > 0) kp.push(`${hn} ${bp.n}（${bp.g} 球${bp.a ? `、${bp.a} 助攻` : ""}）`);
-    if(bpp && (bpp.g || 0) > 0) kp.push(`${an} ${bpp.n}（${bpp.g} 球${bpp.a ? `、${bpp.a} 助攻` : ""}）`);
-    if(kp.length) bullets.push({ k: "核心球员", t: `本赛季进球最多的球员：${kp.join("；")}。` });
+    if(bp && (bp.g || 0) > 0) kp.push(`${hn} ${bp.n}（${bp.g} 球${bp.a ? `、${bp.a} 助攻` : ""}）${inStart(luh, bp.n) ? "，预计在阵" : "，近期未进首发、出场存疑"}`);
+    if(bpp && (bpp.g || 0) > 0) kp.push(`${an} ${bpp.n}（${bpp.g} 球${bpp.a ? `、${bpp.a} 助攻` : ""}）${inStart(lua, bpp.n) ? "，预计在阵" : "，近期未进首发、出场存疑"}`);
+    if(kp.length){
+      bullets.push({ k: "核心球员", t: `关键人物：${kp.join("；")}。他们是各自球队的主要终结点，若被重点限制，进球来源会更多转向定位球和边路。` });
+    }
   }
 
   // 12) 比分范围
