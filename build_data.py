@@ -1020,9 +1020,9 @@ ODDSAPI_STATE = os.path.join(ROOT, "odds_snapshots", "oddsapi_state.json")
 ODDSAPI_MIN_REMAINING = 20            # 剩余额度低于此值就停抓
 # 免费 500 credits/月 = 每个联赛每次 1 credit；按北京时间排刷新时段：
 # 05:00–12:00 不刷新；集中在 17:00–01:00（欧洲比赛开赛前）
-ODDSAPI_SLOTS_WEEKDAY = ["17:30", "21:00"]              # 周一~周四：2 次
+ODDSAPI_SLOTS_WEEKDAY = ["17:30", "21:00", "00:30"]     # 周一~周四：3 次（00:30 补凌晨场）
 ODDSAPI_SLOTS_FRIDAY = ["17:30", "20:30", "23:30"]      # 周五：3 次
-ODDSAPI_SLOTS_WEEKEND = ["17:00", "19:30", "22:00", "00:30"]  # 周末：4 次
+ODDSAPI_SLOTS_WEEKEND = ["17:00", "19:30", "22:00"]     # 周六、周日：3 次（次日 00:30 由工作日时点覆盖）
 
 
 def _oddsapi_slot_ready(now_ts):
