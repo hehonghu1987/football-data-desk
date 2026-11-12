@@ -1023,6 +1023,7 @@ ODDSAPI_LEAGUES = {
 # 说明：ODDSET/SNAI/Codere/SBOBET/188BET/12BET/Crown/Macau Slot/Dafabet 在 The Odds API
 # 免费档没有覆盖；bet365 在 ESPN 有（俱乐部场次），Ladbrokes 需 UK 区域。
 ODDS_BOOK_WHITELIST = {
+    "draftkings": "DraftKings",
     "pinnacle": "Pinnacle",
     "bet365": "Bet365", "bet365au": "Bet365",
     "williamhill": "William Hill",

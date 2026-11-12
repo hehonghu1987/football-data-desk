@@ -2636,7 +2636,7 @@ const BOOK_CN = {
 function bookCn(name){ return BOOK_CN[name] || name || ""; }
 /* 用户指定的欧赔 10 家（固定展示顺序，无数据的也保留一行） */
 const BOOK_ORDER = ["Pinnacle", "Bet365", "William Hill", "Ladbrokes", "Unibet",
-                    "Tipico", "ODDSET", "SNAI", "Winamax", "Codere"];
+                    "Tipico", "ODDSET", "SNAI", "Winamax", "Codere", "DraftKings"];
 function bookLabel(name){
   const cn = BOOK_CN[name];
   if(!cn || cn === name) return `<span class="bn-en only">${esc(name || "")}</span>`;
