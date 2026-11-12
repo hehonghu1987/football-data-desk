@@ -1019,6 +1019,53 @@ ODDSAPI_LEAGUES = {
     "欧联杯": "soccer_uefa_europa_league",
     "欧国联": "soccer_uefa_nations_league",
 }
+# 只保留用户指定的机构（欧赔 10 家 + 亚盘 8 家）；不在名单内的机构一律不展示。
+# 说明：ODDSET/SNAI/Codere/SBOBET/188BET/12BET/Crown/Macau Slot/Dafabet 在 The Odds API
+# 免费档没有覆盖；bet365 在 ESPN 有（俱乐部场次），Ladbrokes 需 UK 区域。
+ODDS_BOOK_WHITELIST = {
+    "pinnacle": "Pinnacle",
+    "bet365": "Bet365", "bet365au": "Bet365",
+    "williamhill": "William Hill",
+    "ladbrokes": "Ladbrokes", "ladbrokesuk": "Ladbrokes",
+    "unibet": "Unibet", "unibetfr": "Unibet", "unibetnl": "Unibet",
+    "unibetse": "Unibet", "unibetuk": "Unibet",
+    "tipico": "Tipico", "tipicode": "Tipico",
+    "winamax": "Winamax", "winamaxde": "Winamax", "winamaxfr": "Winamax",
+    "sbobet": "SBOBET", "188bet": "188BET", "12bet": "12BET",
+    "crown": "Crown", "macauslot": "Macau Slot", "dafabet": "Dafabet",
+    "oddset": "ODDSET", "snai": "SNAI", "codere": "Codere",
+}
+ODDSAPI_BOOKMAKERS = "pinnacle,williamhill,ladbrokes_uk,unibet_fr,unibet_nl,unibet_se,tipico_de,winamax_de,winamax_fr"
+
+
+def _book_key(title):
+    return re.sub(r"[^a-z0-9]", "", (title or "").lower())
+
+
+def _canon_book(title):
+    return ODDS_BOOK_WHITELIST.get(_book_key(title))
+
+
+def filter_whitelist_books(fixture_rows):
+    """把 ESPN / Odds API 抓来的机构按白名单过滤、合并同一机构的不同区域报价。"""
+    for f in fixture_rows:
+        merged = {}
+        for b in (f.get("books") or []):
+            canon = _canon_book(b.get("book"))
+            if not canon:
+                continue
+            cur = merged.setdefault(canon, {"book": canon})
+            for k in ("m", "ou", "ah"):
+                if b.get(k) and not cur.get(k):
+                    cur[k] = b[k]
+            if b.get("src") == "oddsapi":
+                cur["src"] = "oddsapi"
+        if merged:
+            f["books"] = [merged[k] for k in sorted(merged)]
+        else:
+            f.pop("books", None)
+
+
 ODDSAPI_STATE = os.path.join(ROOT, "odds_snapshots", "oddsapi_state.json")
 ODDSAPI_BOOKS = os.path.join(ROOT, "odds_snapshots", "oddsapi_books.json")
 ODDSAPI_MIN_REMAINING = 20            # 剩余额度低于此值就停抓
@@ -1054,12 +1101,13 @@ def load_oddsapi_snapshot(fixture_rows):
                 ah = entry[3] if len(entry) > 3 else None
             else:
                 continue
-            if not title:
+            canon = _canon_book(title)
+            if not canon:
                 continue
-            norm = re.sub(r"[^a-z0-9]", "", str(title).lower())
+            norm = _book_key(canon)
             if norm in have:
                 continue
-            book = {"book": title, "src": "oddsapi"}
+            book = {"book": canon, "src": "oddsapi"}
             if isinstance(m, list) and len(m) == 3:
                 book["m"] = m
             if isinstance(ou, dict):
@@ -1202,7 +1250,8 @@ def fetch_oddsapi_books(fixture_rows, teams):
     remaining = state.get("remaining")
     for lab, sport in targets:
         url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
-               f"?apiKey={key}&regions=eu&markets=h2h,totals,spreads&oddsFormat=decimal&dateFormat=iso")
+               f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS}"
+               f"&markets=h2h,totals,spreads&oddsFormat=decimal&dateFormat=iso")
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=40) as resp:
@@ -1255,7 +1304,10 @@ def fetch_oddsapi_books(fixture_rows, teams):
                             prices["h"] = pr
                         else:
                             prices["a"] = pr
-                entry = {"book": title, "src": "oddsapi"}
+                canon = _canon_book(title)
+                if not canon:
+                    continue
+                entry = {"book": canon, "src": "oddsapi"}
                 if all(k in prices for k in ("h", "d", "a")):
                     entry["m"] = [prices["h"], prices["d"], prices["a"]]
                 # 大小球（totals）：取该机构的主盘口线
@@ -3328,12 +3380,13 @@ def main():
     except Exception as e:
         log(f"  ⚠ 多机构赔率抓取失败：{e}")
 
-    # The Odds API：五大联赛补 10+ 家机构欧赔
+    # The Odds API：只补用户指定机构（其余机构不展示）
     try:
         load_oddsapi_snapshot(fixture_rows)   # 非刷新时点也保留上次的多机构赔率
         fetch_oddsapi_books(fixture_rows, teams)
     except Exception as e:
         log(f"  ⚠ Odds API 抓取失败：{e}")
+    filter_whitelist_books(fixture_rows)
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()
