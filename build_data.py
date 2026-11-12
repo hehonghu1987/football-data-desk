@@ -1017,12 +1017,63 @@ ODDSAPI_LEAGUES = {
     "法甲": "soccer_france_ligue_one",
 }
 ODDSAPI_STATE = os.path.join(ROOT, "odds_snapshots", "oddsapi_state.json")
+ODDSAPI_BOOKS = os.path.join(ROOT, "odds_snapshots", "oddsapi_books.json")
 ODDSAPI_MIN_REMAINING = 20            # 剩余额度低于此值就停抓
 # 免费 500 credits/月 = 每个联赛每次 1 credit；按北京时间排刷新时段：
 # 05:00–12:00 不刷新；集中在 17:00–01:00（欧洲比赛开赛前）
 ODDSAPI_SLOTS_WEEKDAY = ["17:30", "21:00", "00:30"]     # 周一~周四：3 次（00:30 补凌晨场）
 ODDSAPI_SLOTS_FRIDAY = ["17:30", "20:30", "23:30"]      # 周五：3 次
 ODDSAPI_SLOTS_WEEKEND = ["17:00", "19:30", "22:00"]     # 周六、周日：3 次（次日 00:30 由工作日时点覆盖）
+
+
+def load_oddsapi_snapshot(fixture_rows):
+    """把上一次抓取的多机构赔率快照并回比赛（非刷新时点也能保留 10+ 家机构）。"""
+    try:
+        with open(ODDSAPI_BOOKS, "r", encoding="utf-8") as f:
+            snap = json.load(f)
+    except (OSError, ValueError):
+        return
+    by_id = {str(f.get("id")): f for f in fixture_rows}
+    n = 0
+    for fid, entries in (snap.get("fixtures") or {}).items():
+        f = by_id.get(str(fid))
+        if not f:
+            continue
+        books = f.setdefault("books", [])
+        have = {re.sub(r"[^a-z0-9]", "", (x.get("book") or "").lower()) for x in books}
+        for entry in entries:
+            if not entry or len(entry) < 2:
+                continue
+            title, m = entry[0], entry[1]
+            if not title or not isinstance(m, list) or len(m) != 3:
+                continue
+            norm = re.sub(r"[^a-z0-9]", "", str(title).lower())
+            if norm in have:
+                continue
+            books.append({"book": title, "m": m, "src": "oddsapi"})
+            have.add(norm)
+            n += 1
+    if n:
+        log(f"  Odds API 快照：恢复 {n} 条机构报价")
+
+
+def _write_oddsapi_snapshot(fixture_rows):
+    data = {}
+    for f in fixture_rows:
+        bs = [b for b in (f.get("books") or []) if b.get("src") == "oddsapi"]
+        if not bs:
+            continue
+        data[str(f.get("id"))] = [[b.get("book"), b.get("m")] for b in bs if b.get("m")]
+    if not data:
+        return
+    try:
+        os.makedirs(os.path.dirname(ODDSAPI_BOOKS), exist_ok=True)
+        with open(ODDSAPI_BOOKS, "w", encoding="utf-8") as f:
+            json.dump({"fetchedAt": datetime.utcnow().isoformat(), "fixtures": data},
+                      f, ensure_ascii=False, separators=(",", ":"))
+        log(f"  Odds API 快照：已保存 {len(data)} 场")
+    except OSError as e:
+        log(f"  ⚠ Odds API 快照保存失败：{e}")
 
 
 def _oddsapi_slot_ready(now_ts):
@@ -1079,10 +1130,13 @@ def fetch_oddsapi_books(fixture_rows, teams):
     except (OSError, ValueError):
         state = {}
     now_ts = time.time()
-    if state.get("last") and now_ts - state["last"] < 20 * 60:
+    force = bool(os.environ.get("ODDSAPI_FORCE"))
+    if force:
+        log("  Odds API：手动强制刷新（跳过时段判断）")
+    elif state.get("last") and now_ts - state["last"] < 20 * 60:
         log("  Odds API：20 分钟内刚刷新过，跳过")
         return
-    if not _oddsapi_slot_ready(now_ts):
+    if not force and not _oddsapi_slot_ready(now_ts):
         log("  Odds API：当前不在计划刷新时段（北京 05:00–12:00 不刷，集中在 17:00–01:00），跳过")
         return
     if state.get("remaining") is not None and state["remaining"] < ODDSAPI_MIN_REMAINING:
@@ -1168,7 +1222,7 @@ def fetch_oddsapi_books(fixture_rows, teams):
                 books = best.setdefault("books", [])
                 norm = re.sub(r"[^a-z0-9]", "", title.lower())
                 books[:] = [x for x in books if re.sub(r"[^a-z0-9]", "", (x.get("book") or "").lower()) != norm]
-                books.append({"book": title, "m": [prices["h"], prices["d"], prices["a"]]})
+                books.append({"book": title, "m": [prices["h"], prices["d"], prices["a"]], "src": "oddsapi"})
                 total_books += 1
 
     try:
@@ -1177,6 +1231,7 @@ def fetch_oddsapi_books(fixture_rows, teams):
             json.dump({"last": now_ts, "remaining": remaining, "at": datetime.utcnow().isoformat()}, f)
     except OSError:
         pass
+    _write_oddsapi_snapshot(fixture_rows)
     log(f"  Odds API：{len(targets)} 个联赛，写入 {total_books} 条机构报价，剩余额度 {remaining}")
 
 
@@ -3201,8 +3256,9 @@ def main():
     except Exception as e:
         log(f"  ⚠ 多机构赔率抓取失败：{e}")
 
-    # The Odds API：五大联赛补 10+ 家机构欧赔（8 小时一次，额度保护）
+    # The Odds API：五大联赛补 10+ 家机构欧赔
     try:
+        load_oddsapi_snapshot(fixture_rows)   # 非刷新时点也保留上次的多机构赔率
         fetch_oddsapi_books(fixture_rows, teams)
     except Exception as e:
         log(f"  ⚠ Odds API 抓取失败：{e}")
