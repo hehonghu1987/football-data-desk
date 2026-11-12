@@ -18,9 +18,11 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from collections import defaultdict
@@ -1005,6 +1007,135 @@ def _dec_odds(american):
     if not a:
         return None
     return round(1 + (a / 100 if a > 0 else 100 / (-a)), 2)
+
+
+ODDSAPI_LEAGUES = {
+    "英超": "soccer_epl",
+    "西甲": "soccer_spain_la_liga",
+    "意甲": "soccer_italy_serie_a",
+    "德甲": "soccer_germany_bundesliga",
+    "法甲": "soccer_france_ligue_one",
+}
+ODDSAPI_STATE = os.path.join(ROOT, "odds_snapshots", "oddsapi_state.json")
+ODDSAPI_MIN_INTERVAL = 7.5 * 3600     # 免费额度：5 联赛 × 3 次/天 ≈ 450 credits/月
+ODDSAPI_MIN_REMAINING = 60            # 剩余额度低于此值就停抓
+
+
+def _norm_team_name(n):
+    s = unicodedata.normalize("NFKD", n or "")
+    s = s.encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"[^a-z0-9 ]+", " ", s)
+    for w in ("fc", "cf", "afc", "sc", "club", "the", "if", "ac", "as", "ss", "us"):
+        s = re.sub(rf"\b{w}\b", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _team_sim(a, b):
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, _norm_team_name(a), _norm_team_name(b)).ratio()
+
+
+def fetch_oddsapi_books(fixture_rows, teams):
+    """The Odds API（免费 500 credits/月）：给五大联赛补 10+ 家机构欧赔。
+
+    成本 = 市场数 × 区域数，regions=eu 算 1 个区域；只取 h2h → 1 联赛 1 credit。
+    8 小时内不重复抓，额度不足自动停；状态写入 odds_snapshots/oddsapi_state.json。
+    """
+    key = os.environ.get("ODDS_API_KEY", "").strip()
+    if not key:
+        return
+    state = {}
+    try:
+        with open(ODDSAPI_STATE, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        state = {}
+    now_ts = time.time()
+    if state.get("last") and now_ts - state["last"] < ODDSAPI_MIN_INTERVAL:
+        log(f"  Odds API：距上次刷新 {int((now_ts - state['last']) / 60)} 分钟，跳过（额度保护）")
+        return
+    if state.get("remaining") is not None and state["remaining"] < ODDSAPI_MIN_REMAINING:
+        log(f"  Odds API：剩余额度 {state['remaining']}，低于阈值，跳过")
+        return
+
+    by_league = {}
+    for f in fixture_rows:
+        if f.get("league") in ODDSAPI_LEAGUES and f.get("date"):
+            by_league.setdefault(f["league"], []).append(f)
+    targets = [(lab, ODDSAPI_LEAGUES[lab]) for lab in ODDSAPI_LEAGUES if lab in by_league]
+    if not targets:
+        return
+
+    total_books = 0
+    remaining = state.get("remaining")
+    for lab, sport in targets:
+        url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
+               f"?apiKey={key}&regions=eu&markets=h2h&oddsFormat=decimal&dateFormat=iso")
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                rem = resp.headers.get("x-requests-remaining")
+                if rem is not None:
+                    remaining = int(rem)
+        except Exception as e:
+            log(f"  Odds API {lab} 失败：{str(e)[:80]}")
+            continue
+        for ev in data:
+            try:
+                ev_t = datetime.fromisoformat((ev.get("commence_time") or "").replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            home_n, away_n = ev.get("home_team") or "", ev.get("away_team") or ""
+            best, best_score = None, 0.0
+            for f in by_league.get(lab, []):
+                try:
+                    ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if abs((ft - ev_t).total_seconds()) > 3 * 3600:
+                    continue
+                th = teams.get(str(f.get("home"))) or {}
+                ta = teams.get(str(f.get("away"))) or {}
+                score = _team_sim(home_n, th.get("name") or "") + _team_sim(away_n, ta.get("name") or "")
+                if score > best_score:
+                    best, best_score = f, score
+            if best is None or best_score < 1.0:
+                continue
+            th = teams.get(str(best.get("home"))) or {}
+            for b in (ev.get("bookmakers") or []):
+                title = (b.get("title") or "").strip()
+                mkt = next((m for m in (b.get("markets") or []) if m.get("key") == "h2h"), None)
+                if not title or not mkt:
+                    continue
+                prices = {}
+                for o in (mkt.get("outcomes") or []):
+                    nm = (o.get("name") or "").strip()
+                    pr = o.get("price")
+                    if pr is None:
+                        continue
+                    if nm.lower() == "draw":
+                        prices["d"] = pr
+                        continue
+                    if _team_sim(nm, home_n) >= _team_sim(nm, away_n):
+                        prices["h"] = pr
+                    else:
+                        prices["a"] = pr
+                if not all(k in prices for k in ("h", "d", "a")):
+                    continue
+                books = best.setdefault("books", [])
+                norm = re.sub(r"[^a-z0-9]", "", title.lower())
+                books[:] = [x for x in books if re.sub(r"[^a-z0-9]", "", (x.get("book") or "").lower()) != norm]
+                books.append({"book": title, "m": [prices["h"], prices["d"], prices["a"]]})
+                total_books += 1
+
+    try:
+        os.makedirs(os.path.dirname(ODDSAPI_STATE), exist_ok=True)
+        with open(ODDSAPI_STATE, "w", encoding="utf-8") as f:
+            json.dump({"last": now_ts, "remaining": remaining, "at": datetime.utcnow().isoformat()}, f)
+    except OSError:
+        pass
+    log(f"  Odds API：{len(targets)} 个联赛，写入 {total_books} 条机构报价，剩余额度 {remaining}")
 
 
 def fetch_event_odds(league_code, event_id):
@@ -3027,6 +3158,12 @@ def main():
         log(f"  多家机构赔率：{books_n}/{len(book_jobs)} 场")
     except Exception as e:
         log(f"  ⚠ 多机构赔率抓取失败：{e}")
+
+    # The Odds API：五大联赛补 10+ 家机构欧赔（8 小时一次，额度保护）
+    try:
+        fetch_oddsapi_books(fixture_rows, teams)
+    except Exception as e:
+        log(f"  ⚠ Odds API 抓取失败：{e}")
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()

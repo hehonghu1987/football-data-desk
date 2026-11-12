@@ -35,6 +35,8 @@ jobs:
             espn-cache-
 
       - name: 采集数据并生成页面
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python3 build_data.py --workers 6 --rate 0.1
 
       - name: 保存采集缓存
