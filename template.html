@@ -1096,6 +1096,7 @@ table.books .mv b{color:var(--ink)}
 table.books tr.row-open td{background:var(--surface-2);color:var(--muted)}
 table.books tr.row-open .bk{color:var(--ink-2);font-weight:600}
 table.books .mq{font-size:10.5px;color:var(--muted);white-space:nowrap}
+table.books tr.row-empty td{color:var(--muted);opacity:.6}
 
 /* 高信心推荐 */
 .tag-conf{background:#FEF3C7;color:#8A5A12;border-color:#F2D089}
@@ -2633,6 +2634,9 @@ const BOOK_CN = {
   "Dafabet": "大发"
 };
 function bookCn(name){ return BOOK_CN[name] || name || ""; }
+/* 用户指定的欧赔 10 家（固定展示顺序，无数据的也保留一行） */
+const BOOK_ORDER = ["Pinnacle", "Bet365", "William Hill", "Ladbrokes", "Unibet",
+                    "Tipico", "ODDSET", "SNAI", "Winamax", "Codere"];
 function bookLabel(name){
   const cn = BOOK_CN[name];
   if(!cn || cn === name) return `<span class="bn-en only">${esc(name || "")}</span>`;
@@ -4179,7 +4183,10 @@ function renderPreMatch(m){
       const qv = v => (v == null ? "—" : Number(v).toFixed(2));
       const ql = v => (v == null ? "—" : Number(v).toFixed(1));
       const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
-      const rows = books.map(b => {
+      const byName = new Map(books.map(b => [b.book, b]));
+      const ordered = BOOK_ORDER.map(n => byName.get(n) || { book: n, empty: true });
+      for(const b of books) if(!BOOK_ORDER.includes(b.book)) ordered.push(b);
+      const rows = ordered.map(b => {
         const mm = b.m || [null, null, null];
         const ahb = b.ah || {}, oub = b.ou || {};
         const op = b.open || null;
@@ -4195,7 +4202,7 @@ function renderPreMatch(m){
         if(op){
           return mk("初赔", om, oah, oou, "row-open", true) + mk("即时", mm, ahb, oub, "", false);
         }
-        return mk("即时", mm, ahb, oub, "", true);
+        return mk(b.empty ? "暂无数据" : "即时", mm, ahb, oub, b.empty ? "row-empty" : "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
         <table class="books">
