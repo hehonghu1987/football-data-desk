@@ -1334,11 +1334,12 @@ def fetch_oddsapi_books(fixture_rows, teams):
             log(f"  Odds API {lab} 失败：{str(e)[:80]}")
             continue
         merged = list(data)
-        # 主流机构补充包（只取 h2h，10 家算 1 个区域 = 1 credit）
+        # 主流机构补充包：额度充足时也抓大小球/亚盘（3 credits），额度紧张时只抓 h2h（1 credit）
         if remaining is None or remaining > 120:
+            extra_markets = "h2h,totals,spreads" if (remaining is None or remaining > 200) else "h2h"
             extra_url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
                          f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS_EXTRA}"
-                         f"&markets=h2h&oddsFormat=decimal&dateFormat=iso")
+                         f"&markets={extra_markets}&oddsFormat=decimal&dateFormat=iso")
             try:
                 req2 = urllib.request.Request(extra_url, headers={"User-Agent": UA})
                 with urllib.request.urlopen(req2, timeout=40) as resp2:
