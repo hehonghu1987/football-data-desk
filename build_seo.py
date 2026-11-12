@@ -168,6 +168,10 @@ def main():
         return 0
     payload = json.load(open(DATA, encoding="utf-8"))
     teams = {str(t["id"]): t for t in payload["teams"]}
+    try:
+        rosters = json.load(open(os.path.join(ROOT, "data", "rosters.json"), encoding="utf-8")).get("teams") or {}
+    except (OSError, ValueError):
+        rosters = {}
     matches = payload["matches"]
     fixtures = payload.get("fixtures") or []
 
@@ -393,6 +397,24 @@ def main():
                          f'<td>{hname if e[2] == 0 else aname}</td></tr>' for e in evs)
             body += ("<h2>比赛事件</h2><table><thead><tr><th>时间</th><th></th><th>球员</th><th>球队</th>"
                      "</tr></thead><tbody>" + er + "</tbody></table>")
+        # 阵容（来自 data/rosters.json）
+        squad_blocks = ""
+        for tid, nm in ((home, hname), (away, aname)):
+            pl = rosters.get(str(tid)) or []
+            if not pl:
+                continue
+            rows_pl = "".join(
+                f'<tr><td>{esc(p.get("j") or "")}</td><td>{esc(p.get("n") or p.get("e") or "")}</td>'
+                f'<td>{esc(p.get("pos") or "")}</td><td>{esc(p.get("age") or "—")}</td>'
+                f'<td>{esc(p.get("nat") or "")}</td>'
+                f'<td>{esc(p.get("app") if p.get("app") is not None else "—")}</td>'
+                f'<td>{esc(p.get("g") or 0)}</td><td>{esc(p.get("a") or 0)}</td></tr>'
+                for p in pl[:18])
+            squad_blocks += (f'<h3>{nm} 阵容</h3><table><thead><tr><th>号</th><th>球员</th><th>位置</th>'
+                             f'<th>年龄</th><th>国籍</th><th>出场</th><th>进球</th><th>助攻</th></tr></thead>'
+                             f'<tbody>{rows_pl}</tbody></table>')
+        if squad_blocks:
+            body += "<h2>双方阵容</h2>" + squad_blocks
         body += ('<h2>相关页面</h2><div class="chips">'
                  f'<a class="chip" href="../teams/{team_paths.get(str(home), "")}">{hname} 球队页</a>'
                  f'<a class="chip" href="../teams/{team_paths.get(str(away), "")}">{aname} 球队页</a>'

@@ -948,6 +948,51 @@ def stats_for_summary(league_code, event_id, d):
     return stats_from_core(league_code, event_id, hid, aid)
 
 
+ROSTER_STAT_KEYS = {
+    "appearances": "app", "totalGoals": "g", "goalAssists": "a",
+    "saves": "sv", "yellowCards": "yc", "redCards": "rc",
+}
+
+
+def fetch_roster(league_code, team_id):
+    """球队名单（含球员年龄/位置/国籍与赛季数据）。缓存 24 小时。"""
+    name = f"ros_{league_code}_{team_id}.json"
+    path = os.path.join(CACHE_DIR, name)
+    raw = read_cache(name)
+    if raw is not None and cache_age(raw, path) < 24 * 3600:
+        return raw.get("players") or []
+    try:
+        d = get_json(f"{API}/{league_code}/teams/{team_id}/roster")
+    except Exception:
+        return (raw or {}).get("players") or []
+    players = []
+    for a in (d.get("athletes") or []):
+        stats = {}
+        for cat in (((a.get("statistics") or {}).get("splits") or {}).get("categories") or []):
+            for st in (cat.get("stats") or []):
+                nm = st.get("name")
+                if nm in ROSTER_STAT_KEYS:
+                    stats[ROSTER_STAT_KEYS[nm]] = st.get("value")
+        pos = ((a.get("position") or {}).get("abbreviation") or "").strip()
+        nat = a.get("citizenship") or ""
+        nat_cn = CN.get(nat, (nat, []))[0] if nat else ""
+        p = {
+            "id": str(a.get("id")),
+            "e": a.get("displayName") or "",
+            "n": player_cn(a.get("displayName")) or a.get("displayName") or "",
+            "pos": pos, "age": a.get("age"), "nat": nat_cn,
+            "j": (a.get("jersey") or "").strip(),
+        }
+        for k, v in stats.items():
+            if v is not None:
+                p[k] = int(v) if float(v).is_integer() else round(v, 1)
+        players.append(p)
+    players.sort(key=lambda p: (-(p.get("app") or 0), -(p.get("g") or 0)))
+    players = players[:22]
+    write_cache(name, {"players": players, "_t": time.time()})
+    return players
+
+
 STANDINGS_KEYS = {"GP": "gp", "W": "w", "D": "d", "L": "l", "F": "gf", "A": "ga",
                   "GD": "gd", "P": "pts", "R": "rank"}
 
@@ -2948,6 +2993,54 @@ def main():
         log(f"  比赛事件：{ev_n}/{len(ev_jobs)} 场（近 30 天）")
     except Exception as e:
         log(f"  ⚠ 比赛事件抓取失败：{e}")
+
+    # 球队名单（球员介绍）：覆盖未来赛程、积分榜与近 14 天参赛球队
+    try:
+        label2code = {l["label"]: l["code"] for l in leagues}
+        roster_tids = set()
+        for f in fixture_rows:
+            roster_tids.add(str(f.get("home")))
+            roster_tids.add(str(f.get("away")))
+        for groups in standings.values():
+            for grp in groups:
+                for r in (grp.get("rows") or []):
+                    if r.get("id"):
+                        roster_tids.add(str(r["id"]))
+        cutoff14 = (datetime.now() - timedelta(days=14)).isoformat()
+        for m in match_rows:
+            if (m.get("date") or "") >= cutoff14:
+                roster_tids.add(str(m.get("home")))
+                roster_tids.add(str(m.get("away")))
+        roster_jobs = []
+        for tid in roster_tids:
+            t = teams.get(tid)
+            if not t:
+                continue
+            code = None
+            for lg in (t.get("currentLeagues") or []) + (t.get("leagues") or []):
+                if lg in label2code:
+                    code = label2code[lg]
+                    break
+            if code:
+                roster_jobs.append((code, tid))
+        rosters = {}
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            futs = {ex.submit(fetch_roster, code, tid): tid for code, tid in roster_jobs}
+            for fut in as_completed(futs):
+                tid = futs[fut]
+                try:
+                    pl = fut.result()
+                except Exception:
+                    pl = []
+                if pl:
+                    rosters[tid] = pl
+        ros_path = os.path.join(DATA_DIR, "rosters.json")
+        with open(ros_path, "w", encoding="utf-8") as f:
+            json.dump({"teams": rosters}, f, ensure_ascii=False, separators=(",", ":"))
+        log(f"  球队名单：{len(rosters)}/{len(roster_jobs)} 队"
+            f"（{os.path.getsize(ros_path) / 1024 / 1024:.2f} MB）")
+    except Exception as e:
+        log(f"  ⚠ 球队名单抓取失败：{e}")
 
     payload = {
         "meta": meta,

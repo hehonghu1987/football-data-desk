@@ -754,6 +754,21 @@ table.stats tbody tr:last-child td{border-bottom:0}
 }
 .pred-markets{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:11.5px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .pred-markets b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+/* ---------- 阵容与球员 ---------- */
+.squad-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.squad-team{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
+.squad-h{display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 8px;font-weight:600}
+.squad-list{display:flex;flex-direction:column;gap:6px}
+.sq-card{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border-radius:8px;background:var(--surface-2)}
+.sq-num{font-family:var(--font-mono);font-size:11px;color:var(--muted);width:20px;text-align:right;flex:none;padding-top:2px}
+.sq-main{min-width:0}
+.sq-name{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sq-meta{font-size:10.5px;color:var(--muted)}
+.sq-stats{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.sq-stats span{font-size:10.5px;color:var(--ink2);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:0 6px}
+#team-squad .squad-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+@media(max-width:640px){.squad-cols{grid-template-columns:1fr}}
+
 /* ---------- 积分榜 ---------- */
 .st-wrap{overflow-x:auto}
 table.st{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -1199,6 +1214,14 @@ html.js-boot #boot-skeleton{display:block}
       <div class="next-grid" id="team-next-list"></div>
     </section>
 
+    <section class="section" id="team-squad-sec" hidden>
+      <div class="section-head">
+        <h2 class="section-title">阵容与球员</h2>
+        <span class="section-note">本赛季出场/进球/助攻（ESPN）</span>
+      </div>
+      <div class="panel" id="team-squad"></div>
+    </section>
+
     <div class="filters">
       <div class="seg" id="side-seg" role="group" aria-label="主客场筛选">
         <button type="button" data-side="all" aria-pressed="true">全部</button>
@@ -1293,6 +1316,7 @@ html.js-boot #boot-skeleton{display:block}
     <div class="match-tools"><button class="chip-btn" id="export-match" type="button">导出图片</button></div>
     <div id="match-hero"></div>
     <div id="match-compare"></div>
+    <div id="match-squads" hidden></div>
     <div id="match-timeline" hidden></div>
     <div id="match-books"></div>
 
@@ -1570,6 +1594,83 @@ function loadHistory(){
     .catch(() => { HISTORY_LOADING = null; });   // 失败可重试（弱网/离线）
   return HISTORY_LOADING;
 }
+let ROSTERS = null, ROSTERS_LOADING = null;
+function loadRosters(){
+  if(ROSTERS) return Promise.resolve(ROSTERS);
+  if(ROSTERS_LOADING) return ROSTERS_LOADING;
+  ROSTERS_LOADING = fetch("data/rosters.json")
+    .then(r => r.ok ? r.json() : null)
+    .then(h => {
+      ROSTERS = (h && h.teams) || {};
+      onRostersLoaded();
+      return ROSTERS;
+    })
+    .catch(() => { ROSTERS_LOADING = null; return null; });
+  return ROSTERS_LOADING;
+}
+function onRostersLoaded(){
+  if(state.matchId && !$("#match-view").hidden){
+    const m = MATCH_BY_ID.get(String(state.matchId));
+    if(m){ renderInsight(m); renderSquads(m); }
+  } else if(state.id && !$("#team-view").hidden){
+    renderTeamSquad(state.id);
+  }
+}
+function playerPos(p){
+  return ({ G: "门将", D: "后卫", M: "中场", F: "前锋" })[p.pos] || p.pos || "";
+}
+function playerCard(p){
+  const bits = [];
+  const pos = playerPos(p);
+  if(pos) bits.push(pos);
+  if(p.age) bits.push(p.age + " 岁");
+  if(p.nat) bits.push(p.nat);
+  const stats = [];
+  if(p.app != null) stats.push(`出场 ${p.app}`);
+  if(p.g) stats.push(`进球 ${p.g}`);
+  if(p.a) stats.push(`助攻 ${p.a}`);
+  if(p.sv) stats.push(`扑救 ${p.sv}`);
+  if(p.yc) stats.push(`黄牌 ${p.yc}`);
+  if(p.rc) stats.push(`红牌 ${p.rc}`);
+  return `<div class="sq-card">
+    <span class="sq-num">${esc(p.j || "")}</span>
+    <div class="sq-main">
+      <div class="sq-name">${esc(p.n || p.e || "")}</div>
+      <div class="sq-meta">${esc(bits.join(" · "))}</div>
+      ${stats.length ? `<div class="sq-stats">${stats.map(x => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
+    </div>
+  </div>`;
+}
+function renderSquads(m){
+  const box = $("#match-squads");
+  if(!box) return;
+  if(!ROSTERS){ box.hidden = true; loadRosters(); return; }
+  const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+  const hp = ROSTERS[String(m.home)] || [], ap = ROSTERS[String(m.away)] || [];
+  if(!hp.length && !ap.length){ box.hidden = true; return; }
+  box.hidden = false;
+  const col = (t, pl) => `<div class="squad-team">
+      <h3 class="squad-h">${badge(t, "sm")}${esc((t && (t.cn || t.name)) || "")}</h3>
+      <div class="squad-list">${pl.map(playerCard).join("")}</div>
+    </div>`;
+  box.innerHTML = `<section class="section">
+    <div class="section-head">
+      <h2 class="section-title">双方阵容</h2>
+      <span class="section-note">位置 · 年龄 · 国籍 · 本赛季数据</span>
+    </div>
+    <div class="squad-cols">${col(h, hp)}${col(a, ap)}</div>
+  </section>`;
+}
+function renderTeamSquad(id){
+  const sec = $("#team-squad-sec"), box = $("#team-squad");
+  if(!sec || !box) return;
+  if(!ROSTERS){ sec.hidden = true; loadRosters(); return; }
+  const pl = ROSTERS[String(id)] || [];
+  if(!pl.length){ sec.hidden = true; return; }
+  sec.hidden = false;
+  box.innerHTML = `<div class="squad-list">${pl.map(playerCard).join("")}</div>`;
+}
+
 function onHistoryLoaded(){
   if(state.id && !$("#team-view").hidden){ renderTeam(state.id); return; }
   if(!$("#match-view").hidden) return;
@@ -3323,6 +3424,7 @@ function renderTeam(id){
   const loc = t.location && norm(t.location) !== norm(t.name) && !norm(t.name).includes(norm(t.location))
     ? ` · ${esc(t.location)}` : "";
 
+  renderTeamSquad(id);
   $("#team-hero").innerHTML = `<div class="team-hero" style="--team-color:${color}">
     <div class="team-hero-inner">
       ${badge(t, "lg")}
@@ -3932,6 +4034,12 @@ function renderInsight(m){
     t += `；${an}最近 6 个客场 ${fmtRec(aa.rec)}`;
     if(aa.gf != null) t += `（场均进 ${aa.gf.toFixed(1)} 失 ${aa.ga.toFixed(1)}）`;
     t += "。";
+    if(upcoming && model && hh.gf != null && aa.ga != null && xh != null && xa != null){
+      t += `模型给${hn} ${xh.toFixed(2)} 个预期进球、${an} ${xa.toFixed(2)} 个；`;
+      const hAdv = xh - aa.ga, aAdv = xa - hh.ga;
+      t += hAdv >= 0.4 ? `主队进攻对位客队客场防守（场均失 ${aa.ga.toFixed(1)}）占优` : (aAdv >= 0.4 ? `客队进攻对位主队主场防守（场均失 ${hh.ga.toFixed(1)}）占优` : "双方攻防对位比较均衡");
+      t += "。";
+    }
     bullets.push({ k: "主客场", t });
   }
 
@@ -4007,8 +4115,114 @@ function renderInsight(m){
     const predFav = m.pre.ph > m.pre.pa + 0.08 ? hn : (m.pre.pa > m.pre.ph + 0.08 ? an : null);
     const winner = m.hs > m.as ? hn : (m.hs < m.as ? an : null);
     let t = `赛前模型预期进球 ${m.pre.xh.toFixed(1)}–${m.pre.xa.toFixed(1)}，实际比分 ${m.hs}–${m.as}`;
-    t += predFav ? `；赛前更看好${predFav}，${winner ? (winner === predFav ? "结果与模型方向一致" : "结果与模型方向相反") : "最终打平"}。` : "；赛前判断双方接近，最终打平。";
+    if(predFav){
+      t += `；赛前更看好${predFav}，${winner ? (winner === predFav ? "结果与模型方向一致" : "结果与模型方向相反") : "最终打平"}。`;
+    } else {
+      t += winner ? `；赛前判断双方接近，实际${winner}取胜。` : "；赛前判断双方接近，最终打平。";
+    }
     bullets.push({ k: "模型对照", t });
+  }
+
+  // 8) 赔率视角（公平赔率 = 1/概率，与市场对照）
+  if(upcoming && final){
+    const fo = p => (p > 0 ? (1 / p) : 0);
+    const f1 = fo(final[0]), fx = fo(final[1]), f2 = fo(final[2]);
+    let t = `按综合概率折算公平赔率：主胜 ${f1.toFixed(2)}、平 ${fx.toFixed(2)}、客胜 ${f2.toFixed(2)}`;
+    const dcH = final[0] + final[1], dcA = final[2] + final[1];
+    const dcName = dcH >= dcA ? `「${hn}胜或平」` : `「${an}胜或平」`;
+    const dcP = Math.max(dcH, dcA);
+    t += `；双重机会${dcName}合计概率 ${pct(dcP)}，公平赔率 ${(1 / dcP).toFixed(2)}。`;
+    if(ip){
+      const gaps = [0, 1, 2].map(i => ({ i, gap: final[i] - ip[i] }));
+      gaps.sort((x, y) => Math.abs(y.gap) - Math.abs(x.gap));
+      const g = gaps[0];
+      const nm = ["主胜", "平局", "客胜"][g.i];
+      t += ` 市场与模型差异最大的是${nm}：模型 ${pct(final[g.i])}、市场 ${pct(ip[g.i])}`;
+      t += Math.abs(g.gap) >= 0.06 ? (g.gap > 0 ? "，模型相对更看好。" : "，市场相对更看好。") : "，两者基本一致。";
+    }
+    bullets.push({ k: "赔率视角", t });
+  }
+
+  // 9) 进球盘口（大/小球 + 双方进球，公平赔率）
+  if(upcoming && model){
+    const lines = model.lines || {};
+    const p25 = lines["2.5"], p35 = lines["3.5"];
+    let t = "";
+    if(p25 != null){
+      t += `大 2.5 球概率 ${pct(p25)}（公平赔率 ${(1 / p25).toFixed(2)}），小 2.5 球 ${pct(1 - p25)}（公平赔率 ${(1 / (1 - p25)).toFixed(2)}）`;
+    }
+    if(p35 != null) t += `${t ? "；" : ""}大 3.5 球概率 ${pct(p35)}（公平赔率 ${(1 / p35).toFixed(2)}）`;
+    if(t) t += "。";
+    if(model.btts != null){
+      t += `双方进球概率 ${pct(model.btts)}（是的公平赔率 ${(1 / model.btts).toFixed(2)}，否的公平赔率 ${(1 / (1 - model.btts)).toFixed(2)}）。`;
+    }
+    if(p25 != null) t += p25 >= 0.58 ? " 进球盘明显偏向大球。" : (p25 <= 0.45 ? " 进球盘偏向小球。" : " 大小球倾向不明显。");
+    if(t) bullets.push({ k: "进球盘口", t });
+  }
+
+  // 10) 角球与定位球
+  if(upcoming && model && model.corners){
+    const c = model.corners, over = c.over || {};
+    let t = `期望角球 ${c.expH.toFixed(1)}–${c.expA.toFixed(1)}（合计 ${c.exp.toFixed(1)} 个）`;
+    const parts = [];
+    for(const ln of ["8.5", "9.5", "10.5"]){
+      if(over[ln] != null) parts.push(`超过 ${ln} 个 ${pct(over[ln])}（公平赔率 ${(1 / over[ln]).toFixed(2)}）`);
+    }
+    if(parts.length) t += "；" + parts.join("、");
+    t += "。";
+    t += c.exp >= 10.2 ? " 角球数可能偏多。" : (c.exp <= 8.6 ? " 角球数可能偏少。" : " 角球数接近常态。");
+    bullets.push({ k: "角球与定位球", t });
+  }
+
+  // 11) 战术推演（阵型 + 控球/射门风格 + 对抗强度）
+  if(upcoming){
+    const lh = (DATA.lineups || {})[String(h.id)];
+    const la = (DATA.lineups || {})[String(a.id)];
+    const hav = teamAvg(h.id), aav = teamAvg(a.id);
+    let t = "";
+    if(lh && la && lh.f && la.f) t += `阵型上，${hn}可能用 ${lh.f}，${an}可能用 ${la.f}。`;
+    if(hav.poss != null && aav.poss != null){
+      const d = hav.poss - aav.poss;
+      t += d >= 8 ? `${hn}更可能控球推进，${an}顺势收缩打转换` : (d <= -8 ? `${an}更可能掌握球权，${hn}需要靠反击和定位球` : "双方控球接近，中场拼抢会决定节奏");
+      if(hav.shots && aav.shots) t += `；近 30 场场均射门 ${hav.shots.toFixed(1)} 对 ${aav.shots.toFixed(1)}`;
+      if(hav.sot && aav.sot) t += `，射正 ${hav.sot.toFixed(1)} 对 ${aav.sot.toFixed(1)}`;
+      if(hav.corners && aav.corners) t += `，角球 ${hav.corners.toFixed(1)} 对 ${aav.corners.toFixed(1)}`;
+      t += "。";
+    }
+    const hy = havYellow(h.id), ay = havYellow(a.id);
+    if(hy != null && ay != null){
+      t += `对抗强度方面，两队近 30 场场均黄牌合计 ${(hy + ay).toFixed(1)} 张${hy + ay >= 5 ? "，比赛可能比较火爆" : ""}。`;
+    }
+    if(t) bullets.push({ k: "战术推演", t });
+    // 核心球员（名单数据加载后才有）
+    const rp = (ROSTERS && ROSTERS[String(h.id)]) || [];
+    const rap = (ROSTERS && ROSTERS[String(a.id)]) || [];
+    const best = pl => (pl || []).slice().sort((x, y) => (y.g || 0) - (x.g || 0))[0];
+    const bp = best(rp), bpp = best(rap);
+    const kp = [];
+    if(bp && (bp.g || 0) > 0) kp.push(`${hn} ${bp.n}（${bp.g} 球${bp.a ? `、${bp.a} 助攻` : ""}）`);
+    if(bpp && (bpp.g || 0) > 0) kp.push(`${an} ${bpp.n}（${bpp.g} 球${bpp.a ? `、${bpp.a} 助攻` : ""}）`);
+    if(kp.length) bullets.push({ k: "核心球员", t: `本赛季进球最多的球员：${kp.join("；")}。` });
+  }
+
+  // 12) 比分范围
+  if(upcoming && m.pred && Array.isArray(m.pred.top) && m.pred.top.length){
+    const tops = m.pred.top.slice(0, 3);
+    let t = `最可能的比分：${tops.map(x => `${x[0]}（${pct(x[1])}）`).join("、")}`;
+    const gs = tops.map(x => x[0].split("-").reduce((a, b) => Number(a) + Number(b), 0));
+    const avg = gs.reduce((a, b) => a + b, 0) / gs.length;
+    t += `；按模型分布，总进球更可能集中在 ${Math.max(0, Math.round(avg) - 1)}–${Math.round(avg) + 1} 球之间。`;
+    bullets.push({ k: "比分范围", t });
+  }
+
+  // 13) 赛后：赛前进球盘口复盘
+  if(!upcoming && m.pre && Array.isArray(m.pre.o) && m.pre.o.length >= 3 && m.pre.o[2] != null){
+    const p25 = m.pre.o[2] / 1000;
+    const total = (m.hs || 0) + (m.as || 0);
+    let t = `赛前模型大 2.5 球概率 ${pct(p25)}，实际总进球 ${total} 球`;
+    t += (total > 2.5) === (p25 >= 0.5) ? "，进球盘方向命中。" : "，进球盘方向与实际相反。";
+    if(m.pre.xh != null) t += ` 赛前预期进球 ${Number(m.pre.xh).toFixed(2)}–${Number(m.pre.xa).toFixed(2)}。`;
+    bullets.push({ k: "赛前进球盘复盘", t });
   }
 
   if(!bullets.length){ sec.hidden = true; return; }
@@ -4128,6 +4342,7 @@ function renderMatch(id){
   renderInsight(m);
 
   renderMatchH2H(h, a, m);
+  renderSquads(m);
   renderMatchTimeline(m);
   renderMatchBooks(m);
 }
