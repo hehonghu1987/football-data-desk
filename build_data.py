@@ -1055,8 +1055,19 @@ def fetch_oddsapi_books(fixture_rows, teams):
         log(f"  Odds API：距上次刷新 {int((now_ts - state['last']) / 60)} 分钟，跳过（额度保护）")
         return
     if state.get("remaining") is not None and state["remaining"] < ODDSAPI_MIN_REMAINING:
-        log(f"  Odds API：剩余额度 {state['remaining']}，低于阈值，跳过")
-        return
+        # 额度每月 1 日 00:00 UTC 重置；重置后允许一次探活，避免永久停抓
+        allow_probe = True
+        try:
+            from datetime import timezone as _tz
+            started = datetime.fromisoformat(state.get("at") or "")
+            y, mo = (started.year + 1, 1) if started.month == 12 else (started.year, started.month + 1)
+            reset = datetime(y, mo, 1, tzinfo=_tz.utc)
+            allow_probe = datetime.now(_tz.utc) >= reset
+        except (TypeError, ValueError):
+            allow_probe = True
+        if not allow_probe:
+            log(f"  Odds API：剩余额度 {state['remaining']}，低于阈值，跳过（等月度重置）")
+            return
 
     by_league = {}
     for f in fixture_rows:
