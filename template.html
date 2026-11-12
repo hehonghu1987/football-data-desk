@@ -1011,8 +1011,9 @@ html{scroll-behavior:smooth}
 /* 比赛页内导航 */
 .match-nav{position:sticky;top:calc(var(--topbar-h) + 4px);z-index:30;display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin:12px 0 2px;scrollbar-width:none;background:var(--bg);box-shadow:0 10px 14px -14px rgba(18,33,26,.35)}
 .match-nav::-webkit-scrollbar{display:none}
-.match-nav a{flex:none;font-size:12px;color:var(--muted);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;text-decoration:none;transition:color .15s,border-color .15s,background .15s}
-.match-nav a:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.match-nav button{flex:none;font:inherit;font-size:12px;color:var(--muted);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
+.match-nav button:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.match-nav button[hidden]{display:none}
 
 /* 分析卡片化 */
 .insight-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;background:none;border:0;overflow:visible}
@@ -1449,12 +1450,12 @@ table.books .mv b{color:var(--ink)}
     <div class="match-tools"><button class="chip-btn" id="export-match" type="button">导出图片</button></div>
     <div id="match-hero"></div>
     <nav class="match-nav" id="match-nav" aria-label="页内导航">
-      <a href="#insight" data-nav="insight">分析</a>
-      <a href="#pre-match" data-nav="pre-match">赛前数据</a>
-      <a href="#match-timeline" data-nav="match-timeline">比赛事件</a>
-      <a href="#match-books" data-nav="match-books">多机构盘口</a>
-      <a href="#match-h2h" data-nav="match-h2h">历史交锋</a>
-      <a href="#match-squads" data-nav="match-squads">双方阵容</a>
+      <button type="button" data-nav="insight">分析</button>
+      <button type="button" data-nav="pre-match">赛前数据</button>
+      <button type="button" data-nav="match-timeline">比赛事件</button>
+      <button type="button" data-nav="match-books">多机构盘口</button>
+      <button type="button" data-nav="match-h2h">历史交锋</button>
+      <button type="button" data-nav="match-squads">双方阵容</button>
     </nav>
     <div id="match-compare"></div>
     <div id="match-timeline" hidden></div>
@@ -1754,7 +1755,7 @@ function loadRosters(){
 function onRostersLoaded(){
   if(state.matchId && !$("#match-view").hidden){
     const m = MATCH_BY_ID.get(String(state.matchId));
-    if(m){ renderInsight(m); renderSquads(m); }
+    if(m){ renderInsight(m); renderSquads(m); updateMatchNav(); }
   } else if(state.id && !$("#team-view").hidden){
     renderTeamSquad(state.id);
   }
@@ -3390,6 +3391,14 @@ $("#day-input")?.addEventListener("change", e => {
   if(e.target.value){ state.day = e.target.value; syncDayBar(); renderFixtures(); }
 });
 
+$("#match-nav")?.addEventListener("click", e => {
+  const btn = e.target.closest("[data-nav]");
+  if(!btn) return;
+  e.preventDefault();
+  const el = document.getElementById(btn.dataset.nav);
+  if(el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
 $("#standings-select")?.addEventListener("change", e => {
   state.standingsLg = e.target.value;
   renderStandings();
@@ -4637,6 +4646,16 @@ function havYellow(tid){
   return a.yellow;
 }
 
+function updateMatchNav(){
+  const nav = $("#match-nav");
+  if(!nav) return;
+  nav.querySelectorAll("[data-nav]").forEach(btn => {
+    const el = document.getElementById(btn.dataset.nav);
+    const ok = !!el && !el.hidden && el.getBoundingClientRect().height > 0;
+    btn.hidden = !ok;
+  });
+}
+
 function renderMatch(id){
   const m = MATCH_BY_ID.get(String(id));
   if(!m){ location.hash = "#/"; return; }
@@ -4747,6 +4766,8 @@ function renderMatch(id){
   renderSquads(m);
   renderMatchTimeline(m);
   renderMatchBooks(m);
+  updateMatchNav();
+  setTimeout(updateMatchNav, 2200);
 }
 
 /* ---------- 多机构赛前盘口（football-data.co.uk，按需加载） ---------- */
