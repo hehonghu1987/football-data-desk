@@ -1539,7 +1539,7 @@ table.books .mq{font-size:10.5px;color:var(--muted);white-space:nowrap}
           <tbody id="h2h-table-body"></tbody>
         </table>
       </div>
-      <div class="table-hint">历史交锋取自本站已收录的比赛（每队最近 30 场），点击任意一行可展开犯规、封堵、场地等详细数据。</div>
+      <div class="table-hint">历史交锋取自本站已收录的全部比赛，最多展示最近 10 场；收录不足 10 场时展示全部。点击任意一行可展开犯规、封堵、场地等详细数据。</div>
     </section>
 
     <div id="match-squads" hidden></div>
@@ -4844,6 +4844,17 @@ function renderMatch(id){
   renderInsight(m);
 
   renderMatchH2H(h, a, m);
+  if(!HISTORY_LOADED){
+    loadHistory().then(() => {
+      if(state.matchId && String(state.matchId) === String(id) && !$("#match-view").hidden){
+        const mm = MATCH_BY_ID.get(String(state.matchId));
+        if(mm){
+          const hh = TEAMS.get(String(mm.home)), aa = TEAMS.get(String(mm.away));
+          if(hh && aa) renderMatchH2H(hh, aa, mm);
+        }
+      }
+    });
+  }
   renderSquads(m);
   renderMatchTimeline(m);
   renderMatchBooks(m);
@@ -4940,8 +4951,8 @@ function renderMatchH2H(h, a, m){
   $$("#mv-h2h-side [data-side]").forEach(b =>
     b.setAttribute("aria-pressed", b.dataset.side === side ? "true" : "false"));
   $("#mv-h2h-count").textContent = side === "all"
-    ? `${all.length} 场`
-    : `${sideLabel} ${sideFiltered.length} / ${all.length} 场（以${h.cn || h.name}为参照）`;
+    ? `共 ${all.length} 场 · 展示最近 ${Math.min(all.length, 10)} 场`
+    : `${sideLabel} ${Math.min(sideFiltered.length, 10)} / ${sideFiltered.length} 场（共 ${all.length} 场，展示最近 10 场）`;
 
   $("#h2h-note").textContent = list.length
     ? `${side === "all" ? "" : sideLabel + " · "}最近 ${list.length} 次${sideFiltered.length > list.length ? `（共 ${sideFiltered.length} 场）` : ""} · 最早 ${fmtDate(list[list.length - 1].date)}`
