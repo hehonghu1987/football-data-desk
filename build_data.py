@@ -1045,15 +1045,30 @@ def load_oddsapi_snapshot(fixture_rows):
         books = f.setdefault("books", [])
         have = {re.sub(r"[^a-z0-9]", "", (x.get("book") or "").lower()) for x in books}
         for entry in entries:
-            if not entry or len(entry) < 2:
+            if isinstance(entry, dict):
+                title, m = entry.get("book"), entry.get("m")
+                ou, ah = entry.get("ou"), entry.get("ah")
+            elif entry and len(entry) >= 2:
+                title, m = entry[0], entry[1]
+                ou = entry[2] if len(entry) > 2 else None
+                ah = entry[3] if len(entry) > 3 else None
+            else:
                 continue
-            title, m = entry[0], entry[1]
-            if not title or not isinstance(m, list) or len(m) != 3:
+            if not title:
                 continue
             norm = re.sub(r"[^a-z0-9]", "", str(title).lower())
             if norm in have:
                 continue
-            books.append({"book": title, "m": m, "src": "oddsapi"})
+            book = {"book": title, "src": "oddsapi"}
+            if isinstance(m, list) and len(m) == 3:
+                book["m"] = m
+            if isinstance(ou, dict):
+                book["ou"] = ou
+            if isinstance(ah, dict):
+                book["ah"] = ah
+            if not (book.get("m") or book.get("ou") or book.get("ah")):
+                continue
+            books.append(book)
             have.add(norm)
             n += 1
     if n:
@@ -1066,7 +1081,14 @@ def _write_oddsapi_snapshot(fixture_rows):
         bs = [b for b in (f.get("books") or []) if b.get("src") == "oddsapi"]
         if not bs:
             continue
-        data[str(f.get("id"))] = [[b.get("book"), b.get("m")] for b in bs if b.get("m")]
+        items = []
+        for b in bs:
+            item = {"book": b.get("book")}
+            for k in ("m", "ou", "ah"):
+                if b.get(k):
+                    item[k] = b.get(k)
+            items.append(item)
+        data[str(f.get("id"))] = items
     if not data:
         return
     try:
@@ -1168,19 +1190,19 @@ def fetch_oddsapi_books(fixture_rows, teams):
         except ValueError:
             continue
         # 只抓「最近 2 小时 ~ 未来 48 小时」有比赛的联赛；其余联赛用快照，避免空刷额度
-        if not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=48)):
+        if not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=14)):
             continue
         by_league.setdefault(lab, []).append(f)
     targets = [(lab, ODDSAPI_LEAGUES[lab]) for lab in ODDSAPI_LEAGUES if lab in by_league]
     if not targets:
-        log("  Odds API：48 小时内没有需要刷新的联赛，跳过")
+        log("  Odds API：14 小时内没有需要刷新的联赛，跳过")
         return
 
     total_books = 0
     remaining = state.get("remaining")
     for lab, sport in targets:
         url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
-               f"?apiKey={key}&regions=eu&markets=h2h&oddsFormat=decimal&dateFormat=iso")
+               f"?apiKey={key}&regions=eu&markets=h2h,totals,spreads&oddsFormat=decimal&dateFormat=iso")
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=40) as resp:
@@ -1215,29 +1237,65 @@ def fetch_oddsapi_books(fixture_rows, teams):
             th = teams.get(str(best.get("home"))) or {}
             for b in (ev.get("bookmakers") or []):
                 title = (b.get("title") or "").strip()
-                mkt = next((m for m in (b.get("markets") or []) if m.get("key") == "h2h"), None)
-                if not title or not mkt:
+                if not title:
                     continue
+                mkts = {m.get("key"): m for m in (b.get("markets") or [])}
+                mkt = mkts.get("h2h")
                 prices = {}
-                for o in (mkt.get("outcomes") or []):
-                    nm = (o.get("name") or "").strip()
-                    pr = o.get("price")
-                    if pr is None:
-                        continue
-                    if nm.lower() == "draw":
-                        prices["d"] = pr
-                        continue
-                    if _team_sim(nm, home_n) >= _team_sim(nm, away_n):
-                        prices["h"] = pr
-                    else:
-                        prices["a"] = pr
-                if not all(k in prices for k in ("h", "d", "a")):
-                    continue
-                books = best.setdefault("books", [])
-                norm = re.sub(r"[^a-z0-9]", "", title.lower())
-                books[:] = [x for x in books if re.sub(r"[^a-z0-9]", "", (x.get("book") or "").lower()) != norm]
-                books.append({"book": title, "m": [prices["h"], prices["d"], prices["a"]], "src": "oddsapi"})
-                total_books += 1
+                if mkt:
+                    for o in (mkt.get("outcomes") or []):
+                        nm = (o.get("name") or "").strip()
+                        pr = o.get("price")
+                        if pr is None:
+                            continue
+                        if nm.lower() == "draw":
+                            prices["d"] = pr
+                            continue
+                        if _team_sim(nm, home_n) >= _team_sim(nm, away_n):
+                            prices["h"] = pr
+                        else:
+                            prices["a"] = pr
+                entry = {"book": title, "src": "oddsapi"}
+                if all(k in prices for k in ("h", "d", "a")):
+                    entry["m"] = [prices["h"], prices["d"], prices["a"]]
+                # 大小球（totals）：取该机构的主盘口线
+                tot = mkts.get("totals")
+                if tot:
+                    over = under = line = None
+                    for o in (tot.get("outcomes") or []):
+                        nm = (o.get("name") or "").lower()
+                        pr = o.get("price")
+                        ln = o.get("point")
+                        if pr is None or ln is None:
+                            continue
+                        if nm.startswith("over"):
+                            over, line = pr, ln
+                        elif nm.startswith("under"):
+                            under = pr
+                    if over is not None and under is not None and line is not None:
+                        entry["ou"] = {"line": line, "over": over, "under": under}
+                # 亚盘（spreads）：主队让球线 + 两边赔率
+                spr = mkts.get("spreads")
+                if spr:
+                    ph = pa = line_h = None
+                    for o in (spr.get("outcomes") or []):
+                        nm = (o.get("name") or "").strip()
+                        pr = o.get("price")
+                        ln = o.get("point")
+                        if pr is None or ln is None:
+                            continue
+                        if _team_sim(nm, home_n) >= _team_sim(nm, away_n):
+                            ph, line_h = pr, ln
+                        else:
+                            pa = pr
+                    if ph is not None and pa is not None and line_h is not None:
+                        entry["ah"] = {"line": line_h, "h": ph, "a": pa}
+                if entry.get("m") or entry.get("ou") or entry.get("ah"):
+                    books = best.setdefault("books", [])
+                    norm = re.sub(r"[^a-z0-9]", "", title.lower())
+                    books[:] = [x for x in books if re.sub(r"[^a-z0-9]", "", (x.get("book") or "").lower()) != norm]
+                    books.append(entry)
+                    total_books += 1
 
     try:
         os.makedirs(os.path.dirname(ODDSAPI_STATE), exist_ok=True)
