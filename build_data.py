@@ -1017,8 +1017,36 @@ ODDSAPI_LEAGUES = {
     "法甲": "soccer_france_ligue_one",
 }
 ODDSAPI_STATE = os.path.join(ROOT, "odds_snapshots", "oddsapi_state.json")
-ODDSAPI_MIN_INTERVAL = 7.5 * 3600     # 免费额度：5 联赛 × 3 次/天 ≈ 450 credits/月
-ODDSAPI_MIN_REMAINING = 60            # 剩余额度低于此值就停抓
+ODDSAPI_MIN_REMAINING = 20            # 剩余额度低于此值就停抓
+# 免费 500 credits/月 = 每个联赛每次 1 credit；按北京时间排刷新时段：
+# 05:00–12:00 不刷新；集中在 17:00–01:00（欧洲比赛开赛前）
+ODDSAPI_SLOTS_WEEKDAY = ["17:30", "21:00"]              # 周一~周四：2 次
+ODDSAPI_SLOTS_FRIDAY = ["17:30", "20:30", "23:30"]      # 周五：3 次
+ODDSAPI_SLOTS_WEEKEND = ["17:00", "19:30", "22:00", "00:30"]  # 周末：4 次
+
+
+def _oddsapi_slot_ready(now_ts):
+    """判断当前时间是否已过一个计划刷新时点（北京时间 05:00-12:00 不刷新）。"""
+    now_local = datetime.utcfromtimestamp(now_ts) + timedelta(hours=8)
+    if 5 <= now_local.hour < 12:
+        return False
+    slots = []
+    for off in (0, -1):
+        d = (now_local + timedelta(days=off)).date()
+        if d.weekday() >= 5:
+            times = ODDSAPI_SLOTS_WEEKEND
+        elif d.weekday() == 4:
+            times = ODDSAPI_SLOTS_FRIDAY
+        else:
+            times = ODDSAPI_SLOTS_WEEKDAY
+        for hm in times:
+            h, m = (int(x) for x in hm.split(":"))
+            dt = datetime(d.year, d.month, d.day, h, m)
+            utc_dt = dt - timedelta(hours=8)  # 北京 -> UTC
+            slots.append((utc_dt - datetime(1970, 1, 1)).total_seconds())
+    slots.sort()
+    passed = [x for x in slots if x <= now_ts]
+    return bool(passed) and now_ts - passed[-1] < 3600  # 只在时点后 1 小时内触发
 
 
 def _norm_team_name(n):
@@ -1051,8 +1079,11 @@ def fetch_oddsapi_books(fixture_rows, teams):
     except (OSError, ValueError):
         state = {}
     now_ts = time.time()
-    if state.get("last") and now_ts - state["last"] < ODDSAPI_MIN_INTERVAL:
-        log(f"  Odds API：距上次刷新 {int((now_ts - state['last']) / 60)} 分钟，跳过（额度保护）")
+    if state.get("last") and now_ts - state["last"] < 20 * 60:
+        log("  Odds API：20 分钟内刚刷新过，跳过")
+        return
+    if not _oddsapi_slot_ready(now_ts):
+        log("  Odds API：当前不在计划刷新时段（北京 05:00–12:00 不刷，集中在 17:00–01:00），跳过")
         return
     if state.get("remaining") is not None and state["remaining"] < ODDSAPI_MIN_REMAINING:
         # 额度每月 1 日 00:00 UTC 重置；重置后允许一次探活，避免永久停抓
