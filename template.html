@@ -1024,6 +1024,15 @@ html{scroll-behavior:smooth}
 .insight-list p{font-size:12px;line-height:1.8}
 .insight-lead{background:var(--accent-soft);border:1px solid #BFE3CF;border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:13px;line-height:1.75;color:var(--ink)}
 @media(max-width:900px){.insight-list{grid-template-columns:1fr}}
+.insight-more{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.insight-more>summary{cursor:pointer;list-style:none;padding:12px 14px;font-size:12.5px;color:var(--ink-2);font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.insight-more>summary::-webkit-details-marker{display:none}
+.insight-more>summary::after{content:"展开";font-size:11px;color:var(--accent);font-weight:500}
+.insight-more[open]>summary::after{content:"收起"}
+.insight-list-sub{display:block;background:none;border:0;border-radius:0;margin:0;padding:0}
+.insight-list-sub li{display:grid;grid-template-columns:78px minmax(0,1fr);gap:12px;padding:11px 14px;border:0;border-top:1px solid var(--line);border-radius:0;background:var(--surface)}
+.insight-list-sub .k{margin:0;padding-top:2px}
+@media(max-width:640px){.insight-list-sub li{grid-template-columns:1fr;gap:4px}}
 
 /* 阵容折叠 */
 .squad-details{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
@@ -1423,6 +1432,7 @@ html{scroll-behavior:smooth}
       </div>
       <div class="insight-lead" id="insight-lead"></div>
       <ul class="insight-list" id="insight-list"></ul>
+      <div id="insight-more" hidden></div>
       <div class="insight-note">分析由数据规则自动生成，不含主观判断；样本不足或跨联赛时结论可靠性下降。</div>
     </section>
 
@@ -4368,7 +4378,48 @@ function renderInsight(m){
   }
 
   $("#insight-lead").textContent = lead;
-  $("#insight-list").innerHTML = bullets.map(b => `<li><span class="k">${esc(b.k)}</span><p>${esc(b.t)}</p></li>`).join("");
+
+  // 合并同类项：只保留几张重点卡，其余收进「更多分析」，避免卡片过多
+  const byKey = new Map();
+  for(const b of bullets) byKey.set(b.k, b.t);
+  const group = (labels, title) => {
+    const parts = labels.map(l => byKey.get(l)).filter(Boolean);
+    return parts.length ? { k: title, t: parts.join(" ") } : null;
+  };
+  const groups = upcoming ? [
+    group(["胜负天平", "市场倾向", "赛前预测", "赛前模型", "赔率视角"], "胜负判断"),
+    group(["进球盘口", "比分范围"], "进球判断"),
+    group(["近期状态", "主客场"], "状态与对位"),
+    group(["战术阵容", "战术推演", "核心球员"], "战术与核心球员")
+  ] : [
+    group(["赛前预测", "赛前模型", "模型对照", "赛前进球盘复盘"], "赛前 vs 实际"),
+    group(["比赛数据"], "比赛数据"),
+    group(["近期状态", "主客场"], "状态与主客场")
+  ];
+  const merged = new Set();
+  for(const g of groups) if(g) merged.add(g.k);
+  const primary = groups.filter(Boolean);
+  // 「更多分析」= 没有被合并进重点卡的分析项
+  const mergedLabels = upcoming
+    ? ["胜负天平", "市场倾向", "赛前预测", "赛前模型", "赔率视角", "进球盘口", "比分范围", "近期状态", "主客场", "战术阵容", "战术推演", "核心球员"]
+    : ["赛前预测", "赛前模型", "模型对照", "赛前进球盘复盘", "比赛数据", "近期状态", "主客场"];
+  const secondary = bullets.filter(b => !mergedLabels.includes(b.k));
+  $("#insight-list").innerHTML = primary.map(b => `<li><span class="k">${esc(b.k)}</span><p>${esc(b.t)}</p></li>`).join("");
+  const moreBox = $("#insight-more");
+  if(moreBox){
+    if(secondary.length){
+      moreBox.hidden = false;
+      moreBox.innerHTML = `<details class="insight-more">
+        <summary>更多分析（${secondary.length} 项）</summary>
+        <ul class="insight-list insight-list-sub">
+          ${secondary.map(b => `<li><span class="k">${esc(b.k)}</span><p>${esc(b.t)}</p></li>`).join("")}
+        </ul>
+      </details>`;
+    } else {
+      moreBox.hidden = true;
+      moreBox.innerHTML = "";
+    }
+  }
 }
 
 function havYellow(tid){
