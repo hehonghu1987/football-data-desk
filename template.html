@@ -1033,6 +1033,13 @@ html{scroll-behavior:smooth}
 @media(max-width:640px){.insight-list-sub li{grid-template-columns:1fr;gap:4px}}
 
 /* 阵容折叠 */
+.squad-f{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-left:6px;font-weight:400}
+.squad-xi-n{font-size:10px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 7px;margin-left:6px;font-weight:500}
+.squad-note{font-size:11.5px;color:var(--muted);padding:6px 4px}
+.sq-xi{font-size:9px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:0 5px;margin-left:6px;font-weight:500;vertical-align:middle}
+.squad-sub-h{font-size:10.5px;color:var(--muted);margin:10px 0 4px;border-top:1px dashed var(--line);padding-top:8px}
+.squad-list.bench .sq-card{opacity:.72}
+.squad-list.bench .sq-card:nth-child(odd){background:var(--surface)}
 .squad-details{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
 .squad-details>summary{cursor:pointer;list-style:none;padding:14px 16px;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:10px}
 .squad-details>summary::-webkit-details-marker{display:none}
@@ -1786,6 +1793,40 @@ function playerCard(p){
     <span class="sq-stats">${stats.join("")}</span>
   </div>`;
 }
+function lineupPos(code){
+  const c = (code || "").toUpperCase();
+  if(!c) return "";
+  if(c === "G") return "门将";
+  if(c.includes("CD")) return "中卫";
+  if(c === "RB" || c === "LB" || c.includes("RB") || c.includes("LB")) return "边后卫";
+  if(c.includes("WB")) return "翼卫";
+  if(c === "DM" || c.includes("DM")) return "后腰";
+  if(c === "CM" || c.includes("CM")) return "中场";
+  if(c.includes("AM")) return "前腰";
+  if(c === "LM" || c === "RM" || c.includes("LM") || c.includes("RM")) return "边前卫";
+  if(c === "LW" || c === "RW") return "边锋";
+  if(c.includes("CF") || c === "F" || c === "ST") return "前锋";
+  return "";
+}
+function predictedXI(tid){
+  const lu = (DATA.lineups || {})[String(tid)];
+  const starters = ((lu && lu.p) || []).filter(x => x.p !== "SUB" && x.n);
+  return { f: (lu && lu.f) || "", starters, from: (lu && lu.from) || "" };
+}
+function xiCard(p, roster){
+  const rp = (roster || []).find(r => r.n === p.n || (r.e && r.e === p.e)) || {};
+  const meta = [lineupPos(p.p), rp.age ? rp.age + "岁" : "", rp.nat || ""].filter(Boolean).join(" · ");
+  const stats = [];
+  if(rp.app != null) stats.push(`<span><b>${rp.app}</b>场</span>`);
+  if(rp.g) stats.push(`<span><b>${rp.g}</b>球</span>`);
+  if(rp.a) stats.push(`<span><b>${rp.a}</b>助</span>`);
+  return `<div class="sq-card sq-start">
+    <span class="sq-num">${esc(p.j || rp.j || "")}</span>
+    <span class="sq-name">${esc(p.n || rp.n || "")}<span class="sq-xi">首发</span></span>
+    <span class="sq-meta">${esc(meta)}</span>
+    <span class="sq-stats">${stats.join("")}</span>
+  </div>`;
+}
 function renderSquads(m){
   const box = $("#match-squads");
   if(!box) return;
@@ -1794,17 +1835,30 @@ function renderSquads(m){
   const hp = ROSTERS[String(m.home)] || [], ap = ROSTERS[String(m.away)] || [];
   if(!hp.length && !ap.length){ box.hidden = true; return; }
   box.hidden = false;
-  const col = (t, pl) => `<div class="squad-team">
-      <h3 class="squad-h">${badge(t, "sm")}${esc((t && (t.cn || t.name)) || "")}</h3>
-      <div class="squad-list">${pl.map(playerCard).join("")}</div>
+  const col = (t, pl) => {
+    const xi = predictedXI(t.id);
+    const names = new Set(xi.starters.map(p => p.n));
+    const bench = (pl || []).filter(p => !names.has(p.n)).slice(0, 14);
+    const xiHtml = xi.starters.length
+      ? `<div class="squad-list starters">${xi.starters.map(p => xiCard(p, pl)).join("")}</div>`
+      : `<div class="squad-note">暂无预计首发（最近比赛未提供首发名单）</div>`;
+    const benchHtml = bench.length
+      ? `<div class="squad-sub-h">替补 / 其他（${bench.length} 人）</div>
+         <div class="squad-list bench">${bench.map(playerCard).join("")}</div>`
+      : "";
+    return `<div class="squad-team">
+      <h3 class="squad-h">${badge(t, "sm")}${esc((t && (t.cn || t.name)) || "")}${xi.f ? `<span class="squad-f">${esc(xi.f)}</span>` : ""}${xi.starters.length ? `<span class="squad-xi-n">预计首发 ${xi.starters.length} 人</span>` : ""}</h3>
+      ${xiHtml}
+      ${benchHtml}
     </div>`;
+  };
   box.innerHTML = `<section class="section">
     <div class="section-head">
       <h2 class="section-title">双方阵容</h2>
-      <span class="section-note">位置 · 年龄 · 国籍 · 本赛季数据</span>
+      <span class="section-note">预计首发（按最近比赛首发推算，非官方）· 位置 · 年龄 · 国籍 · 本赛季数据</span>
     </div>
     <details class="squad-details">
-      <summary>双方球员名单（${hp.length + ap.length} 人）<span class="hint">点击展开 · 按出场次数排序</span></summary>
+      <summary>双方球员名单（${hp.length + ap.length} 人）<span class="hint">点击展开 · 预计首发 + 替补</span></summary>
       <div class="squad-cols">${col(h, hp)}${col(a, ap)}</div>
     </details>
   </section>`;
