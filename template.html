@@ -1083,6 +1083,9 @@ table.books tbody tr:last-child td{border-bottom:0}
 table.books .bk{font-weight:600}
 table.books .mv{font-size:10px;color:var(--muted)}
 table.books .mv b{color:var(--ink)}
+table.books tr.row-open td{background:var(--surface-2);color:var(--muted)}
+table.books tr.row-open .bk{color:var(--ink-2);font-weight:600}
+table.books .mq{font-size:10.5px;color:var(--muted);white-space:nowrap}
 
 /* 高信心推荐 */
 .tag-conf{background:#FEF3C7;color:#8A5A12;border-color:#F2D089}
@@ -4111,27 +4114,30 @@ function renderPreMatch(m){
         </div>
         <div class="odds-src">盘口线 ${Number(ouc.line).toFixed(1)}</div>
       </div>`);
+      const qv = v => (v == null ? "—" : Number(v).toFixed(2));
+      const ql = v => (v == null ? "—" : Number(v).toFixed(1));
+      const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
       const rows = books.map(b => {
         const mm = b.m || [null, null, null];
         const ahb = b.ah || {}, oub = b.ou || {};
-        const mv = (b.o && b.o[0] && mm[0]) ? `<span class="mv">${b.o[0].toFixed(2)}→<b>${mm[0].toFixed(2)}</b></span>` : "—";
-        return `<tr>
-          <td class="bk" title="${esc(b.book)}">${esc(bookCn(b.book))}</td>
-          <td>${mm[0] ? mm[0].toFixed(2) : "—"}</td>
-          <td>${mm[1] ? mm[1].toFixed(2) : "—"}</td>
-          <td>${mm[2] ? mm[2].toFixed(2) : "—"}</td>
-          <td>${ahb.line != null ? ahText(ahb.line) : "—"}</td>
-          <td>${ahb.h ? ahb.h.toFixed(2) : "—"}</td>
-          <td>${ahb.a ? ahb.a.toFixed(2) : "—"}</td>
-          <td>${oub.line != null ? Number(oub.line).toFixed(1) : "—"}</td>
-          <td>${oub.over ? oub.over.toFixed(2) : "—"}</td>
-          <td>${oub.under ? oub.under.toFixed(2) : "—"}</td>
-          <td>${mv}</td>
+        const op = b.open || null;
+        const om = (op && op.m) || [null, null, null];
+        const oah = (op && op.ah) || {}, oou = (op && op.ou) || {};
+        const mk = (label, mArr, ahObj, ouObj, cls, showName) => `<tr class="${cls}">
+          <td class="bk" title="${esc(b.book)}">${showName ? esc(bookCn(b.book)) : ""}</td>
+          <td class="mq">${label}</td>
+          <td>${qv(mArr[0])}</td><td>${qv(mArr[1])}</td><td>${qv(mArr[2])}</td>
+          <td>${ahq(ahObj)}</td><td>${qv(ahObj.h)}</td><td>${qv(ahObj.a)}</td>
+          <td>${ql(ouObj.line)}</td><td>${qv(ouObj.over)}</td><td>${qv(ouObj.under)}</td>
         </tr>`;
+        if(op){
+          return mk("初赔", om, oah, oou, "row-open", true) + mk("即时", mm, ahb, oub, "", false);
+        }
+        return mk("即时", mm, ahb, oub, "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
         <table class="books">
-          <thead><tr><th>机构</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th><th>主胜开盘→即时</th></tr></thead>
+          <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`);

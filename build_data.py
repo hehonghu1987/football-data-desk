@@ -1066,8 +1066,65 @@ def filter_whitelist_books(fixture_rows):
             f.pop("books", None)
 
 
+def apply_odds_open(fixture_rows):
+    """记录每场每个机构的首次报价作为「初赔」，并挂到比赛数据上。
+
+    The Odds API 不返回开盘价，这里用「本站首次记录」作为初盘参考；
+    ESPN 返回了开盘价时（b["open"]）优先使用真正的开盘价。
+    """
+    try:
+        with open(ODDS_OPEN, "r", encoding="utf-8") as f:
+            open_data = json.load(f)
+    except (OSError, ValueError):
+        open_data = {}
+    fixtures = open_data.get("fixtures") or {}
+    now_iso = datetime.utcnow().isoformat()
+    new = {}
+    changed = False
+    n_open = 0
+    for f in fixture_rows:
+        fid = str(f.get("id"))
+        books = f.get("books") or []
+        if not books:
+            continue
+        fm = fixtures.get(fid) or {}
+        out = {}
+        for b in books:
+            canon = b.get("book")
+            if not canon:
+                continue
+            cur = {k: b.get(k) for k in ("m", "ou", "ah") if b.get(k)}
+            if not cur:
+                continue
+            if b.get("open") and b["open"].get("m"):
+                # ESPN 等数据源给了真正开盘价
+                entry = dict(b["open"])
+                entry.setdefault("at", now_iso)
+            elif fm.get(canon):
+                entry = fm[canon]
+                changed = changed or (entry != fm.get(canon))
+            else:
+                entry = dict(cur)
+                entry["at"] = now_iso
+                changed = True
+            out[canon] = entry
+            b["open"] = entry
+            n_open += 1
+        if out:
+            new[fid] = out
+    if changed or set(new) != set(fixtures):
+        try:
+            os.makedirs(os.path.dirname(ODDS_OPEN), exist_ok=True)
+            with open(ODDS_OPEN, "w", encoding="utf-8") as f:
+                json.dump({"fixtures": new}, f, ensure_ascii=False, separators=(",", ":"))
+        except OSError:
+            pass
+        log(f"  初盘记录：{n_open} 条（{len(new)} 场）")
+
+
 ODDSAPI_STATE = os.path.join(ROOT, "odds_snapshots", "oddsapi_state.json")
 ODDSAPI_BOOKS = os.path.join(ROOT, "odds_snapshots", "oddsapi_books.json")
+ODDS_OPEN = os.path.join(ROOT, "odds_snapshots", "odds_open.json")
 ODDSAPI_MIN_REMAINING = 20            # 剩余额度低于此值就停抓
 # 免费 500 credits/月 = 每个联赛每次 1 credit；按北京时间排刷新时段：
 # 05:00–12:00 不刷新；集中在 17:00–01:00（欧洲比赛开赛前）
@@ -1392,6 +1449,7 @@ def fetch_event_odds(league_code, event_id):
             oa = ((away.get("open") or {}).get("moneyLine") or {}).get("decimal")
             if oh and oa:
                 b["o"] = [oh, dr, oa]
+                b["open"] = {"m": [oh, dr, oa], "at": "espn-open"}
         ah = None
         if it.get("spread") is not None:
             ah = {"line": it.get("spread"),
@@ -3387,6 +3445,7 @@ def main():
     except Exception as e:
         log(f"  ⚠ Odds API 抓取失败：{e}")
     filter_whitelist_books(fixture_rows)
+    apply_odds_open(fixture_rows)
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()
