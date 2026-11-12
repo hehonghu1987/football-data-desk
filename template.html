@@ -1075,6 +1075,25 @@ html{scroll-behavior:smooth}
 .more-leagues[open]>summary::after{content:" ▴"}
 .more-leagues-row{position:absolute;z-index:40;left:0;top:calc(100% + 6px);display:flex;flex-wrap:wrap;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:var(--shadow);min-width:320px;max-width:min(760px,84vw)}
 
+/* 高信心推荐 */
+.tag-conf{background:#FEF3C7;color:#8A5A12;border-color:#F2D089}
+.conf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.conf-col{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.conf-h{display:flex;justify-content:space-between;gap:10px;font-size:12px;font-weight:600;padding:11px 14px;border-bottom:1px solid var(--line);color:var(--ink-2);background:var(--surface-2)}
+.conf-h span{color:var(--muted);font-weight:400;font-size:11px}
+.conf-row{display:grid;grid-template-columns:74px 88px minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
+.conf-row:last-child{border-bottom:0}
+.conf-row:hover{background:var(--surface-2)}
+.conf-time{font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.conf-league .league-chip{font-size:10px}
+.conf-teams{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conf-teams i{color:var(--muted);font-style:normal;font-size:10.5px;margin:0 4px}
+.conf-pick{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.conf-pick b{font-size:12.5px}
+.conf-p{font-family:var(--font-mono);font-size:11px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 7px}
+.conf-empty{padding:14px;font-size:12px;color:var(--muted)}
+@media(max-width:760px){.conf-grid{grid-template-columns:1fr}.conf-row{grid-template-columns:64px minmax(0,1fr) auto}.conf-league{display:none}}
+
 /* 模型表现卡片均匀排布 */
 #perf-summary,#perf-summary-blend,#perf-mkt{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
 #perf-summary .sum-tile,#perf-summary-blend .sum-tile,#perf-mkt .sum-tile{min-height:82px}
@@ -1215,6 +1234,14 @@ html{scroll-behavior:smooth}
         <button class="chip-btn" id="day-window" type="button">近期赛程</button>
       </div>
       <div class="panel" id="fixtures-panel"></div>
+    </section>
+
+    <section class="section" id="conf-sec" hidden>
+      <div class="section-head">
+        <h2 class="section-title">高信心推荐 · 近 5 天</h2>
+        <span class="section-note" id="conf-note"></span>
+      </div>
+      <div class="conf-grid" id="conf-panel"></div>
     </section>
 
     <section class="section">
@@ -2553,7 +2580,9 @@ function fixtureRowHtml(f, forceStatus){
     const hints = [];
     if(o25 != null) hints.push(o25 >= 0.5 ? `大2.5 ${Math.round(o25*100)}%` : `小2.5 ${Math.round((1-o25)*100)}%`);
     if(btts != null) hints.push(`双方进球 ${Math.round(btts*100)}%`);
-    predLine = `<div class="fix-pred"><span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span>${hints.length ? `<span class="hint">${hints.join(" · ")}</span>` : ""}</div>`;
+    const hiTh = (DATA.conf && DATA.conf.p60 && DATA.conf.p60.th) ? DATA.conf.p60.th : 0.6;
+    const hiTag = Math.max(fbp[0], fbp[1], fbp[2]) >= hiTh ? `<span class="tag tag-conf">高信心</span>` : "";
+    predLine = `<div class="fix-pred">${hiTag}<span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span>${hints.length ? `<span class="hint">${hints.join(" · ")}</span>` : ""}</div>`;
   }
   return `<div class="fix-row" data-mid="${esc(f.id)}">
     <div class="fix-time">${fmtTime(f.date)}</div>
@@ -2642,6 +2671,62 @@ function renderFixtures(){
     return `<div class="day-head"><b>${label}</b><span class="wd">${dtfWeek.format(dt)}</span><span class="cnt">${rows.length} 场</span></div>` +
       rows.map(f => fixtureRowHtml(f)).join("");
   }).join("");
+}
+
+/* ---------- 高信心推荐（历史命中率来自分档回测） ---------- */
+function confFinal(f){
+  const p = f.pred;
+  if(!p) return null;
+  const od = f.odds ? impliedProbs(f.odds.ml) : null;
+  return od ? blendProbs(p, od, 0.7) : [p.ph, p.pd, p.pa];
+}
+function renderConfidence(){
+  const sec = $("#conf-sec"), panel = $("#conf-panel"), note = $("#conf-note");
+  if(!sec || !panel) return;
+  const st = DATA.conf;
+  if(!st || !st.p60 || !st.total){ sec.hidden = true; return; }
+  const start = new Date(TODAY_KEY + "T00:00:00").getTime();
+  const end = start + 5 * 86400000;
+  const picks = [];
+  for(const f of (DATA.fixtures || [])){
+    if(f.hide) continue;
+    const t = new Date(f.date).getTime();
+    if(isNaN(t) || t < start || t > end) continue;
+    const fp = confFinal(f);
+    if(!fp) continue;
+    const maxi = fp.indexOf(Math.max(...fp));
+    const pairs = [[0, 1, "主胜或平"], [2, 1, "客胜或平"], [0, 2, "主胜或客胜"]];
+    const dc = pairs.reduce((a, b) => (fp[a[0]] + fp[a[1]] >= fp[b[0]] + fp[b[1]] ? a : b));
+    const dcp = fp[dc[0]] + fp[dc[1]];
+    picks.push({ f, fp, maxi, maxp: fp[maxi], dc: dc[2], dcp });
+  }
+  if(!picks.length){ sec.hidden = true; return; }
+  const hi = picks.filter(x => x.maxp >= (st.p60.th || 0.6))
+    .sort((a, b) => b.maxp - a.maxp).slice(0, 8);
+  const dcRows = picks.filter(x => x.dcp >= (st.dc80.th || 0.8))
+    .sort((a, b) => b.dcp - a.dcp).slice(0, 8);
+  if(!hi.length && !dcRows.length){ sec.hidden = true; return; }
+  sec.hidden = false;
+  if(note) note.textContent = `历史同档命中：胜平负≥${Math.round(st.p60.th * 100)}% 为 ${st.p60.hit}%（${st.p60.n} 场）· 双重机会≥${Math.round(st.dc80.th * 100)}% 为 ${st.dc80.hit}%（${st.dc80.n} 场）`;
+  const names = ["主胜", "平", "客胜"];
+  const row = (x, label, prob) => {
+    const h = TEAMS.get(String(x.f.home)) || {}, a = TEAMS.get(String(x.f.away)) || {};
+    return `<a class="conf-row" href="#/match/${esc(x.f.id)}">
+      <span class="conf-time">${fmtDate(x.f.date).slice(5)} ${fmtTime(x.f.date)}</span>
+      <span class="conf-league">${leagueChip(x.f.league)}</span>
+      <span class="conf-teams">${esc(h.cn || h.name || "")} <i>vs</i> ${esc(a.cn || a.name || "")}</span>
+      <span class="conf-pick"><b>${esc(label)}</b><span class="conf-p">${Math.round(prob * 100)}%</span></span>
+    </a>`;
+  };
+  panel.innerHTML = `
+    <div class="conf-col">
+      <div class="conf-h">胜平负 · 概率 ≥${Math.round(st.p60.th * 100)}%<span>历史命中 ${st.p60.hit}%</span></div>
+      ${hi.length ? hi.map(x => row(x, names[x.maxi], x.maxp)).join("") : '<div class="conf-empty">近 5 天暂无达到阈值的场次</div>'}
+    </div>
+    <div class="conf-col">
+      <div class="conf-h">双重机会 · 概率 ≥${Math.round(st.dc80.th * 100)}%<span>历史命中 ${st.dc80.hit}%</span></div>
+      ${dcRows.length ? dcRows.map(x => row(x, x.dc, x.dcp)).join("") : '<div class="conf-empty">近 5 天暂无达到阈值的场次</div>'}
+    </div>`;
 }
 
 function renderRecent(){
@@ -3174,6 +3259,7 @@ function renderHome(){
   renderTabs();
   syncDayBar();
   renderFixtures();
+  renderConfidence();
   renderRecent();
   renderStandings();
   renderModelPerf();

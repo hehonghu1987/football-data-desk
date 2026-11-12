@@ -1972,6 +1972,50 @@ def apply_league_temps(match_rows, temps):
         pre["ph"], pre["pd"], pre["pa"] = [round(x, 3) for x in p]
 
 
+def build_confidence_stats(match_rows, fd_map, w=0.7):
+    """首页「高信心推荐」的历史命中参考：综合概率阈值 + 双重机会阈值。"""
+    rows = []
+    for m in match_rows:
+        fd = fd_map.get(str(m["id"]))
+        pre = m.get("pre")
+        if not fd or not pre or m.get("hs") is None or m.get("as") is None:
+            continue
+        close = (fd.get("closing") or {}).get("avg") or (fd.get("closing") or {}).get("b365")
+        if not close or len(close) != 3:
+            continue
+        inv = [1 / x for x in close]
+        tot = sum(inv)
+        mk = [x / tot for x in inv]
+        mp = [pre.get("ph"), pre.get("pd"), pre.get("pa")]
+        if None in mp:
+            continue
+        fp = [w * c + (1 - w) * p for c, p in zip(mk, mp)]
+        out = 0 if m["hs"] > m["as"] else (1 if m["hs"] == m["as"] else 2)
+        rows.append((fp, out))
+    if not rows:
+        return {}
+    res = {"total": len(rows)}
+
+    def stat(sel):
+        n = len(sel)
+        hit = sum(1 for fp, o in sel if max(range(3), key=lambda i: fp[i]) == o)
+        return {"n": n, "hit": round(hit / n * 100, 1) if n else None}
+
+    for th in (0.55, 0.6, 0.65):
+        res[f"p{int(th * 100)}"] = {"th": th, **stat([r for r in rows if max(r[0]) >= th])}
+    dc = []
+    for fp, o in rows:
+        pairs = [((0, 1), "主胜或平"), ((2, 1), "客胜或平"), ((0, 2), "主胜或客胜")]
+        p = max(pairs, key=lambda pr: fp[pr[0][0]] + fp[pr[0][1]])
+        prob = fp[p[0][0]] + fp[p[0][1]]
+        dc.append((prob, o in p[0]))
+    for th in (0.75, 0.8, 0.85):
+        sel = [ok for p, ok in dc if p >= th]
+        res[f"dc{int(th * 100)}"] = {"th": th, "n": len(sel),
+                                     "hit": round(sum(sel) / len(sel) * 100, 1) if sel else None}
+    return res
+
+
 def build_market_split(match_rows, fd_map):
     """按联赛 / 按市场拆分模型表现（收盘价为基准）。"""
     rows = []
@@ -3047,6 +3091,8 @@ def main():
     except Exception as e:
         log(f"  ⚠ 球队名单抓取失败：{e}")
 
+    conf = build_confidence_stats(match_rows, fd_map)
+
     payload = {
         "meta": meta,
         "leagues": [{"label": l["label"], "code": l["code"], "cat": l["cat"],
@@ -3056,6 +3102,7 @@ def main():
         "matches": match_rows,
         "fixtures": fixture_rows,
         "lineups": lineups,
+        "conf": conf,
         "standings": standings,
         "mktbt": mktbt,
         "mktsplit": mktsplit,
