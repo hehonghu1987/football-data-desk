@@ -1087,7 +1087,10 @@ table.books th,table.books td{padding:8px 10px;border-bottom:1px solid var(--lin
 table.books th:first-child,table.books td:first-child{text-align:left}
 table.books thead th{font-size:10.5px;color:var(--muted);font-weight:500}
 table.books tbody tr:last-child td{border-bottom:0}
-table.books .bk{font-weight:600}
+table.books .bk{font-weight:600;line-height:1.35}
+table.books .bn-cn{display:block;font-size:12px;font-weight:600;color:var(--ink)}
+table.books .bn-en{display:block;font-size:9.5px;color:var(--muted);font-weight:400}
+table.books .bn-en.only{font-size:11.5px;color:var(--ink);font-weight:600}
 table.books .mv{font-size:10px;color:var(--muted)}
 table.books .mv b{color:var(--ink)}
 table.books tr.row-open td{background:var(--surface-2);color:var(--muted)}
@@ -2630,6 +2633,11 @@ const BOOK_CN = {
   "Dafabet": "大发"
 };
 function bookCn(name){ return BOOK_CN[name] || name || ""; }
+function bookLabel(name){
+  const cn = BOOK_CN[name];
+  if(!cn || cn === name) return `<span class="bn-en only">${esc(name || "")}</span>`;
+  return `<span class="bn-cn">${esc(cn)}</span><span class="bn-en">${esc(name || "")}</span>`;
+}
 
 /* 多机构赔率：共识去水概率 / 最集中的盘口线 */
 function marketProbs(m){
@@ -4178,7 +4186,7 @@ function renderPreMatch(m){
         const om = (op && op.m) || [null, null, null];
         const oah = (op && op.ah) || {}, oou = (op && op.ou) || {};
         const mk = (label, mArr, ahObj, ouObj, cls, showName) => `<tr class="${cls}">
-          <td class="bk" title="${esc(b.book)}">${showName ? esc(bookCn(b.book)) : ""}</td>
+          <td class="bk" title="${esc(b.book)}">${showName ? bookLabel(b.book) : ""}</td>
           <td class="mq">${label}</td>
           <td>${qv(mArr[0])}</td><td>${qv(mArr[1])}</td><td>${qv(mArr[2])}</td>
           <td>${ahq(ahObj)}</td><td>${qv(ahObj.h)}</td><td>${qv(ahObj.a)}</td>
