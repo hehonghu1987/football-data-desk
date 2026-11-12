@@ -1155,7 +1155,7 @@ table.books .mv b{color:var(--ink)}
     <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
     <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
     <p><a href="/football-data-desk/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
-    <p>数据来源 ESPN 公开接口，赔率来自 ESPN 的多家合作机构（DraftKings / Bet365 等），每 30 分钟自动更新。</p>
+    <p>数据来源 ESPN 公开接口，赔率来自指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365），每 30 分钟自动更新。</p>
   </div>
 </noscript>
 <header class="topbar">
@@ -1490,7 +1490,7 @@ table.books .mv b{color:var(--ink)}
       <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
       <div class="lineup-compare" id="lineup-compare"></div>
 
-      <div class="pred-note">赔率来源 ESPN 多家合作机构（DraftKings / Bet365 等）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+      <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
     </section>
 
     <section class="section" id="match-h2h">
@@ -1539,7 +1539,7 @@ table.books .mv b{color:var(--ink)}
 
 <footer class="footer">
   <div class="row">
-    <span>数据来源：ESPN 公开接口 · 赔率来自 ESPN 多家合作机构（DraftKings / Bet365 等）· 缺失项以 — 表示</span>
+    <span>数据来源：ESPN 公开接口 · 赔率来自平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 · 缺失项以 — 表示</span>
     <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
   </div>
   <div class="row">
@@ -2552,6 +2552,27 @@ function leagueTeams(league){
   const cur = t => Array.isArray(t.currentLeagues) ? t.currentLeagues : [];
   return all.filter(t => cur(t).includes(league) || (t.leagues || []).includes(league));
 }
+
+/* 机构中文名（没有通用译名的保留英文） */
+const BOOK_CN = {
+  "Pinnacle": "平博",
+  "William Hill": "威廉希尔",
+  "Ladbrokes": "立博",
+  "Unibet": "优尼贝特",
+  "Tipico": "蒂皮科",
+  "Winamax": "Winamax",
+  "Bet365": "Bet365",
+  "ODDSET": "ODDSET",
+  "SNAI": "SNAI",
+  "Codere": "科德雷",
+  "SBOBET": "SBOBET",
+  "188BET": "188金宝博",
+  "12BET": "12博",
+  "Crown": "皇冠",
+  "Macau Slot": "澳彩",
+  "Dafabet": "大发"
+};
+function bookCn(name){ return BOOK_CN[name] || name || ""; }
 
 /* 多机构赔率：共识去水概率 / 最集中的盘口线 */
 function marketProbs(m){
@@ -4095,7 +4116,7 @@ function renderPreMatch(m){
         const ahb = b.ah || {}, oub = b.ou || {};
         const mv = (b.o && b.o[0] && mm[0]) ? `<span class="mv">${b.o[0].toFixed(2)}→<b>${mm[0].toFixed(2)}</b></span>` : "—";
         return `<tr>
-          <td class="bk">${esc(b.book)}</td>
+          <td class="bk" title="${esc(b.book)}">${esc(bookCn(b.book))}</td>
           <td>${mm[0] ? mm[0].toFixed(2) : "—"}</td>
           <td>${mm[1] ? mm[1].toFixed(2) : "—"}</td>
           <td>${mm[2] ? mm[2].toFixed(2) : "—"}</td>
