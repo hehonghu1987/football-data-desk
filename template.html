@@ -212,9 +212,6 @@ input{font:inherit}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);background:var(--ink);color:#fff;font-size:12px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:200;box-shadow:0 8px 24px -8px rgba(18,33,26,.5)}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 /* SW 检测到站点已重新部署时的「有新数据」提示条 */
-.fresh-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:150;display:none;align-items:center;gap:10px;background:var(--ink);color:#fff;border-radius:999px;padding:7px 8px 7px 16px;font-size:12px;box-shadow:0 12px 32px -12px rgba(0,0,0,.5);white-space:nowrap}
-.fresh-bar.on{display:flex}
-.fresh-bar button{background:var(--accent);color:#fff;border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;cursor:pointer}
 .export-btn{margin-left:auto;margin-right:10px}
 .index-toggle{margin-left:auto}
 .match-tools{display:flex;justify-content:flex-end;margin:-6px 0 10px}
@@ -5009,30 +5006,17 @@ if("requestIdleCallback" in window){
 }
 })();
 </script>
-<div class="fresh-bar" id="fresh-bar">
-  <span>数据已更新</span>
-  <button type="button" id="fresh-reload">刷新查看</button>
-</div>
-
 <script>
 if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")){
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
-  // SW 在后台比对到新版本（ETag 变化）时提示，避免用户一直看缓存里的旧数据
+  // 不再弹「数据已更新」浮条：顶栏已显示更新时间，新版本由 SW 在下次进入时接管
   navigator.serviceWorker.addEventListener("message", ev => {
     if(ev.data && ev.data.type === "fresh"){
-      const bar = document.getElementById("fresh-bar");
-      if(bar) bar.classList.add("on");
-      // 告知 SW 已提示过，刷新后不再重复弹条
       navigator.serviceWorker.controller?.postMessage({ type: "fresh-ack" });
     }
   });
-  // 页面脚本晚于 SW 的后台比对，主动问一次「有没有新版本」
-  navigator.serviceWorker.ready.then(reg => {
-    if(reg.active) reg.active.postMessage({ type: "check-fresh" });
-  }).catch(() => {});
-  document.getElementById("fresh-reload")?.addEventListener("click", () => location.reload());
 }
 </script>
 </body>
