@@ -1307,8 +1307,9 @@ def fetch_oddsapi_books(fixture_rows, teams):
             ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00")).replace(tzinfo=None)
         except ValueError:
             continue
-        # 只抓「最近 2 小时 ~ 未来 48 小时」有比赛的联赛；其余联赛用快照，避免空刷额度
-        if not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=14)):
+        # 默认只抓「最近 2 小时 ~ 未来 14 小时」有比赛的联赛；其余联赛用快照，避免空刷额度。
+        # 特殊情况可用 ODDSAPI_ALL=1 强制覆盖全部有赛程的联赛（仅首次铺数据/调试用）。
+        if not os.environ.get("ODDSAPI_ALL") and not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=14)):
             continue
         by_league.setdefault(lab, []).append(f)
     targets = [(lab, ODDSAPI_LEAGUES[lab]) for lab in ODDSAPI_LEAGUES if lab in by_league]
