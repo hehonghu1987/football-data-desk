@@ -1002,6 +1002,93 @@ html.js-boot #boot-skeleton{display:block}
 .sk-row:last-child{border-bottom:0}
 @keyframes skpulse{0%,100%{opacity:.78}50%{opacity:.42}}
 @media (prefers-reduced-motion:reduce){.sk-bar,.sk-chip{animation:none}}
+
+/* ================= 视觉整理（2026-11） ================= */
+html{scroll-behavior:smooth}
+.section{margin-top:46px}
+.section-head{align-items:baseline;gap:12px;padding-bottom:10px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.section-title{position:relative;padding-left:12px;font-size:17px}
+.section-title::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:4px;height:16px;border-radius:2px;background:var(--accent)}
+#insight,#pre-match,#match-h2h,#match-squads,#match-books,#match-timeline{scroll-margin-top:calc(var(--topbar-h) + 64px)}
+
+/* 比赛页内导航 */
+.match-nav{position:sticky;top:calc(var(--topbar-h) + 4px);z-index:30;display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin:12px 0 2px;scrollbar-width:none;background:var(--bg);box-shadow:0 10px 14px -14px rgba(18,33,26,.35)}
+.match-nav::-webkit-scrollbar{display:none}
+.match-nav a{flex:none;font-size:12px;color:var(--muted);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;text-decoration:none;transition:color .15s,border-color .15s,background .15s}
+.match-nav a:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+
+/* 分析卡片化 */
+.insight-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;background:none;border:0;overflow:visible}
+.insight-list li{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.insight-list .k{display:block;margin:0 0 5px;font-size:10.5px}
+.insight-list p{font-size:12px;line-height:1.8}
+.insight-lead{background:var(--accent-soft);border:1px solid #BFE3CF;border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:13px;line-height:1.75;color:var(--ink)}
+@media(max-width:900px){.insight-list{grid-template-columns:1fr}}
+
+/* 阵容折叠 */
+.squad-details{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.squad-details>summary{cursor:pointer;list-style:none;padding:14px 16px;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:10px}
+.squad-details>summary::-webkit-details-marker{display:none}
+.squad-details>summary::after{content:"展开";margin-left:auto;font-size:11px;color:var(--accent);font-weight:500}
+.squad-details[open]>summary::after{content:"收起"}
+.squad-details>summary .hint{font-size:11px;color:var(--muted);font-weight:400}
+.squad-cols{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line)}
+.squad-team{padding:12px 14px;min-width:0}
+.squad-team+.squad-team{border-left:1px solid var(--line)}
+.squad-h{font-size:12px;display:flex;gap:8px;align-items:center;margin:0 0 8px;color:var(--ink-2)}
+.squad-list{display:grid;gap:2px}
+.sq-card{display:grid;grid-template-columns:24px minmax(0,1fr) 118px;grid-template-areas:"num name stats" "num meta stats";column-gap:8px;align-items:center;padding:5px 8px;border-radius:8px}
+.sq-card:nth-child(odd){background:var(--surface-2)}
+.sq-num{grid-area:num;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);text-align:right}
+.sq-name{grid-area:name;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sq-meta{grid-area:meta;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sq-stats{grid-area:stats;display:flex;gap:8px;justify-content:flex-end;font-size:10.5px;color:var(--muted);white-space:nowrap}
+.sq-stats b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+@media(max-width:640px){
+  .team-hero-inner{padding:18px 16px 16px;gap:12px}
+  .team-id{flex:1 1 100%}
+  .team-name{font-size:24px}
+  .team-count{margin-left:0;width:100%;display:flex;align-items:baseline;justify-content:space-between;gap:10px;border-top:1px dashed var(--line);padding-top:10px;margin-top:2px;text-align:left}
+  .team-record{font-size:21px}
+  .team-count .l{margin-top:0}
+}
+@media(max-width:760px){
+  .squad-cols{grid-template-columns:1fr}
+  .squad-team+.squad-team{border-left:0;border-top:1px solid var(--line)}
+  .sq-card{grid-template-columns:22px minmax(0,1fr) 108px}
+}
+
+/* 页签「更多赛事」 */
+.more-leagues{position:relative}
+.more-leagues>summary{list-style:none;cursor:pointer;font-size:12px;color:var(--muted);border:1px dashed var(--line-strong);border-radius:999px;padding:6px 12px}
+.more-leagues>summary::-webkit-details-marker{display:none}
+.more-leagues>summary::after{content:" ▾"}
+.more-leagues[open]>summary::after{content:" ▴"}
+.more-leagues-row{position:absolute;z-index:40;left:0;top:calc(100% + 6px);display:flex;flex-wrap:wrap;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:var(--shadow);min-width:320px;max-width:min(760px,84vw)}
+
+/* 模型表现卡片均匀排布 */
+#perf-summary,#perf-summary-blend,#perf-mkt{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+#perf-summary .sum-tile,#perf-summary-blend .sum-tile,#perf-mkt .sum-tile{min-height:82px}
+
+/* 比赛 hero 速览条 */
+.match-quick{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:16px 0 4px;padding-top:14px;border-top:1px dashed var(--line)}
+.mq-item{text-align:center;min-width:0}
+.mq-item .k{display:block;font-size:10.5px;color:var(--muted);letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mq-item b{display:block;font-family:var(--font-display);font-size:20px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mq-item.mq-h b{color:var(--win)}.mq-item.mq-d b{color:var(--draw)}.mq-item.mq-a b{color:var(--loss)}
+@media(max-width:760px){
+  .match-quick{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 8px}
+  .mq-item b{font-size:18px}
+}
+/* 球队 hero 战绩 */
+.team-record{font-family:var(--font-display);font-size:26px;font-weight:600;line-height:1.1;white-space:nowrap}
+.team-record .rec-w,.team-record .rec-d,.team-record .rec-l{font-weight:600}
+.team-count .l{margin-top:6px}
+
+/* 球队/比赛 hero 收敛一下颜色 */
+.team-hero::after{background:linear-gradient(120deg,color-mix(in srgb,var(--team-color,var(--accent)) 5%,transparent),transparent 45%)}
+.team-count .n{font-size:40px}
+.match-hero{margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -1132,8 +1219,8 @@ html.js-boot #boot-skeleton{display:block}
     <section class="section" id="standings-sec" hidden>
       <div class="section-head">
         <h2 class="section-title" id="standings-title">积分榜</h2>
-        <select class="st-select" id="standings-select" aria-label="选择联赛积分榜"></select>
         <span class="section-note" id="standings-note"></span>
+        <select class="st-select" id="standings-select" aria-label="选择联赛积分榜" style="margin-left:auto"></select>
       </div>
       <div class="panel st-wrap" id="standings-panel"></div>
     </section>
@@ -1212,14 +1299,6 @@ html.js-boot #boot-skeleton{display:block}
         <span class="section-note">模型预测与赛前赔率</span>
       </div>
       <div class="next-grid" id="team-next-list"></div>
-    </section>
-
-    <section class="section" id="team-squad-sec" hidden>
-      <div class="section-head">
-        <h2 class="section-title">阵容与球员</h2>
-        <span class="section-note">本赛季出场/进球/助攻（ESPN）</span>
-      </div>
-      <div class="panel" id="team-squad"></div>
     </section>
 
     <div class="filters">
@@ -1308,6 +1387,16 @@ html.js-boot #boot-skeleton{display:block}
     </div>
     <div class="table-hint">左右滑动表格可查看完整数据；点击任意一行展开犯规、封堵、场地等详细数据。</div>
 
+    <section class="section" id="team-squad-sec" hidden>
+      <div class="section-head">
+        <h2 class="section-title">阵容与球员</h2>
+        <span class="section-note">本赛季出场/进球/助攻（ESPN）</span>
+      </div>
+      <div class="panel" id="team-squad"></div>
+    </section>
+
+    <div class="table-hint">阵容名单按出场次数排序，数据来自 ESPN，每次构建更新。</div>
+
   </section>
 
   <!-- ============ MATCH ============ -->
@@ -1315,8 +1404,15 @@ html.js-boot #boot-skeleton{display:block}
     <a class="backlink" href="#/" id="match-back">← 返回</a>
     <div class="match-tools"><button class="chip-btn" id="export-match" type="button">导出图片</button></div>
     <div id="match-hero"></div>
+    <nav class="match-nav" id="match-nav" aria-label="页内导航">
+      <a href="#insight" data-nav="insight">分析</a>
+      <a href="#pre-match" data-nav="pre-match">赛前数据</a>
+      <a href="#match-timeline" data-nav="match-timeline">比赛事件</a>
+      <a href="#match-books" data-nav="match-books">多机构盘口</a>
+      <a href="#match-h2h" data-nav="match-h2h">历史交锋</a>
+      <a href="#match-squads" data-nav="match-squads">双方阵容</a>
+    </nav>
     <div id="match-compare"></div>
-    <div id="match-squads" hidden></div>
     <div id="match-timeline" hidden></div>
     <div id="match-books"></div>
 
@@ -1351,7 +1447,7 @@ html.js-boot #boot-skeleton{display:block}
       <div class="pred-note">赔率来源 DraftKings（经 ESPN 接口）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
     </section>
 
-    <section class="section">
+    <section class="section" id="match-h2h">
       <div class="section-head">
         <h2 class="section-title">双方历史交锋</h2>
         <span class="section-note" id="h2h-note">—</span>
@@ -1389,6 +1485,8 @@ html.js-boot #boot-skeleton{display:block}
       </div>
       <div class="table-hint">历史交锋取自本站已收录的比赛（每队最近 30 场），点击任意一行可展开犯规、封堵、场地等详细数据。</div>
     </section>
+
+    <div id="match-squads" hidden></div>
   </section>
 
 </main>
@@ -1623,22 +1721,20 @@ function playerCard(p){
   const bits = [];
   const pos = playerPos(p);
   if(pos) bits.push(pos);
-  if(p.age) bits.push(p.age + " 岁");
+  if(p.age) bits.push(p.age + "岁");
   if(p.nat) bits.push(p.nat);
   const stats = [];
-  if(p.app != null) stats.push(`出场 ${p.app}`);
-  if(p.g) stats.push(`进球 ${p.g}`);
-  if(p.a) stats.push(`助攻 ${p.a}`);
-  if(p.sv) stats.push(`扑救 ${p.sv}`);
-  if(p.yc) stats.push(`黄牌 ${p.yc}`);
-  if(p.rc) stats.push(`红牌 ${p.rc}`);
+  if(p.app != null) stats.push(`<span><b>${p.app}</b>场</span>`);
+  if(p.g) stats.push(`<span><b>${p.g}</b>球</span>`);
+  if(p.a) stats.push(`<span><b>${p.a}</b>助</span>`);
+  if(p.sv) stats.push(`<span><b>${p.sv}</b>扑</span>`);
+  if(p.yc) stats.push(`<span><b>${p.yc}</b>黄</span>`);
+  if(p.rc) stats.push(`<span><b>${p.rc}</b>红</span>`);
   return `<div class="sq-card">
     <span class="sq-num">${esc(p.j || "")}</span>
-    <div class="sq-main">
-      <div class="sq-name">${esc(p.n || p.e || "")}</div>
-      <div class="sq-meta">${esc(bits.join(" · "))}</div>
-      ${stats.length ? `<div class="sq-stats">${stats.map(x => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
-    </div>
+    <span class="sq-name">${esc(p.n || p.e || "")}</span>
+    <span class="sq-meta">${esc(bits.join(" · "))}</span>
+    <span class="sq-stats">${stats.join("")}</span>
   </div>`;
 }
 function renderSquads(m){
@@ -1658,7 +1754,10 @@ function renderSquads(m){
       <h2 class="section-title">双方阵容</h2>
       <span class="section-note">位置 · 年龄 · 国籍 · 本赛季数据</span>
     </div>
-    <div class="squad-cols">${col(h, hp)}${col(a, ap)}</div>
+    <details class="squad-details">
+      <summary>双方球员名单（${hp.length + ap.length} 人）<span class="hint">点击展开 · 按出场次数排序</span></summary>
+      <div class="squad-cols">${col(h, hp)}${col(a, ap)}</div>
+    </details>
   </section>`;
 }
 function renderTeamSquad(id){
@@ -1668,7 +1767,10 @@ function renderTeamSquad(id){
   const pl = ROSTERS[String(id)] || [];
   if(!pl.length){ sec.hidden = true; return; }
   sec.hidden = false;
-  box.innerHTML = `<div class="squad-list">${pl.map(playerCard).join("")}</div>`;
+  box.innerHTML = `<details class="squad-details">
+    <summary>球员名单（${pl.length} 人）<span class="hint">点击展开 · 按出场次数排序</span></summary>
+    <div class="squad-cols"><div class="squad-team"><div class="squad-list">${pl.map(playerCard).join("")}</div></div></div>
+  </details>`;
 }
 
 function onHistoryLoaded(){
@@ -2354,17 +2456,19 @@ function renderTabs(){
   // 全部非隐藏赛事都展示（无近期比赛的联赛也能点进去看积分榜/赛果）；
   // 有近期比赛的排在前面，其余按常见赛事顺序
   const orderIdx = id => { const i = LEAGUE_ORDER.indexOf(id); return i < 0 ? 999 : i; };
-  const opts = all.slice().sort((a, b) => {
+  const sorted = all.slice().sort((a, b) => {
     const an = a.id === "all" ? -1 : (a.n > 0 ? 0 : 1);
     const bn = b.id === "all" ? -1 : (b.n > 0 ? 0 : 1);
     if(an !== bn) return an - bn;
     return orderIdx(a.id) - orderIdx(b.id);
   });
-  tabs.innerHTML = opts.map(o => {
-    return `<button type="button" class="cat-tab" role="tab" data-league="${esc(o.id)}" aria-selected="${state.league === o.id}">
+  const active = sorted.filter(o => o.id === "all" || o.n > 0 || o.id === state.league);
+  const more = sorted.filter(o => !(o.id === "all" || o.n > 0 || o.id === state.league));
+  const tabHtml = o => `<button type="button" class="cat-tab" role="tab" data-league="${esc(o.id)}" aria-selected="${state.league === o.id}">
       ${esc(o.label)}<span class="n">${o.n}</span>
     </button>`;
-  }).join("");
+  tabs.innerHTML = active.map(tabHtml).join("") +
+    (more.length ? `<details class="more-leagues"><summary>更多赛事（${more.length}）</summary><div class="more-leagues-row">${more.map(tabHtml).join("")}</div></details>` : "");
 }
 
 function leagueMatchList(league){
@@ -3277,6 +3381,9 @@ function teamWindowStats(tid, list){
 function renderTeamWindow(tid, list){
   const box = $("#team-window-stats");
   if(!box) return;
+  // 默认就是「近 30 场」，与上方汇总卡重复；只有选 5/10/20 场时才显示
+  if((state.n || 30) >= 30){ box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
   const t = TEAMS.get(String(tid));
   if(!list.length || !t){ box.innerHTML = ""; return; }
   const s = teamWindowStats(tid, list);
@@ -3434,8 +3541,8 @@ function renderTeam(id){
         <div class="team-leagues">${(t.leagues || []).slice().sort(compSort).map(l => `<span class="league-chip pill"><span class="tdot" style="background:${LEAGUE_DOT[l] || "var(--muted)"}"></span>${esc(l)}</span>`).join("")}${(() => { const r = teamRank(id); return r ? `<span class="league-chip pill">${esc(r.lg)} 第 ${r.rank}</span>` : ""; })()}</div>
       </div>
       <div class="team-count">
-        <div class="n">${state.all.length}</div>
-        <div class="l">近 30 场</div>
+        <div class="team-record"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div>
+        <div class="l">近 ${rec.n} 场 · 胜率 ${rec.n ? Math.round(rec.w / rec.n * 100) : 0}%</div>
       </div>
     </div>
   </div>`;
@@ -3446,8 +3553,10 @@ function renderTeam(id){
     <div class="l">${label}</div><div class="v">${val}</div><div class="s">${sub || ""}</div>
   </div>`;
 
+  const tgf = state.all.reduce((n, m) => n + (String(m.home) === String(id) ? (m.hs || 0) : (m.as || 0)), 0);
+  const tga = state.all.reduce((n, m) => n + (String(m.home) === String(id) ? (m.as || 0) : (m.hs || 0)), 0);
   $("#team-summary").innerHTML = [
-    tile("近 30 场战绩", recText, `有效比赛 ${rec.n} 场`, "wide"),
+    tile("场均进球 / 失球", `${rec.n ? (tgf / rec.n).toFixed(1) : "—"} / ${rec.n ? (tga / rec.n).toFixed(1) : "—"}`, `合计进 ${tgf} 球 · 失 ${tga} 球`, "wide"),
     tile("场均射门", avgText(a.shots && a.shots.own), a.shots ? `对手 ${avgText(a.shots.opp)} · ${a.shots.n} 场` : "暂无数据"),
     tile("场均射正", avgText(a.sot && a.sot.own), a.sot ? `对手 ${avgText(a.sot.opp)} · ${a.sot.n} 场` : "暂无数据"),
     tile("场均角球", avgText(a.corners && a.corners.own), a.corners ? `对手 ${avgText(a.corners.opp)} · ${a.corners.n} 场` : "暂无数据"),
@@ -4276,6 +4385,8 @@ function renderMatch(id){
   $("#home-view").hidden = true;
   $("#team-view").hidden = true;
   $("#match-view").hidden = false;
+  const nav = $("#match-nav");
+  if(nav) nav.hidden = false;
   state.matchId = String(id);
   state.mvSide = "all";
   $("#match-back").href = "#/team/" + encodeURIComponent(h.id);
@@ -4312,6 +4423,34 @@ function renderMatch(id){
         </div>
       </div>
     </div>
+    ${(() => {
+      if(done){
+        const sh = m.stats && m.stats.home, sa = m.stats && m.stats.away;
+        if(!sh || !sa) return "";
+        const bits = [
+          ["射门", `${sh.shots ?? "—"}–${sa.shots ?? "—"}`],
+          ["射正", `${sh.sot ?? "—"}–${sa.sot ?? "—"}`],
+          ["角球", `${sh.corners ?? "—"}–${sa.corners ?? "—"}`],
+          ["控球", `${sh.possession != null ? Math.round(sh.possession) : "—"}%–${sa.possession != null ? Math.round(sa.possession) : "—"}%`]
+        ];
+        return `<div class="match-quick">${bits.map(([k, v]) => `<div class="mq-item"><span class="k">${k}</span><b>${v}</b></div>`).join("")}</div>`;
+      }
+      if(live) return "";
+      const p = m.pred;
+      if(!p) return "";
+      const fip = m.odds ? impliedProbs(m.odds.ml) : null;
+      const fp = fip ? blendProbs(p, fip, 0.7) : [p.ph, p.pd, p.pa];
+      const o25 = p.lines ? p.lines["2.5"] : null;
+      const bits = [
+        ["主胜", `${Math.round(fp[0] * 100)}%`, "mq-h"],
+        ["平", `${Math.round(fp[1] * 100)}%`, "mq-d"],
+        ["客胜", `${Math.round(fp[2] * 100)}%`, "mq-a"],
+        ["预期进球", `${p.xgH.toFixed(1)}–${p.xgA.toFixed(1)}`, ""],
+        ["大 2.5", o25 != null ? `${Math.round(o25 * 100)}%` : "—", ""],
+        ["双方进球", p.btts != null ? `${Math.round(p.btts * 100)}%` : "—", ""]
+      ];
+      return `<div class="match-quick">${bits.map(([k, v, cls]) => `<div class="mq-item ${cls}"><span class="k">${k}</span><b>${v}</b></div>`).join("")}</div>`;
+    })()}
     <div class="match-foot">
       <span>主队技术统计在左，客队在右</span>
       ${done ? `<span>${recTextFor(m, h.id)}</span>`
@@ -4335,8 +4474,10 @@ function renderMatch(id){
     cmpItem("被封堵", m, "blocked")
   ].join("") : "";
   $("#match-compare").innerHTML = cmp
-    ? `<div class="cmp-head"><span>本场技术统计</span><span>${done ? "已结束" : (live ? "进行中" : "未开始")}</span></div><div class="cmp-grid">${cmp}</div>`
-    : `<div class="cmp-head"><span>本场技术统计</span><span>暂无</span></div><div class="empty">该场暂无技术统计：数据源未提供，或比赛尚未开始。</div>`;
+    ? `<section class="section"><div class="section-head"><h2 class="section-title">本场技术统计</h2>
+        <span class="section-note">${done ? "已结束" : (live ? "进行中" : "未开始")}</span></div>
+        <div class="cmp-grid">${cmp}</div></section>`
+    : "";
 
   renderPreMatch(m);
   renderInsight(m);
@@ -4419,6 +4560,9 @@ function fdcoCard(fd, m){
 /* 比赛页的双方历史交锋，支持按主客场筛选（以本场主队为参照） */
 function renderMatchH2H(h, a, m){
   const all = h2hMatches(h.id, a.id, m.id);
+  const sec = $("#match-h2h");
+  if(sec) sec.hidden = !all.length;
+  if(!all.length) return;
   const side = state.mvSide || "all";
   const sideFiltered = side === "all"
     ? all

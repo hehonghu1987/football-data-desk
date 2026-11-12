@@ -2680,6 +2680,9 @@ def main():
     hot_ids = {tid for tid, t in teams.items()
                if any(lg in HOT_LEAGUES for lg in (t.get("leagues") or []))}
     log(f"  热门球队：{len(hot_ids)} 支")
+    # 名字没翻成中文的球队（多为低级别杯赛小球会）：相关杯赛场次也不展示，避免首页出现英文队名
+    untranslated_ids = {tid for tid, t in teams.items()
+                        if not (t.get("name") in CN)}
     hidden_n = 0
 
     match_rows = []
@@ -2704,7 +2707,8 @@ def main():
                 "mkt": odds_market_probs(ev["leagueCode"], eid),
             }
             if (ev["league"] in CUP_HIDE_LEAGUES
-                    and ev["home"] not in hot_ids and ev["away"] not in hot_ids):
+                    and (not (ev["home"] in hot_ids or ev["away"] in hot_ids)
+                         or ev["home"] in untranslated_ids or ev["away"] in untranslated_ids)):
                 row["hide"] = 1
                 hidden_n += 1
             match_rows.append(row)
@@ -2888,7 +2892,8 @@ def main():
             "pred": _pred,
         })
         if (ev["league"] in CUP_HIDE_LEAGUES
-                and ev["home"] not in hot_ids and ev["away"] not in hot_ids):
+                and (not (ev["home"] in hot_ids or ev["away"] in hot_ids)
+                     or ev["home"] in untranslated_ids or ev["away"] in untranslated_ids)):
             fixture_rows[-1]["hide"] = 1
             hidden_n += 1
     fixture_rows.sort(key=lambda f: f["date"] or "")
