@@ -2535,14 +2535,14 @@ function upcomingCount(league){
     if(isNaN(d) || d < start) continue;
     days.add(dayKey(d));
   }
-  const keep = Array.from(days).sort().slice(0, 5);
-  const keepSet = new Set(keep);
+  // 页签计数覆盖数据集里全部未来赛程（不只看前 5 天），
+  // 国际比赛周后恢复的联赛也能出现在主页签里；赛程面板仍按前 5 个比赛日展示。
   let n = 0;
   for(const f of leagueFixtureList(league)){
     if(f.hide) continue;
     const d = new Date(f.date);
     if(isNaN(d) || d < start) continue;
-    if(keepSet.has(dayKey(d))) n++;
+    n++;
   }
   return n;
 }
