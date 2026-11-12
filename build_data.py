@@ -1024,6 +1024,16 @@ ODDSAPI_LEAGUES = {
 # 免费档没有覆盖；bet365 在 ESPN 有（俱乐部场次），Ladbrokes 需 UK 区域。
 ODDS_BOOK_WHITELIST = {
     "draftkings": "DraftKings",
+    "onexbet": "1xBet", "1xbet": "1xBet",
+    "marathonbet": "Marathon Bet",
+    "betsson": "Betsson",
+    "nordicbet": "Nordic Bet",
+    "pmufr": "PMU", "pmu": "PMU",
+    "leovegas": "LeoVegas", "leovegasse": "LeoVegas",
+    "coolbet": "Coolbet",
+    "betfair": "Betfair",
+    "betclic": "Betclic", "betclicfr": "Betclic",
+    "888sport": "888sport",
     "pinnacle": "Pinnacle",
     "bet365": "Bet365", "bet365au": "Bet365",
     "williamhill": "William Hill",
@@ -1037,6 +1047,8 @@ ODDS_BOOK_WHITELIST = {
     "oddset": "ODDSET", "snai": "SNAI", "codere": "Codere",
 }
 ODDSAPI_BOOKMAKERS = "pinnacle,williamhill,ladbrokes_uk,unibet_fr,unibet_nl,unibet_se,tipico_de,winamax_de,winamax_fr"
+ODDSAPI_BOOKMAKERS_EXTRA = ("onexbet,marathonbet,betsson,nordicbet,pmu_fr,leovegas_se,"
+                            "coolbet,betfair,betclic,888sport")
 
 
 def _book_key(title):
@@ -1320,7 +1332,23 @@ def fetch_oddsapi_books(fixture_rows, teams):
         except Exception as e:
             log(f"  Odds API {lab} 失败：{str(e)[:80]}")
             continue
-        for ev in data:
+        merged = list(data)
+        # 主流机构补充包（只取 h2h，10 家算 1 个区域 = 1 credit）
+        if remaining is None or remaining > 120:
+            extra_url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
+                         f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS_EXTRA}"
+                         f"&markets=h2h&oddsFormat=decimal&dateFormat=iso")
+            try:
+                req2 = urllib.request.Request(extra_url, headers={"User-Agent": UA})
+                with urllib.request.urlopen(req2, timeout=40) as resp2:
+                    data2 = json.loads(resp2.read().decode("utf-8"))
+                    rem2 = resp2.headers.get("x-requests-remaining")
+                    if rem2 is not None:
+                        remaining = int(rem2)
+                    merged += data2
+            except Exception as e:
+                log(f"  Odds API {lab} 补充机构失败：{str(e)[:60]}")
+        for ev in merged:
             try:
                 ev_t = datetime.fromisoformat((ev.get("commence_time") or "").replace("Z", "+00:00"))
             except ValueError:

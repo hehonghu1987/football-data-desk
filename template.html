@@ -2636,7 +2636,10 @@ const BOOK_CN = {
 function bookCn(name){ return BOOK_CN[name] || name || ""; }
 /* 用户指定的欧赔 10 家（固定展示顺序，无数据的也保留一行） */
 const BOOK_ORDER = ["Pinnacle", "Bet365", "William Hill", "Ladbrokes", "Unibet",
-                    "Tipico", "ODDSET", "SNAI", "Winamax", "Codere", "DraftKings"];
+                    "Tipico", "ODDSET", "SNAI", "Winamax", "Codere", "DraftKings",
+                    "1xBet", "Marathon Bet", "Betsson", "Nordic Bet", "Betfair",
+                    "PMU", "LeoVegas", "Coolbet", "Betclic", "888sport",
+                    "SBOBET", "188BET", "12BET", "Crown", "Macau Slot", "Dafabet"];
 function bookLabel(name){
   const cn = BOOK_CN[name];
   if(!cn || cn === name) return `<span class="bn-en only">${esc(name || "")}</span>`;
@@ -4184,7 +4187,13 @@ function renderPreMatch(m){
       const ql = v => (v == null ? "—" : Number(v).toFixed(1));
       const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
       const byName = new Map(books.map(b => [b.book, b]));
-      const ordered = BOOK_ORDER.map(n => byName.get(n) || { book: n, empty: true });
+      // 名单里明确要保留的机构：没数据也占一行；其余主流机构只有抓到数据才显示
+      const CORE_ALWAYS = new Set(["Pinnacle", "Bet365", "William Hill", "Ladbrokes", "Unibet",
+        "Tipico", "ODDSET", "SNAI", "Winamax", "Codere", "DraftKings",
+        "SBOBET", "188BET", "12BET", "Crown", "Macau Slot", "Dafabet"]);
+      const ordered = BOOK_ORDER
+        .filter(n => byName.has(n) || CORE_ALWAYS.has(n))
+        .map(n => byName.get(n) || { book: n, empty: true });
       for(const b of books) if(!BOOK_ORDER.includes(b.book)) ordered.push(b);
       const rows = ordered.map(b => {
         const mm = b.m || [null, null, null];
