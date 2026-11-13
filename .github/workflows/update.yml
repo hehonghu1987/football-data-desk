@@ -2,9 +2,9 @@ name: 每日更新数据
 
 on:
   schedule:
-    # 每 30 分钟一轮（UTC 的 :07 与 :37，即北京时间 :07 / :37）。
-    # 比分板与赔率的缓存 TTL 已相应调低，保证即时比分与赛果能在一个周期内刷新。
-    - cron: "7,37 * * * *"
+    # GitHub 的定时任务会延迟/漏跑，所以改成每 15 分钟机会式触发：
+    # 每次先检查线上数据年龄，>22 分钟才真正构建，正常保持约 30 分钟一次部署。
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -14,10 +14,42 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: 检查线上数据年龄
+        id: check
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os, re, urllib.request
+          skip = "false"
+          if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+              url = ("https://hehonghu1987.github.io/football-data-desk/?v="
+                     + str(int(datetime.datetime.now().timestamp())))
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                  html = urllib.request.urlopen(req, timeout=60).read().decode("utf-8", "ignore")
+                  m = re.search(r'"generatedAt":"([^"]+)"', html)
+                  gen = datetime.datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
+                  age = (datetime.datetime.now(datetime.timezone.utc) - gen).total_seconds() / 60
+                  print(f"线上数据 {gen.isoformat()}，距今 {age:.0f} 分钟")
+                  if age < 22:
+                      skip = "true"
+              except Exception as e:
+                  print("检查失败，照常构建：", e)
+          print("skip =", skip)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write("skip=%s\n" % skip)
+          PY
+
   build:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
