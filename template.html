@@ -260,25 +260,41 @@ input{font:inherit}
   overflow-x:clip;
 }
 .hero{
-  display:flex;justify-content:space-between;align-items:flex-end;gap:24px;
-  padding-block:28px 22px;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:28px;
+  padding-block:26px 20px;
   border-bottom:1px solid var(--line);
 }
 .eyebrow{
-  font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;
   color:var(--muted);text-transform:uppercase;
 }
-.hero-date{display:flex;align-items:baseline;gap:10px;margin-top:5px}
+.hero-date{display:flex;align-items:center;gap:12px;margin-top:6px}
 .hero-date .d{
-  font-family:var(--font-display);font-size:54px;line-height:.92;
-  font-weight:600;letter-spacing:-.01em;
+  font-family:var(--font-display);font-size:46px;line-height:.9;
+  font-weight:600;letter-spacing:-.02em;
 }
-.hero-date .w{font-size:18px;font-weight:700;color:var(--ink-2)}
-.hero-sub{font-size:12.5px;color:var(--muted);margin-top:8px}
-.hero-sub b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
-.hero-stats{display:grid;grid-template-columns:repeat(3,auto);gap:24px;text-align:right}
-.hero-stat .n{font-family:var(--font-display);font-size:27px;font-weight:600;line-height:1}
-.hero-stat .l{font-size:10.5px;color:var(--muted);margin-top:3px;letter-spacing:.04em;white-space:nowrap}
+.hero-date .w{
+  font-size:12px;font-weight:700;color:var(--accent);
+  background:var(--accent-soft);border-radius:999px;padding:3px 10px;
+  white-space:nowrap;
+}
+.hero-sub{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.hchip{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11.5px;color:var(--muted);
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:999px;padding:4px 10px;white-space:nowrap;
+}
+.hchip b{font-family:var(--font-mono);font-size:12.5px;color:var(--ink);font-weight:600}
+.hchip.muted{opacity:.8}
+.hero-stats{display:flex;gap:10px}
+.hero-stat{
+  min-width:92px;text-align:center;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:10px 14px;
+}
+.hero-stat .n{font-family:var(--font-display);font-size:22px;font-weight:600;line-height:1.1}
+.hero-stat .l{font-size:10.5px;color:var(--muted);margin-top:2px;letter-spacing:.02em;white-space:nowrap}
 
 /* ---------- quick + tabs ---------- */
 .cat-tabs{
@@ -921,8 +937,9 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
   .search-wrap{order:3;flex-basis:100%;max-width:none;min-width:0}
   .search-kbd{display:none}
   .search-results{max-height:min(64vh,480px)}
-  .hero{padding-block:22px 18px;flex-direction:column;align-items:flex-start;gap:18px}
-  .hero-stats{grid-template-columns:repeat(3,1fr);gap:12px;text-align:left;width:100%;border-top:1px solid var(--line);padding-top:14px}
+  .hero{grid-template-columns:minmax(0,1fr);align-items:start;padding-block:20px 16px;gap:14px}
+  .hero-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%}
+  .hero-stat{min-width:0;padding:8px 6px;text-align:center}
   .cat-tabs{width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin}
   .cat-tab{flex:none}
   .table-hint{display:block}
@@ -930,7 +947,7 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 @media (max-width:640px){
   .brand-sub{display:none}
   .update-chip .txt{display:none}
-  .hero-date .d{font-size:46px}
+  .hero-date .d{font-size:40px}
   .hero-stats{gap:8px}
   .hero-stat .n{font-size:23px}
   .hero-stat .l{font-size:9.5px;white-space:normal}
@@ -1280,14 +1297,14 @@ main:focus{outline:none}
   <!-- ============ HOME ============ -->
   <section id="home-view">
     <div class="hero">
-      <div>
+      <div class="hero-main">
         <div class="eyebrow">TODAY&rsquo;S MATCHES</div>
         <div class="hero-date"><span class="d" id="hero-date">—</span><span class="w" id="hero-weekday"></span></div>
-        <div class="hero-sub" id="hero-sub">—</div>
+        <div class="hero-sub" id="hero-sub"></div>
       </div>
       <div class="hero-stats">
         <div class="hero-stat"><div class="n" id="stat-leagues">—</div><div class="l">项赛事</div></div>
-        <div class="hero-stat"><div class="n" id="stat-matches">—</div><div class="l">场已结束</div></div>
+        <div class="hero-stat"><div class="n" id="stat-matches">—</div><div class="l">场比赛</div></div>
         <div class="hero-stat"><div class="n" id="stat-teams">—</div><div class="l">支球队</div></div>
       </div>
     </div>
@@ -2744,12 +2761,15 @@ function renderHero(){
   const todayCount = items.filter(f => dayKey(new Date(f.date)) === TODAY_KEY).length;
   // 未来场次与「今日赛程」列表完全同口径：列表里有几场就是几场
   const weekCount = upcomingCount("all");
-  $("#hero-sub").innerHTML = todayCount
-    ? `今日 <b>${todayCount}</b> 场 · 未来 5 个比赛日 <b>${weekCount}</b> 场`
-    : `今日暂无比赛 · 未来 5 个比赛日 <b>${weekCount}</b> 场`;
+  const subChips = [];
+  if(todayCount) subChips.push(`<span class="hchip"><b>${todayCount}</b> 场今日</span>`);
+  else subChips.push(`<span class="hchip muted">今日暂无比赛</span>`);
+  subChips.push(`<span class="hchip"><b>${weekCount}</b> 场未来 5 天</span>`);
+  $("#hero-sub").innerHTML = subChips.join("");
+  const meta = DATA.meta || {};
   $("#stat-leagues").textContent = (DATA.leagues || []).length;
-  $("#stat-matches").textContent = niceNum((DATA.matches || []).length);
-  $("#stat-teams").textContent = niceNum((DATA.teams || []).length);
+  $("#stat-matches").textContent = niceNum(meta.matchCount || (DATA.matches || []).length);
+  $("#stat-teams").textContent = niceNum(meta.teamCount || (DATA.teams || []).length);
 }
 
 function renderTabs(){
