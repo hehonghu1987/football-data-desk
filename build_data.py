@@ -3661,7 +3661,8 @@ def main():
         # 首屏瘦身：只内联近 400 天比赛（覆盖 30/90/365 天模型回测窗口），
         # 更早的历史写入 data/history.json，由前端空闲时或进球队页时懒加载
         from datetime import datetime as _dt3, timedelta as _td3, timezone as _tz3
-        cut = (_dt3.now(_tz3.utc) - _td3(days=400)).isoformat()
+        # 首屏只内联近 150 天比赛（覆盖 30/90 天模型回测）；更早历史走 data/history.json 懒加载
+        cut = (_dt3.now(_tz3.utc) - _td3(days=150)).isoformat()
         recent, history = [], []
         for m in payload["matches"]:
             (recent if (m.get("date") or "") >= cut else history).append(m)

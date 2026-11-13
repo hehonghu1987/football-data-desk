@@ -1102,6 +1102,15 @@ table.books tr.row-open .bk{color:var(--ink-2);font-weight:600}
 table.books .mq{font-size:10.5px;color:var(--muted);white-space:nowrap}
 table.books tr.row-empty td{color:var(--muted);opacity:.6}
 
+/* 折叠：更多比赛日 / 榜单 */
+.more-days{margin-top:2px}
+.more-days>summary{cursor:pointer;list-style:none;padding:12px 16px;font-size:12.5px;color:var(--accent);font-weight:600;background:var(--surface);border-top:1px solid var(--line)}
+.more-days>summary::-webkit-details-marker{display:none}
+.table-more{margin-top:12px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.table-more>summary{cursor:pointer;list-style:none;padding:11px 14px;font-size:12.5px;color:var(--accent);font-weight:600;background:var(--surface-2)}
+.table-more>summary::-webkit-details-marker{display:none}
+.table-more[open]>summary{border-bottom:1px solid var(--line)}
+
 /* 模型价值盘 */
 .value-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .value-col{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
@@ -2840,7 +2849,7 @@ function renderFixtures(){
     panel.innerHTML = `<div class="empty">${state.league === "all" ? "近期" : esc(state.league) + " 近期"}暂无已排定的比赛。<br>可以切换到其他联赛，或直接搜索球队查看历史数据。</div>`;
     return;
   }
-  panel.innerHTML = keys.map(k => {
+  const dayBlock = k => {
     const rows = groups.get(k).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const [y, mo, da] = k.split("-").map(Number);
     const dt = new Date(y, mo - 1, da);
@@ -2849,7 +2858,14 @@ function renderFixtures(){
     else if(k === TOMORROW_KEY) label = "明天";
     return `<div class="day-head"><b>${label}</b><span class="wd">${dtfWeek.format(dt)}</span><span class="cnt">${rows.length} 场</span></div>` +
       rows.map(f => fixtureRowHtml(f)).join("");
-  }).join("");
+  };
+  const shown = keys.slice(0, 2);
+  const moreKeys = keys.slice(2);
+  panel.innerHTML = shown.map(dayBlock).join("") +
+    (moreKeys.length ? `<details class="more-days">
+      <summary>展开其余 ${moreKeys.length} 个比赛日（${moreKeys.reduce((n, k) => n + groups.get(k).length, 0)} 场）</summary>
+      ${moreKeys.map(dayBlock).join("")}
+    </details>` : "");
 }
 
 /* ---------- 高信心推荐（历史命中率来自分档回测） ---------- */
@@ -3281,10 +3297,10 @@ function renderStandings(){
       <th class="hide-s">进</th><th class="hide-s">失</th><th class="hide-s">净</th><th>分</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
   }).join("");
-  const atk = attackTable(lg);
-  if(atk) panel.innerHTML += atk;
-  const sc = scorersTable(lg);
-  if(sc) panel.innerHTML += sc;
+  const extras = [attackTable(lg), scorersTable(lg)].filter(Boolean).join("");
+  if(extras){
+    panel.innerHTML += `<details class="table-more"><summary>展开近一年攻防榜 / 近 30 天射手榜</summary>${extras}</details>`;
+  }
 }
 
 /* 近 30 天射手榜：来自比赛事件（进球/点球） */
@@ -3589,6 +3605,11 @@ $("#perf-seg").addEventListener("click", e => {
   const b = e.target.closest("[data-days]");
   if(!b) return;
   state.perfDays = Number(b.dataset.days);
+  // 近一年回测需要 150 天前的历史，先懒加载完整历史再渲染
+  if(state.perfDays >= 365 && !HISTORY_LOADED){
+    loadHistory().then(() => renderModelPerf());
+    return;
+  }
   renderModelPerf();
 });
 
