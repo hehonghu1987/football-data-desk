@@ -1931,11 +1931,12 @@ function xiCard(p, roster){
   </div>`;
 }
 async function renderSquads(m){
+  try{
   const box = $("#match-squads");
   if(!box) return;
   const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
   const [hp, ap] = await Promise.all([loadRoster(m.home), loadRoster(m.away)]);
-  if(String(state.matchId) !== String(m.id)) return;
+  if(state.matchId != null && String(state.matchId) !== String(m.id)) return;
   if(!hp.length && !ap.length){ box.hidden = true; return; }
   box.hidden = false;
   const col = (t, pl) => {
@@ -1965,6 +1966,7 @@ async function renderSquads(m){
       <div class="squad-cols">${col(h, hp)}${col(a, ap)}</div>
     </details>
   </section>`;
+  }catch(e){ console.error("renderSquads failed", e); }
 }
 function renderTeamSquad(id){
   const sec = $("#team-squad-sec"), box = $("#team-squad");
