@@ -1120,6 +1120,15 @@ main:focus{outline:none}
 }
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
+/* 置顶比赛 */
+.pin-btn{margin-left:6px;border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:3px 4px;border-radius:6px;vertical-align:middle}
+.pin-btn:hover{background:var(--surface-2);color:var(--accent)}
+.pin-btn.on{color:var(--accent)}
+#pinned-sec .fix-row{background:var(--surface)}
+#pinned-sec .day-head{display:none}
+.match-meta .pin-btn{font-size:12px;display:inline-flex;align-items:center;gap:3px}
+.match-meta .pin-lbl{font-size:11px;color:var(--muted)}
+
 /* 关注球队 */
 .follow-btn{margin-left:10px;font:inherit;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid transparent;border-radius:999px;padding:3px 10px;cursor:pointer;vertical-align:middle}
 .follow-btn:hover{border-color:var(--accent)}
@@ -1299,6 +1308,15 @@ main:focus{outline:none}
     </div>
 
     <nav class="cat-tabs" role="tablist" aria-label="赛事分类" id="cat-tabs"></nav>
+
+    <section class="section" id="pinned-sec" hidden>
+      <div class="section-head">
+        <h2 class="section-title">置顶比赛</h2>
+        <button class="chip-btn" id="copy-pinned" type="button">复制分享</button>
+        <span class="section-note">点赛程时间旁的 ☆ 置顶 · 保存在本地浏览器</span>
+      </div>
+      <div class="panel" id="pinned-panel"></div>
+    </section>
 
     <section class="section">
       <div class="section-head">
@@ -1771,6 +1789,59 @@ function toggleFollow(tid){
     btn.setAttribute("aria-pressed", FOLLOWED.has(id) ? "true" : "false");
   }
   renderFollowed();
+  renderPinned();
+}
+
+/* ---------- 置顶比赛（本地保存） ---------- */
+let PINNED = new Set();
+try { PINNED = new Set(JSON.parse(localStorage.getItem("lg-pinned") || "[]").map(String)); } catch(e){}
+function savePinned(){
+  try { localStorage.setItem("lg-pinned", JSON.stringify([...PINNED])); } catch(e){}
+}
+function isPinned(id){ return PINNED.has(String(id)); }
+function togglePin(id){
+  const mid = String(id);
+  if(PINNED.has(mid)) PINNED.delete(mid); else PINNED.add(mid);
+  savePinned();
+  document.querySelectorAll(`.pin-btn[data-pin="${CSS.escape ? CSS.escape(mid) : mid}"]`).forEach(b => {
+    b.classList.toggle("on", PINNED.has(mid));
+    b.setAttribute("aria-pressed", PINNED.has(mid) ? "true" : "false");
+    b.textContent = PINNED.has(mid) ? "★" : "☆";
+  });
+  renderPinned();
+}
+function pinnedList(){
+  const out = [];
+  for(const id of PINNED){
+    const m = MATCH_BY_ID.get(String(id));
+    if(m) out.push(m);
+  }
+  out.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return out;
+}
+function renderPinned(){
+  const sec = $("#pinned-sec"), panel = $("#pinned-panel");
+  if(!sec || !panel) return;
+  const list = pinnedList();
+  if(!list.length){ sec.hidden = true; panel.innerHTML = ""; return; }
+  sec.hidden = false;
+  panel.innerHTML = list.map(f => fixtureRowHtml(f)).join("");
+}
+function copyPinned(){
+  const list = pinnedList();
+  if(!list.length) return;
+  const base = location.origin + location.pathname;
+  const lines = list.map((f, i) => {
+    const h = TEAMS.get(String(f.home)), a = TEAMS.get(String(f.away));
+    const hn = (h && (h.cn || h.name)) || "", an = (a && (a.cn || a.name)) || "";
+    return `${i + 1}. ${hn} vs ${an}（${f.league || ""} ${fullTime(f.date)}）${base}#/match/${f.id}`;
+  });
+  const text = "绿茵数据台 · 我的置顶比赛\n" + lines.join("\n");
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(() => toast("已复制置顶比赛分享文本")).catch(() => prompt("复制下面内容分享：", text));
+  } else {
+    prompt("复制下面内容分享：", text);
+  }
 }
 
 /* ---------- data indexes ---------- */
@@ -2637,6 +2708,13 @@ searchPanel.addEventListener("click", e => {
   if(item) openTeam(item.dataset.team);
 });
 document.addEventListener("click", e => {
+  const pin = e.target.closest(".pin-btn");
+  if(pin){ e.preventDefault(); e.stopPropagation(); togglePin(pin.dataset.pin); return; }
+  const cp = e.target.closest("#copy-pinned");
+  if(cp){ e.preventDefault(); copyPinned(); return; }
+}, true);
+
+document.addEventListener("click", e => {
   if(!$("#search-wrap").contains(e.target)){
     searchPanel.hidden = true;
     searchInput.setAttribute("aria-expanded", "false");
@@ -2863,7 +2941,7 @@ function fixtureRowHtml(f, forceStatus){
     predLine = `<div class="fix-pred">${hiTag}<span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span>${hints.length ? `<span class="hint">${hints.join(" · ")}</span>` : ""}</div>`;
   }
   return `<div class="fix-row" data-mid="${esc(f.id)}">
-    <div class="fix-time">${fmtTime(f.date)}</div>
+    <div class="fix-time">${fmtTime(f.date)}<button type="button" class="pin-btn${isPinned(f.id) ? " on" : ""}" data-pin="${esc(f.id)}" aria-pressed="${isPinned(f.id) ? "true" : "false"}" title="${isPinned(f.id) ? "取消置顶" : "置顶这场比赛"}" aria-label="置顶比赛">${isPinned(f.id) ? "★" : "☆"}</button></div>
     <div>${leagueChip(f.league)}</div>
     <a class="fix-team home" href="#/team/${esc(h.id)}">${teamDot(h)}<span class="name">${esc(h.cn || h.name)}</span></a>
     <div class="fix-vs">VS</div>
@@ -3652,6 +3730,7 @@ function renderHome(){
   syncDayBar();
   renderFixtures();
   renderFollowed();
+  renderPinned();
   renderConfidence();
   renderValueBoard();
   renderRecent();
@@ -5065,6 +5144,7 @@ function renderMatch(id){
       <span>${esc(fullTime(m.date))}</span>
       ${leagueChip(m.league)}
       ${m.venue ? `<span>${esc(m.venue)}</span>` : ""}
+      <button type="button" class="pin-btn${isPinned(m.id) ? " on" : ""}" data-pin="${esc(m.id)}" aria-pressed="${isPinned(m.id) ? "true" : "false"}" title="置顶这场比赛">${isPinned(m.id) ? "★" : "☆"}<span class="pin-lbl">置顶</span></button>
     </div>
     <div class="match-teams">
       <div class="match-side home">
