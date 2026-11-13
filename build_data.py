@@ -3744,6 +3744,16 @@ def main():
             json.dump({"teams": rosters}, f, ensure_ascii=False, separators=(",", ":"))
         log(f"  球队名单：{len(rosters)}/{len(roster_jobs)} 队"
             f"（{os.path.getsize(ros_path) / 1024 / 1024:.2f} MB）")
+        # 再按球队拆成小文件：前端只取需要的 1~2 支球队，避免拉 1.8MB 全量
+        ros_dir = os.path.join(DATA_DIR, "rosters")
+        try:
+            os.makedirs(ros_dir, exist_ok=True)
+            for _tid, _pl in rosters.items():
+                with open(os.path.join(ros_dir, f"{_tid}.json"), "w", encoding="utf-8") as sf:
+                    json.dump({"players": _pl}, sf, ensure_ascii=False, separators=(",", ":"))
+            log(f"  球队名单拆分：{len(rosters)} 个小文件（data/rosters/<teamId>.json）")
+        except OSError as e:
+            log(f"  ⚠ 球队名单拆分失败：{e}")
     except Exception as e:
         log(f"  ⚠ 球队名单抓取失败：{e}")
 
@@ -3789,6 +3799,15 @@ def main():
             (recent if (m.get("date") or "") >= cut else history).append(m)
         # 参考首发/预测阵容数据单独懒加载：只有比赛页需要
         lu_path = os.path.join(DATA_DIR, "lineups.json")
+        # 同样按球队拆小文件，比赛页只拉两队
+        try:
+            lu_dir = os.path.join(DATA_DIR, "lineups")
+            os.makedirs(lu_dir, exist_ok=True)
+            for _tid, _lu in (payload.get("lineups") or {}).items():
+                with open(os.path.join(lu_dir, f"{_tid}.json"), "w", encoding="utf-8") as sf:
+                    json.dump(_lu, sf, ensure_ascii=False, separators=(",", ":"))
+        except OSError:
+            pass
         try:
             with open(lu_path, "w", encoding="utf-8") as f:
                 json.dump({"lineups": payload.get("lineups") or {}}, f, ensure_ascii=False, separators=(",", ":"))
