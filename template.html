@@ -1102,6 +1102,17 @@ table.books tr.row-open .bk{color:var(--ink-2);font-weight:600}
 table.books .mq{font-size:10.5px;color:var(--muted);white-space:nowrap}
 table.books tr.row-empty td{color:var(--muted);opacity:.6}
 
+/* 无障碍：跳过链接 / 键盘焦点 / 触控目标 */
+.skip-link{position:absolute;left:-999px;top:0;z-index:9999;background:var(--accent);color:#fff;padding:10px 16px;border-radius:0 0 10px 0;font-size:13px;font-weight:600}
+.skip-link:focus{left:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+main:focus{outline:none}
+@media (pointer:coarse){
+  .icon-btn{min-width:40px;min-height:40px}
+  .lg-tab,.daybar-btn,.seg-btn{min-height:38px}
+}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
 /* 关注球队 */
 .follow-btn{margin-left:10px;font:inherit;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid transparent;border-radius:999px;padding:3px 10px;cursor:pointer;vertical-align:middle}
 .follow-btn:hover{border-color:var(--accent)}
@@ -1181,6 +1192,7 @@ table.books tr.row-empty td{color:var(--muted);opacity:.6}
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">跳到主要内容</a>
 
 <!-- 首屏骨架：4.4MB 内联数据解析期间先画占位，避免内容插入时整页跳动（CLS） -->
 <div id="boot-skeleton" aria-hidden="true">
@@ -1249,7 +1261,7 @@ table.books tr.row-empty td{color:var(--muted);opacity:.6}
   </div>
 </header>
 
-<main class="shell">
+<main class="shell" id="main-content" tabindex="-1">
 <h1 class="sr-only">绿茵数据台 · 足球赛程比分、技术统计与模型预测</h1>
 
   <!-- ============ HOME ============ -->
@@ -2053,6 +2065,22 @@ function avgText(v){
     document.documentElement.setAttribute("data-theme", next);
     try { localStorage.setItem("lg-theme", next); } catch(e){}
   });
+})();
+
+/* ---------- 无障碍补强：表格表头 scope、切换类按钮 aria-pressed ---------- */
+(function a11yInit(){
+  const mark = () => {
+    document.querySelectorAll("table th:not([scope])").forEach(th => th.setAttribute("scope", "col"));
+    document.querySelectorAll(".lg-tab").forEach(b => b.setAttribute("aria-pressed", b.classList.contains("on") ? "true" : "false"));
+    document.querySelectorAll(".seg-btn").forEach(b => b.setAttribute("aria-pressed", b.classList.contains("on") ? "true" : "false"));
+  };
+  mark();
+  // 页面局部重渲染后补一次（观察 body，节流）
+  let t = 0;
+  new MutationObserver(() => {
+    clearTimeout(t);
+    t = setTimeout(mark, 300);
+  }).observe(document.body, {childList:true, subtree:true});
 })();
 
 /* ---------- header meta ---------- */
