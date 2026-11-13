@@ -281,14 +281,6 @@ input{font:inherit}
 .hero-stat .l{font-size:10.5px;color:var(--muted);margin-top:3px;letter-spacing:.04em;white-space:nowrap}
 
 /* ---------- quick + tabs ---------- */
-.quick{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px}
-.quick .lbl{font-size:10.5px;color:var(--muted);letter-spacing:.04em;flex:none}
-.quick button{
-  border:1px solid var(--line);border-radius:999px;
-  padding:5px 11px;font-size:11.5px;color:var(--ink-2);
-  background:var(--surface);transition:border-color .15s,color .15s,background .15s;
-}
-.quick button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .cat-tabs{
   display:flex;gap:6px;margin-top:20px;padding:6px;
   background:var(--surface-2);border-radius:12px;
@@ -1298,18 +1290,6 @@ main:focus{outline:none}
         <div class="hero-stat"><div class="n" id="stat-matches">—</div><div class="l">场已结束</div></div>
         <div class="hero-stat"><div class="n" id="stat-teams">—</div><div class="l">支球队</div></div>
       </div>
-    </div>
-
-    <div class="quick">
-      <span class="lbl">快速查看</span>
-      <button type="button" data-q="皇家马德里">皇马</button>
-      <button type="button" data-q="巴塞罗那">巴萨</button>
-      <button type="button" data-q="曼城">曼城</button>
-      <button type="button" data-q="拜仁慕尼黑">拜仁</button>
-      <button type="button" data-q="国际米兰">国米</button>
-      <button type="button" data-q="巴黎圣日耳曼">巴黎</button>
-      <button type="button" data-q="弗拉门戈">弗拉门戈</button>
-      <button type="button" data-q="阿森纳">阿森纳</button>
     </div>
 
     <nav class="cat-tabs" role="tablist" aria-label="赛事分类" id="cat-tabs"></nav>
@@ -2735,14 +2715,6 @@ document.addEventListener("keydown", e => {
   if(e.key === "/" && document.activeElement !== searchInput){
     e.preventDefault(); searchInput.focus();
   }
-});
-$$(".quick button").forEach(b => {
-  b.addEventListener("click", () => {
-    searchInput.value = b.dataset.q;
-    state.q = b.dataset.q;
-    renderSearch();
-    searchInput.focus();
-  });
 });
 
 /* ---------- home ---------- */
