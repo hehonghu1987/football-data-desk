@@ -1936,7 +1936,6 @@ async function renderSquads(m){
   if(!box) return;
   const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
   const [hp, ap] = await Promise.all([loadRoster(m.home), loadRoster(m.away)]);
-  try{ window.__sqDbg = {call:(window.__sqDbg&&window.__sqDbg.call||0)+1, hp:hp.length, ap:ap.length, mid:String(m.id)}; }catch(e){}
   if(!hp.length && !ap.length){ box.hidden = true; return; }
   box.hidden = false;
   const col = (t, pl) => {
