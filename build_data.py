@@ -25,7 +25,7 @@ import time
 import unicodedata
 import urllib.error
 import urllib.request
-from collections import defaultdict
+from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 
@@ -2333,6 +2333,59 @@ def poisson_probs(lh, la):
     }
 
 
+# 2.5 线 OU 特征校正：用滚动「近 10 场射正/角球均值」修正生产模型的大球概率。
+# 系数来自 11,391 场有时间切分（前 70% 训练）的逻辑回归，测试集 Brier 0.2509 → 0.2450。
+OU_FEAT_COEF = (-0.6427, 0.3641, 0.1147, 0.0265, 0.0122, 0.0066)
+OU_FEAT_DEFAULTS = (4.2, 4.8)   # 无样本时的先验：场均射正 / 场均角球
+
+
+def _ou_feature_adjust(p, h_sot, a_sot, h_cor, a_cor):
+    lines = p.get("lines") or {}
+    p25 = lines.get("2.5")
+    if p25 is None:
+        return p
+    b0, b1, b2, b3, b4, b5 = OU_FEAT_COEF
+    x = min(max(p25, 1e-4), 1 - 1e-4)
+    lg = math.log(x / (1 - x))
+    z = b0 + b1 * lg + b2 * h_sot + b3 * a_sot + b4 * h_cor + b5 * a_cor
+    np25 = 1 / (1 + math.exp(-z))
+    lines["2.5"] = round(np25, 3)
+    p["o25"] = lines["2.5"]
+    return p
+
+
+def _shot_avg(dq):
+    if not dq:
+        return None, None
+    sots = [x[0] for x in dq if x[0] is not None]
+    cors = [x[1] for x in dq if x[1] is not None]
+    return ((sum(sots) / len(sots) if sots else None),
+            (sum(cors) / len(cors) if cors else None))
+
+
+def build_recent_shot_feats(match_rows, n=10):
+    """每队最近 n 场（有技术统计）的场均射正、角球，供赛前模型特征校正使用。"""
+    by_team = defaultdict(list)
+    for m in sorted(match_rows, key=lambda x: x.get("date") or "", reverse=True):
+        st = m.get("st")
+        if not st or len(st) < 2:
+            continue
+        for side, tid in ((0, m.get("home")), (1, m.get("away"))):
+            arr = st[side] or []
+            if tid is None or len(arr) < 3:
+                continue
+            lst = by_team[str(tid)]
+            if len(lst) < n:
+                sot = arr[1] if isinstance(arr[1], (int, float)) else None
+                cor = arr[2] if isinstance(arr[2], (int, float)) else None
+                lst.append((sot, cor))
+    out = {}
+    for tid, lst in by_team.items():
+        sot, cor = _shot_avg(lst)
+        out[tid] = (sot, cor)
+    return out
+
+
 def build_corner_ratings(match_rows):
     """各队主/客场角球的创造与让出强度（时间衰减 + 向先验收缩）。"""
     today = date.today()
@@ -2684,7 +2737,8 @@ def build_ht_ratio(match_rows, fd_map, days=730):
     return round(min(max(ht_goals / ft_goals, 0.3), 0.6), 4)
 
 
-def predict_match(home_id, away_id, league_code, ratings, corner_ratings=None, ht_ratio=None):
+def predict_match(home_id, away_id, league_code, ratings, corner_ratings=None, ht_ratio=None,
+                  ou_feats=None):
     rh = ratings.get(str(home_id))
     ra = ratings.get(str(away_id))
     if not rh or not ra:
@@ -2702,6 +2756,16 @@ def predict_match(home_id, away_id, league_code, ratings, corner_ratings=None, h
     la = min(max(ba * aa * hd, 0.2), 4.5)
     lh, la = _damp_total(lh, la, bh, ba)
     out = poisson_probs(lh, la)
+    if ou_feats:
+        hf = ou_feats.get(str(home_id)) or (None, None)
+        af = ou_feats.get(str(away_id)) or (None, None)
+        out = _ou_feature_adjust(
+            out,
+            hf[0] if hf[0] is not None else OU_FEAT_DEFAULTS[0],
+            af[0] if af[0] is not None else OU_FEAT_DEFAULTS[0],
+            hf[1] if hf[1] is not None else OU_FEAT_DEFAULTS[1],
+            af[1] if af[1] is not None else OU_FEAT_DEFAULTS[1],
+        )
     out["nH"], out["nA"] = rh["n"], ra["n"]
     out["xlg"] = rh["lg"] != ra["lg"]
     # 半场盘：用全场预期进球 × 半场进球占比估算（占比来自历史半场/全场比分）
@@ -2837,6 +2901,7 @@ def build_pre_match(match_rows):
     tm = defaultdict(dict)
     out = {}
     k = RATING_SHRINK
+    shots = defaultdict(lambda: deque(maxlen=10))
     for m in rows:
         d = parse_match_date(m.get("date"))
         if not d:
@@ -2864,6 +2929,15 @@ def build_pre_match(match_rows):
             la = min(max(ba * aa * hd, 0.2), 4.5)
             lh, la = _damp_total(lh, la, bh, ba)
             p = poisson_probs(lh, la)
+            _hs, _hc = _shot_avg(shots[m["home"]])
+            _as, _ac = _shot_avg(shots[m["away"]])
+            p = _ou_feature_adjust(
+                p,
+                _hs if _hs is not None else OU_FEAT_DEFAULTS[0],
+                _as if _as is not None else OU_FEAT_DEFAULTS[0],
+                _hc if _hc is not None else OU_FEAT_DEFAULTS[1],
+                _ac if _ac is not None else OU_FEAT_DEFAULTS[1],
+            )
             out[m["id"]] = {
                 "xh": p["xgH"], "xa": p["xgA"],
                 "ph": p["ph"], "pd": p["pd"], "pa": p["pa"],
@@ -2871,6 +2945,18 @@ def build_pre_match(match_rows):
                 "o": [int(round(p["lines"][f"{ln:.1f}"] * 1000)) for ln in GOAL_LINES],
             }
         # 记录本场结果（有 xG 用 xG，保证滚动序列与评级同口径）
+        st = m.get("st")
+        if st and len(st) >= 2:
+            try:
+                for side, tid in ((0, m.get("home")), (1, m.get("away"))):
+                    arr = st[side] or []
+                    if tid is None or len(arr) < 3:
+                        continue
+                    sot = arr[1] if isinstance(arr[1], (int, float)) else None
+                    cor = arr[2] if isinstance(arr[2], (int, float)) else None
+                    shots[tid].append((sot, cor))
+            except (TypeError, IndexError):
+                pass
         hg, ag = _match_goals(m)
         if base is None:
             base = lg[code] = {"w": 0.0, "hg": 0.0, "ag": 0.0, "last": day}
@@ -3436,11 +3522,15 @@ def main():
         log(f"  即时统计：{len(live_stats)}/{len(live_events)} 场进行中的比赛")
 
     ht_ratio = build_ht_ratio(match_rows, fd_map) if fd_map else 0.44
+    try:
+        recent_shot_feats = build_recent_shot_feats(match_rows)
+    except Exception:
+        recent_shot_feats = {}
     log(f"  半场进球占比：{ht_ratio:.3f}（全场 {ht_ratio*100:.1f}% 的进球发生在上半场）")
     fixture_rows = []
     for ev in fixture_events:
         _pred = predict_match(ev["home"], ev["away"], ev["leagueCode"],
-                              ratings, corner_ratings, ht_ratio)
+                              ratings, corner_ratings, ht_ratio, recent_shot_feats)
         _T = ltemps.get(ev.get("league")) or ltemps.get("__all__") or 1.0
         if _pred and _T != 1.0:
             _p = _temp_probs([_pred["ph"], _pred["pd"], _pred["pa"]], _T)
