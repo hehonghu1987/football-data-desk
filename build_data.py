@@ -2988,7 +2988,23 @@ def fetch_cup_schedule(league, team_id, season, refresh=False):
     return rows
 
 
+def _acquire_build_lock():
+    """防止两个构建同时写 data/matches.json 造成文件交错损坏。"""
+    try:
+        import fcntl
+    except ImportError:
+        return None
+    fh = open(os.path.join(ROOT, ".build.lock"), "w")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log("⚠ 已有构建在运行（.build.lock 被占用），本次退出")
+        sys.exit(0)
+    return fh
+
+
 def main():
+    _lock = _acquire_build_lock()
     ap = argparse.ArgumentParser()
     ap.add_argument("--leagues", default="", help="只处理指定联赛，逗号分隔，如 西甲,英超")
     ap.add_argument("--max-summaries", type=int, default=0, help="限制抓取统计的场次（测试用）")

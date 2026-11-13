@@ -119,6 +119,7 @@ def page(title, desc, body, canonical):
 <meta name="description" content="{esc(desc)}">
 <link rel="canonical" href="{esc(canonical)}">
 <meta name="theme-color" content="#0E7A49">
+<link rel="alternate" type="application/atom+xml" title="绿茵数据台 · 每日简报" href="feed.xml">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="{BRAND}">
 <meta property="og:title" content="{esc(title)}">
@@ -298,20 +299,79 @@ def main():
         move_html = ('<h2>盘口异动</h2><div class="sub">今日比赛暂无足够的赛前盘口快照样本，'
                      '该板块随快照积累逐步可用。</div>')
 
+    # ---- 高信心场次：综合概率（市场 70% + 模型 30%）≥ 60% ----
+    def _devig(m):
+        try:
+            inv = [1 / x for x in m[:3]]
+            tot = sum(inv)
+            return [x / tot for x in inv] if tot else None
+        except Exception:
+            return None
+    def _market_probs(f):
+        books = f.get("books") or []
+        acc = None
+        n = 0
+        for b in books:
+            mm = b.get("m")
+            if not mm or len(mm) < 3:
+                continue
+            p = _devig(mm)
+            if not p:
+                continue
+            acc = p if acc is None else [acc[i] + p[i] for i in range(3)]
+            n += 1
+        if n:
+            return [x / n for x in acc]
+        od = f.get("odds") or {}
+        ml = od.get("ml") or {}
+        if all(k in ml for k in ("h", "d", "a")):
+            return _devig([ml["h"], ml["d"], ml["a"]])
+        return None
+    hi_rows = []
+    for f in day_fixtures:
+        pd = f.get("pred")
+        if not pd:
+            continue
+        mp = [pd.get("ph"), pd.get("pd"), pd.get("pa")]
+        if None in mp:
+            continue
+        mk = _market_probs(f)
+        fp = [0.7 * mk[i] + 0.3 * mp[i] for i in range(3)] if mk else mp
+        k = max(range(3), key=lambda i: fp[i])
+        if fp[k] >= 0.6:
+            hi_rows.append((fp[k], tname(f["home"]), tname(f["away"]),
+                            ["主胜", "平", "客胜"][k], f.get("league") or ""))
+    hi_rows.sort(reverse=True)
+    hi_html = ""
+    if hi_rows:
+        items = "".join(
+            f'<tr><td>{esc(h)} vs {esc(a)}</td><td>{esc(lg)}</td><td>{esc(label)}</td>'
+            f'<td class="pos">{round(p*100)}%</td></tr>'
+            for p, h, a, label, lg in hi_rows[:6])
+        hi_html = ('<h2>高信心场次（综合概率 ≥60%）</h2><table><thead><tr><th>比赛</th>'
+                   '<th>赛事</th><th>选项</th><th>概率</th></tr></thead><tbody>'
+                   + items + "</tbody></table>"
+                   '<div class="sub">历史同档（综合概率≥60%）方向命中约 73%；仅作参考，不是投注建议。</div>')
+        md_lines.append("### 高信心场次（综合概率 ≥60%）")
+        for p, h, a, label, lg in hi_rows[:6]:
+            md_lines.append(f"- {h} vs {a}（{lg}）　{label} {round(p*100)}%")
+        md_lines.append("")
+
     title = f"{target}（周{weekday}）足球简报 · {len(day_fixtures)} 场 · {BRAND}"
     desc = (f"{target} 共 {len(day_fixtures)} 场收录比赛，覆盖 "
             + "、".join(league_keys[:6]) + "。含模型胜平负概率、预期进球、"
-            f"大小球与盘口异动。数据来自 ESPN，赔率 DraftKings。")
+            f"大小球与盘口异动。数据来自 ESPN，赔率来自指定机构（平博/威廉希尔/立博等）。")
     body = f"""<h1>{target}（周{weekday}）赛事简报</h1>
 <p class="sub">共 {len(day_fixtures)} 场 · {len(league_keys)} 项赛事 · 生成于 {now.strftime('%Y-%m-%d %H:%M')}（北京时间）</p>
 <h2>今日赛程与模型预测</h2>
 {''.join(rows_html)}
+{hi_html}
 {edge_html}
 {move_html}
 <div class="sub" style="margin-top:14px">概率为纯数据模型输出（泊松 + Dixon-Coles 修正，基于近三个赛季攻防数据）；
 大小球方向判别力有限，请以胜平负为主参考。预测不代表确定结果。</div>
 <div class="foot">
-  数据来源 ESPN 公开接口，赔率来自 DraftKings（经 ESPN）。<br>
+  数据来源 ESPN 公开接口，赔率来自指定机构（平博/威廉希尔/立博/Unibet/Tipico/Winamax/1xBet 等）。<br>
   在 <a href="/football-data-desk/">绿茵数据台</a> 查看逐场技术统计、球队近况与校准曲线。<br>
   <a href="index.html">往期简报</a>
 </div>"""
@@ -322,7 +382,7 @@ def main():
 
     md = [f"# {target}（周{weekday}）足球简报", "",
           f"共 {len(day_fixtures)} 场 · {len(league_keys)} 项赛事 · {BRAND}", ""] + md_lines
-    md += ["", "---", "数据来源 ESPN，赔率 DraftKings。预测不代表确定结果，仅供参考。",
+    md += ["", "---", "数据来源 ESPN，赔率来自指定机构。预测不代表确定结果，仅供参考。",
            f"完整数据：{SITE}/"]
     with open(os.path.join(OUT, f"{target}.md"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(md))
@@ -338,6 +398,29 @@ def main():
     with open(os.path.join(OUT, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(page(f"每日简报 · {BRAND}", f"{BRAND}每日赛事简报，含模型预测与盘口异动。",
                       ibody, f"{SITE}/daily/"))
+
+    # ---- RSS/Atom feed（最新 20 期） ----
+    try:
+        feed_items = []
+        for d in days[:20]:
+            fp = os.path.join(OUT, f"{d}.html")
+            mt = datetime.fromtimestamp(os.path.getmtime(fp)).astimezone(BJ) if os.path.exists(fp) else now
+            feed_items.append(
+                f'<entry><title>{d} 足球简报</title>'
+                f'<link href="{SITE}/daily/{d}.html"/>'
+                f'<id>{SITE}/daily/{d}.html</id>'
+                f'<updated>{mt.isoformat()}</updated></entry>')
+        feed = ('<?xml version="1.0" encoding="utf-8"?>'
+                '<feed xmlns="http://www.w3.org/2005/Atom">'
+                f'<title>{BRAND} · 每日简报</title>'
+                f'<link href="{SITE}/daily/feed.xml"/>'
+                f'<updated>{now.isoformat()}</updated>'
+                '<author><name>绿茵数据台</name></author>'
+                + "".join(feed_items) + '</feed>')
+        with open(os.path.join(OUT, "feed.xml"), "w", encoding="utf-8") as fh:
+            fh.write(feed)
+    except Exception as e:
+        print("RSS 生成失败：", e)
 
     # ---- 并入 sitemap ----
     # 幂等：先删掉旧的 daily 条目，再按归档目录重建，避免「只有首次生效」或
