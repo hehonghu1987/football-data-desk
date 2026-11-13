@@ -1985,12 +1985,15 @@ def build_team_lineups(match_rows, team_ids, workers):
 
 
 def _load_player_cn():
-    path = os.path.join(ROOT, "player_cn.json")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    out = {}
+    for fname in ("player_cn.json", "player_cn_extra.json"):
+        path = os.path.join(ROOT, fname)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                out.update(json.load(f))
+        except Exception:
+            continue
+    return out
 
 
 PLAYER_CN = _load_player_cn()
