@@ -1390,6 +1390,125 @@ def attach_sporttery(fixture_rows, teams, sp_matches):
     return hit
 
 
+BEIDAN_URL = "https://www.okooo.com/danchang/"
+
+
+def _bd_float(x):
+    try:
+        return round(float(x), 3)
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_beidan():
+    """北单（北京单场）在售场次 + 让球胜平负 SP 赔率。
+    来源：澳客北单列表页（服务端渲染 HTML，非 /Remoting 接口）。
+    缓存 10 分钟；CI 被拦时回退仓库快照。"""
+    cache_path = os.path.join(CACHE_DIR, "beidan.json")
+    raw = read_cache("beidan.json")
+    if raw and cache_age(raw, cache_path) < 600 and raw.get("matches"):
+        return raw["matches"]
+    out = []
+    try:
+        req = urllib.request.Request(
+            BEIDAN_URL,
+            headers={"User-Agent": UA, "Referer": "https://www.okooo.com/"},
+        )
+        with urllib.request.urlopen(req, timeout=35) as resp:
+            html = resp.read().decode("gb18030", "ignore")
+        tables = re.findall(r"<table[^>]*>.*?</table>", html, re.S)
+        t = max(tables, key=lambda x: x.count("homename")) if tables else ""
+        for row in re.findall(r"<tr[^>]*>.*?</tr>", t, re.S):
+            hm = re.search(r'homename[^>]*title="([^"]+)"', row)
+            am = re.search(r'awayname[^>]*title="([^"]+)"', row)
+            if not hm or not am:
+                continue
+            km = re.search(r'title="比赛时间：([0-9:\- ]+)"', row)
+            if not km:
+                continue
+            try:
+                dt = datetime.fromisoformat(km.group(1).strip()) - timedelta(hours=8)
+            except ValueError:
+                continue
+            lg = re.search(r'class="ls"[^>]*title="([^"]+)"', row)
+            hc = re.search(r'class="handicapobj[^"]*"[^>]*>\s*([^<]*)</span>', row)
+            line = _bd_float((hc.group(1) or "").replace("+", "") if hc else None)
+            # 主胜赔率：sbg 区块内 pltxt；平：pbg 的 em；客胜：fbg 里的 pltxt
+            sbg = re.search(r'class="sbg".*?</a>', row, re.S)
+            fbg = re.search(r'class="fbg".*?</a>', row, re.S)
+            dg = re.search(r'class="pbg".*?<em>([\d.]+)</em>', row, re.S)
+            h_odds = re.search(r'class="pltxt">([\d.]+)<', sbg.group(0)) if sbg else None
+            a_odds = re.search(r'class="pltxt">([\d.]+)<', fbg.group(0)) if fbg else None
+            num = re.search(r"<i>(\d+)</i>", row)
+            out.append({
+                "num": num.group(1) if num else "", "date": dt.replace(tzinfo=timezone.utc).isoformat(),
+                "league": lg.group(1) if lg else "",
+                "home": hm.group(1), "away": am.group(1), "line": line,
+                "h": _bd_float(h_odds.group(1)) if h_odds else None,
+                "d": _bd_float(dg.group(1)) if dg else None,
+                "a": _bd_float(a_odds.group(1)) if a_odds else None,
+            })
+    except Exception as e:
+        log(f"  北单列表失败：{str(e)[:80]}")
+        try:
+            with open(os.path.join(ROOT, "odds_snapshots", "beidan.json"), "r", encoding="utf-8") as f:
+                snap = json.load(f)
+            out = snap.get("matches") or []
+            if out:
+                log(f"  北单列表：改用快照 {len(out)} 场")
+        except (OSError, ValueError):
+            out = []
+        return out
+    if out:
+        write_cache("beidan.json", {"_t": time.time(), "matches": out})
+        try:
+            os.makedirs(os.path.join(ROOT, "odds_snapshots"), exist_ok=True)
+            with open(os.path.join(ROOT, "odds_snapshots", "beidan.json"), "w", encoding="utf-8") as f:
+                json.dump({"_t": time.time(), "matches": out}, f, ensure_ascii=False, separators=(",", ":"))
+        except OSError:
+            pass
+        log(f"  北单列表：{len(out)} 场")
+    return out
+
+
+def _name_match_loose(our, other):
+    a = _norm_cn(our)
+    b = _norm_cn(other)
+    if not a or not b:
+        return False
+    return a == b or (len(a) >= 2 and a in b) or (len(b) >= 2 and b in a)
+
+
+def attach_beidan(fixture_rows, teams, bj_matches):
+    if not bj_matches:
+        return 0
+    parsed = []
+    for m in bj_matches:
+        try:
+            parsed.append((datetime.fromisoformat(m["date"].replace("Z", "+00:00")), m))
+        except (TypeError, ValueError):
+            continue
+    hit = 0
+    for f in fixture_rows:
+        if not f.get("date"):
+            continue
+        try:
+            ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        h = teams.get(str(f.get("home"))) or {}
+        a = teams.get(str(f.get("away"))) or {}
+        hn, an = h.get("cn") or h.get("name"), a.get("cn") or a.get("name")
+        for st, m in parsed:
+            if abs((st - ft).total_seconds()) > 30 * 60:
+                continue
+            if _name_match_loose(hn, m["home"]) and _name_match_loose(an, m["away"]):
+                f["bj"] = {"num": m["num"], "line": m["line"], "h": m["h"], "d": m["d"], "a": m["a"]}
+                hit += 1
+                break
+    return hit
+
+
 def fetch_oddsapi_books(fixture_rows, teams):
     """The Odds API（免费 500 credits/月）：给五大联赛补 10+ 家机构欧赔。
 
@@ -3725,6 +3844,12 @@ def main():
         _cn_teams = {str(t["id"]): t for t in team_rows}
         _hit = attach_sporttery(fixture_rows, _cn_teams, _sp)
         log(f"  竞彩官方挂载：{_hit}/{len(_sp)} 场（赛程 {len(fixture_rows)} 场）")
+        try:
+            _bj = fetch_beidan()
+            _bj_hit = attach_beidan(fixture_rows, _cn_teams, _bj)
+            log(f"  北单挂载：{_bj_hit}/{len(_bj)} 场")
+        except Exception as e:
+            log(f"  ⚠ 北单挂载失败：{str(e)[:80]}")
     except Exception as e:
         log(f"  ⚠ 竞彩官方盘口挂载失败：{str(e)[:80]}")
 
