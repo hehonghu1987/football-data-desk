@@ -4209,13 +4209,8 @@ function renderPreMatch(m){
       const ql = v => (v == null ? "—" : Number(v).toFixed(1));
       const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
       const byName = new Map(books.map(b => [b.book, b]));
-      // 名单里明确要保留的机构：没数据也占一行；其余主流机构只有抓到数据才显示
-      const CORE_ALWAYS = new Set(["Pinnacle", "Bet365", "William Hill", "Ladbrokes", "Unibet",
-        "Tipico", "ODDSET", "SNAI", "Winamax", "Codere", "DraftKings",
-        "SBOBET", "188BET", "12BET", "Crown", "Macau Slot", "Dafabet"]);
-      const ordered = BOOK_ORDER
-        .filter(n => byName.has(n) || CORE_ALWAYS.has(n))
-        .map(n => byName.get(n) || { book: n, empty: true });
+      // 只显示有数据的机构（没有数据的机构不再占行）
+      const ordered = BOOK_ORDER.filter(n => byName.has(n)).map(n => byName.get(n));
       for(const b of books) if(!BOOK_ORDER.includes(b.book)) ordered.push(b);
       const rows = ordered.map(b => {
         const mm = b.m || [null, null, null];
@@ -4233,7 +4228,7 @@ function renderPreMatch(m){
         if(op){
           return mk("初赔", om, oah, oou, "row-open", true) + mk("即时", mm, ahb, oub, "", false);
         }
-        return mk(b.empty ? "暂无数据" : "即时", mm, ahb, oub, b.empty ? "row-empty" : "", true);
+        return mk("即时", mm, ahb, oub, "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
         <table class="books">
