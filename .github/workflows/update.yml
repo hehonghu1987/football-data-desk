@@ -135,10 +135,29 @@ jobs:
             mkdir -p dist/data
             cp data/rosters.json dist/data/rosters.json
           fi
+          if [ -f data/lineups.json ]; then
+            mkdir -p dist/data
+            cp data/lineups.json dist/data/lineups.json
+          fi
           if [ -f 404.html ]; then
             cp 404.html dist/404.html
           fi
           du -sh dist
+
+      - name: 部署到 Cloudflare Pages（可选镜像，配置密钥后自动启用）
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_PAGES_PROJECT: ${{ secrets.CF_PAGES_PROJECT }}
+        run: |
+          if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_ACCOUNT_ID" ] || [ -z "$CF_PAGES_PROJECT" ]; then
+            echo "未配置 Cloudflare 密钥，跳过镜像部署（GitHub Pages 仍正常发布）"
+            exit 0
+          fi
+          npx --yes wrangler@latest pages deploy dist \
+            --project-name "$CF_PAGES_PROJECT" \
+            --branch main \
+            --commit-dirty=true
 
       - name: 记录构建时间并归档
         run: |

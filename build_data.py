@@ -3666,6 +3666,15 @@ def main():
         recent, history = [], []
         for m in payload["matches"]:
             (recent if (m.get("date") or "") >= cut else history).append(m)
+        # 参考首发/预测阵容数据单独懒加载：只有比赛页需要
+        lu_path = os.path.join(DATA_DIR, "lineups.json")
+        try:
+            with open(lu_path, "w", encoding="utf-8") as f:
+                json.dump({"lineups": payload.get("lineups") or {}}, f, ensure_ascii=False, separators=(",", ":"))
+            log(f"  阵容明细懒加载：{len(payload.get('lineups') or {})} 队"
+                f"（{os.path.getsize(lu_path) / 1024 :.0f} KB）")
+        except OSError as e:
+            log(f"  ⚠ 阵容明细写入失败：{e}")
         hist_path = os.path.join(DATA_DIR, "history.json")
         with open(hist_path, "w", encoding="utf-8") as f:
             json.dump({"matches": history}, f, ensure_ascii=False, separators=(",", ":"))
@@ -3673,6 +3682,7 @@ def main():
             f"（{os.path.getsize(hist_path)/1024/1024:.2f} MB）")
         html_payload = dict(payload)
         html_payload["matches"] = recent
+        html_payload["lineups"] = {}
         js = json.dumps(html_payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
         html = tpl.replace("__DATA_JSON__", js)
         out_html = os.path.join(ROOT, "football_database.html")

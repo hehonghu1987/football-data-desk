@@ -1789,6 +1789,27 @@ function loadHistory(){
     .catch(() => { HISTORY_LOADING = null; });   // 失败可重试（弱网/离线）
   return HISTORY_LOADING;
 }
+let LINEUPS_LOADED = false, LINEUPS_LOADING = null;
+function loadLineups(){
+  if(LINEUPS_LOADED) return Promise.resolve();
+  if(LINEUPS_LOADING) return LINEUPS_LOADING;
+  LINEUPS_LOADING = fetch("data/lineups.json")
+    .then(r => r.ok ? r.json() : null)
+    .then(h => {
+      DATA.lineups = (h && h.lineups) || {};
+      LINEUPS_LOADED = true;
+      onLineupsLoaded();
+    })
+    .catch(() => { LINEUPS_LOADING = null; });
+  return LINEUPS_LOADING;
+}
+function onLineupsLoaded(){
+  if(state.matchId && !$("#match-view").hidden){
+    const m = MATCH_BY_ID.get(String(state.matchId));
+    if(m && m.pred){ renderPreMatch(m); renderInsight(m); renderSquads(m); updateMatchNav(); }
+  }
+}
+
 let ROSTERS = null, ROSTERS_LOADING = null;
 function loadRosters(){
   if(ROSTERS) return Promise.resolve(ROSTERS);
@@ -5045,6 +5066,7 @@ function renderMatch(id){
   renderSquads(m);
   renderMatchTimeline(m);
   renderMatchBooks(m);
+  if(!LINEUPS_LOADED) loadLineups();
   updateMatchNav();
   setTimeout(updateMatchNav, 2200);
 }
