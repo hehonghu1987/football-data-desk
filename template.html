@@ -1982,7 +1982,16 @@ function renderSquads(m){
 function renderTeamSquad(id){
   const sec = $("#team-squad-sec"), box = $("#team-squad");
   if(!sec || !box) return;
-  if(!ROSTERS){ sec.hidden = true; loadRosters(); return; }
+  if(!ROSTERS){
+    // 名单是懒加载的：先占位，加载完成后主动重渲染（不依赖全局回调）
+    sec.hidden = false;
+    box.innerHTML = `<div class="sub" style="padding:6px 2px">球员名单加载中…</div>`;
+    loadRosters().then(rs => {
+      if(rs && Object.keys(rs).length) renderTeamSquad(id);
+      else if(!ROSTERS) box.innerHTML = `<button type="button" class="follow-btn" id="roster-retry">重新加载球员名单</button>`;
+    });
+    return;
+  }
   const pl = ROSTERS[String(id)] || [];
   if(!pl.length){ sec.hidden = true; return; }
   sec.hidden = false;
@@ -3748,6 +3757,7 @@ $("#day-input")?.addEventListener("change", e => {
 $("#team-view").addEventListener("click", e => {
   const b = e.target.closest("#follow-btn");
   if(b) toggleFollow(b.dataset.tid);
+  if(e.target.closest("#roster-retry")){ ROSTERS_LOADING = null; renderTeamSquad(state.id); }
 });
 
 $("#match-nav")?.addEventListener("click", e => {
