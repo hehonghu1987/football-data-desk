@@ -1102,6 +1102,15 @@ table.books tr.row-open .bk{color:var(--ink-2);font-weight:600}
 table.books .mq{font-size:10.5px;color:var(--muted);white-space:nowrap}
 table.books tr.row-empty td{color:var(--muted);opacity:.6}
 
+/* 关注球队 */
+.follow-btn{margin-left:10px;font:inherit;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid transparent;border-radius:999px;padding:3px 10px;cursor:pointer;vertical-align:middle}
+.follow-btn:hover{border-color:var(--accent)}
+.follow-btn[aria-pressed="true"]{background:var(--accent);color:#fff}
+.followed-row{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}
+.followed-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:5px 12px;background:var(--surface);color:inherit;text-decoration:none;font-size:12.5px}
+.followed-chip:hover{border-color:var(--accent);color:var(--accent)}
+.followed-chip .lchip{font-size:10px;color:var(--muted)}
+
 /* 折叠：更多比赛日 / 榜单 */
 .more-days{margin-top:2px}
 .more-days>summary{cursor:pointer;list-style:none;padding:12px 16px;font-size:12.5px;color:var(--accent);font-weight:600;background:var(--surface);border-top:1px solid var(--line)}
@@ -1286,6 +1295,14 @@ table.books tr.row-empty td{color:var(--muted);opacity:.6}
         <button class="chip-btn" id="day-window" type="button">近期赛程</button>
       </div>
       <div class="panel" id="fixtures-panel"></div>
+    </section>
+
+    <section class="section" id="followed-sec" hidden>
+      <div class="section-head">
+        <h2 class="section-title">我的关注</h2>
+        <span class="section-note">本地保存 · 在球队页点「关注」添加</span>
+      </div>
+      <div class="panel followed-row" id="followed-panel"></div>
     </section>
 
     <section class="section" id="conf-sec" hidden>
@@ -1717,6 +1734,24 @@ function badge(t, cls){
 }
 function teamDot(t){
   return `<span class="tdot" style="background:${teamColor(t)}"></span>`;
+}
+
+/* ---------- 关注球队（本地保存） ---------- */
+let FOLLOWED = new Set();
+try { FOLLOWED = new Set(JSON.parse(localStorage.getItem("lg-follow") || "[]").map(String)); } catch(e){}
+function saveFollowed(){
+  try { localStorage.setItem("lg-follow", JSON.stringify([...FOLLOWED])); } catch(e){}
+}
+function toggleFollow(tid){
+  const id = String(tid);
+  if(FOLLOWED.has(id)) FOLLOWED.delete(id); else FOLLOWED.add(id);
+  saveFollowed();
+  const btn = $("#follow-btn");
+  if(btn && String(btn.dataset.tid) === id){
+    btn.textContent = FOLLOWED.has(id) ? "★ 已关注" : "☆ 关注";
+    btn.setAttribute("aria-pressed", FOLLOWED.has(id) ? "true" : "false");
+  }
+  renderFollowed();
 }
 
 /* ---------- data indexes ---------- */
@@ -2896,6 +2931,19 @@ function confFinal(f){
   const od = (f.books && f.books.length) ? marketProbs(f) : (f.odds ? impliedProbs(f.odds.ml) : null);
   return od ? blendProbs(p, od, 0.7) : [p.ph, p.pd, p.pa];
 }
+function renderFollowed(){
+  const sec = $("#followed-sec"), panel = $("#followed-panel");
+  if(!sec || !panel) return;
+  const ids = [...FOLLOWED].filter(id => TEAMS.has(id));
+  if(!ids.length){ sec.hidden = true; panel.innerHTML = ""; return; }
+  sec.hidden = false;
+  panel.innerHTML = ids.map(id => {
+    const t = TEAMS.get(id) || {};
+    const lg = (t.currentLeagues || t.leagues || [])[0] || "";
+    return `<a class="followed-chip" href="#/team/${esc(id)}">${esc(t.cn || t.name || id)}${lg ? `<span class="lchip">${esc(lg)}</span>` : ""}</a>`;
+  }).join("");
+}
+
 function renderConfidence(){
   const sec = $("#conf-sec"), panel = $("#conf-panel"), note = $("#conf-note");
   if(!sec || !panel) return;
@@ -3569,6 +3617,7 @@ function renderHome(){
   renderTabs();
   syncDayBar();
   renderFixtures();
+  renderFollowed();
   renderConfidence();
   renderValueBoard();
   renderRecent();
@@ -3656,6 +3705,11 @@ $("#day-today")?.addEventListener("click", () => { state.day = dayKey(new Date()
 $("#day-window")?.addEventListener("click", () => { state.day = null; syncDayBar(); renderFixtures(); });
 $("#day-input")?.addEventListener("change", e => {
   if(e.target.value){ state.day = e.target.value; syncDayBar(); renderFixtures(); }
+});
+
+$("#team-view").addEventListener("click", e => {
+  const b = e.target.closest("#follow-btn");
+  if(b) toggleFollow(b.dataset.tid);
 });
 
 $("#match-nav")?.addEventListener("click", e => {
@@ -3956,7 +4010,7 @@ function renderTeam(id){
     <div class="team-hero-inner">
       ${badge(t, "lg")}
       <div class="team-id">
-        <div class="team-name">${esc(t.cn || t.name)}</div>
+        <div class="team-name">${esc(t.cn || t.name)}<button type="button" class="follow-btn" id="follow-btn" data-tid="${esc(t.id)}" aria-pressed="${FOLLOWED.has(String(t.id)) ? "true" : "false"}">${FOLLOWED.has(String(t.id)) ? "★ 已关注" : "☆ 关注"}</button></div>
         <div class="team-en">${esc(t.name || "")}${loc}</div>
         <div class="team-leagues">${(t.leagues || []).slice().sort(compSort).map(l => `<span class="league-chip pill"><span class="tdot" style="background:${LEAGUE_DOT[l] || "var(--muted)"}"></span>${esc(l)}</span>`).join("")}${(() => { const r = teamRank(id); return r ? `<span class="league-chip pill">${esc(r.lg)} 第 ${r.rank}</span>` : ""; })()}</div>
       </div>

@@ -2296,7 +2296,7 @@ def _ah_home(grid, line):
 
 
 # 进球线概率校准：模型对大小球系统性过度自信，用 logit 温度缩放（9128 场收盘价回测，T=1.2 时 Brier 最优附近）
-GOAL_TEMP = 1.2
+GOAL_TEMP = 1.2   # 全样本验证：分线温度在近期样本上略有提升，但全量反而更差，故保持统一温度
 
 
 def _logit_scale(p, temp):
