@@ -4152,18 +4152,19 @@ function renderPreMatch(m){
   const pre = isUpcoming ? null : m.pre;
   const isNational = NATIONAL_LEAGUES.has(m.league);
   const hasLineup = isUpcoming && !isNational && !!((DATA.lineups || {})[String(m.home)] || (DATA.lineups || {})[String(m.away)]);
+  const hasBooks = isUpcoming && !!(m.books && m.books.length);
   const hasMarket = isUpcoming ? !!odds : !!m.mkt;
   const mkBox = $("#mk-block");
   if(mkBox){ mkBox.hidden = true; mkBox.innerHTML = ""; }
-  if(!odds && !pred && !pre && !hasLineup && !hasMarket){ sec.hidden = true; return; }
+  if(!odds && !hasBooks && !pred && !pre && !hasLineup && !hasMarket){ sec.hidden = true; return; }
   sec.hidden = false;
   $("#pre-match-note").textContent = isUpcoming
     ? `${fullTime(m.date)} · ${m.venue || ""}`
     : "赛前模型 · 基于该场开赛前的数据";
 
-  const ip = odds ? marketProbs(m) : (!isUpcoming ? (m.mkt || null) : null);
+  const ip = (odds || hasBooks) ? marketProbs(m) : (!isUpcoming ? (m.mkt || null) : null);
   const cells = [];
-  if(odds){
+  if(odds || hasBooks){
     const books = (m.books || []).filter(b => b.m || b.ah || b.ou);
     if(books.length){
       const ipc = marketProbs(m) || ip;
@@ -4240,7 +4241,7 @@ function renderPreMatch(m){
           <tbody>${rows}</tbody>
         </table>
       </div>`);
-    } else {
+    } else if(odds){
       cells.push(`<div class="odds-cell">
         <div class="l">欧赔 · 胜平负</div>
         <div class="odds-three">
@@ -4282,7 +4283,7 @@ function renderPreMatch(m){
   }
   $("#odds-grid").innerHTML = cells.length ? cells.join("")
     : `<div class="odds-cell"><div class="l">赔率</div><div class="odds-src">该场暂无可用赔率</div></div>`;
-  $("#odds-grid").hidden = !odds;
+  $("#odds-grid").hidden = !(odds || hasBooks);
 
   const homeName = (TEAMS.get(String(m.home)) || {}).cn || (TEAMS.get(String(m.home)) || {}).name || "";
   const awayName = (TEAMS.get(String(m.away)) || {}).cn || (TEAMS.get(String(m.away)) || {}).name || "";
