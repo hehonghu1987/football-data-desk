@@ -3722,7 +3722,8 @@ def main():
     # 中国体彩竞彩官方赔率（公开接口）：补国家队赛事的胜平负 + 让球盘
     try:
         _sp = fetch_sporttery()
-        _hit = attach_sporttery(fixture_rows, teams, _sp)
+        _cn_teams = {str(t["id"]): t for t in team_rows}
+        _hit = attach_sporttery(fixture_rows, _cn_teams, _sp)
         log(f"  竞彩官方挂载：{_hit}/{len(_sp)} 场（赛程 {len(fixture_rows)} 场）")
     except Exception as e:
         log(f"  ⚠ 竞彩官方盘口挂载失败：{str(e)[:80]}")
