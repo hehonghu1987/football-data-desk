@@ -1102,6 +1102,13 @@ table.books tr.row-open .bk{color:var(--ink-2);font-weight:600}
 table.books .mq{font-size:10.5px;color:var(--muted);white-space:nowrap}
 table.books tr.row-empty td{color:var(--muted);opacity:.6}
 
+/* 可横向滑动的表格：右缘阴影提示 */
+.tw{position:relative}
+.tw.scrollable{box-shadow:inset -12px 0 10px -10px rgba(0,0,0,.22)}
+.tw.scrollable::-webkit-scrollbar{height:8px}
+.tw.scrollable::-webkit-scrollbar-thumb{background:var(--line);border-radius:999px}
+.tw.scrollable::-webkit-scrollbar-track{background:transparent}
+
 /* 无障碍：跳过链接 / 键盘焦点 / 触控目标 */
 .skip-link{position:absolute;left:-999px;top:0;z-index:9999;background:var(--accent);color:#fff;padding:10px 16px;border-radius:0 0 10px 0;font-size:13px;font-weight:600}
 .skip-link:focus{left:0}
@@ -2071,6 +2078,9 @@ function avgText(v){
 (function a11yInit(){
   const mark = () => {
     document.querySelectorAll("table th:not([scope])").forEach(th => th.setAttribute("scope", "col"));
+    document.querySelectorAll(".tw").forEach(el => {
+      el.classList.toggle("scrollable", el.scrollWidth > el.clientWidth + 2);
+    });
     document.querySelectorAll(".lg-tab").forEach(b => b.setAttribute("aria-pressed", b.classList.contains("on") ? "true" : "false"));
     document.querySelectorAll(".seg-btn").forEach(b => b.setAttribute("aria-pressed", b.classList.contains("on") ? "true" : "false"));
   };
