@@ -650,6 +650,8 @@ table.stats tbody tr:last-child td{border-bottom:0}
   gap:1px;background:var(--line);border:1px solid var(--line);
   border-radius:var(--radius);overflow:hidden;margin-bottom:16px;
 }
+.odds-cell.empty{color:var(--muted)}
+.odds-cell.empty .o,.odds-cell.empty .odds-line b{color:var(--muted)}
 .odds-cell{background:var(--surface);padding:12px 14px}
 .odds-cell .l{font-size:10px;color:var(--muted);letter-spacing:.04em;margin-bottom:8px}
 .odds-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
@@ -4175,7 +4177,7 @@ function renderPreMatch(m){
         <div class="odds-src">多家机构去水共识 · 小数赔率</div>
       </div>`);
       const ahc = consensusLine(m, "ah");
-      if(ahc) cells.push(`<div class="odds-cell">
+      cells.push(ahc ? `<div class="odds-cell">
         <div class="l">亚盘 · 共识（${ahc.n} 家同线）</div>
         <div class="odds-line"><b>${ahText(ahc.line)}</b></div>
         <div class="odds-two">
@@ -4183,9 +4185,13 @@ function renderPreMatch(m){
           <div><div class="k">客队</div><div class="o">${ahc.a ? ahc.a.toFixed(2) : "—"}</div></div>
         </div>
         <div class="odds-src">让球方：${ahc.line < 0 ? "主队" : ahc.line > 0 ? "客队" : "平手"}</div>
+      </div>` : `<div class="odds-cell empty">
+        <div class="l">亚盘 · 让球</div>
+        <div class="odds-line"><b>—</b></div>
+        <div class="odds-src">该场暂无亚盘数据（机构未提供让球盘）</div>
       </div>`);
       const ouc = consensusLine(m, "ou");
-      if(ouc) cells.push(`<div class="odds-cell">
+      cells.push(ouc ? `<div class="odds-cell">
         <div class="l">大小球 · 共识（${ouc.n} 家同线）</div>
         <div class="odds-line"><b>${Number(ouc.line).toFixed(1)} 球</b></div>
         <div class="odds-two">
@@ -4193,6 +4199,10 @@ function renderPreMatch(m){
           <div><div class="k">小球</div><div class="o">${ouc.under ? ouc.under.toFixed(2) : "—"}</div></div>
         </div>
         <div class="odds-src">盘口线 ${Number(ouc.line).toFixed(1)}</div>
+      </div>` : `<div class="odds-cell empty">
+        <div class="l">大小球</div>
+        <div class="odds-line"><b>—</b></div>
+        <div class="odds-src">该场暂无大小球数据（机构未提供）</div>
       </div>`);
       const qv = v => (v == null ? "—" : Number(v).toFixed(2));
       const ql = v => (v == null ? "—" : Number(v).toFixed(1));
@@ -4249,6 +4259,12 @@ function renderPreMatch(m){
             <div><div class="k">客队</div><div class="o">${odds.ah.a ? odds.ah.a.toFixed(2) : "—"}</div></div>
           </div>
           <div class="odds-src">让球方：${Number(odds.ah.line) < 0 ? "主队" : Number(odds.ah.line) > 0 ? "客队" : "平手"}</div>
+        </div>`);
+      } else {
+        cells.push(`<div class="odds-cell empty">
+          <div class="l">亚盘 · 让球</div>
+          <div class="odds-line"><b>—</b></div>
+          <div class="odds-src">该场暂无亚盘数据（机构未提供让球盘）</div>
         </div>`);
       }
       if(odds.ou){
