@@ -27,7 +27,7 @@ import urllib.error
 import urllib.request
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 def _season_code(today=None):
     d = today or date.today()
@@ -1255,6 +1255,139 @@ def _norm_team_name(n):
 def _team_sim(a, b):
     from difflib import SequenceMatcher
     return SequenceMatcher(None, _norm_team_name(a), _norm_team_name(b)).ratio()
+
+
+SPORTTERY_URL = ("https://webapi.sporttery.cn/gateway/jc/football/getMatchCalculatorV1.qry"
+                 "?poolCode=hhad,had,ttg,crs,hafu&channel=c")
+
+
+def _sp_num(x):
+    try:
+        return round(float(x), 3)
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_sporttery():
+    """中国体彩竞彩官方赔率（公开接口、无需 key）：胜平负 + 让球胜平负（含让球数）。
+    覆盖国家队赛事（欧国联/世预赛等），弥补 The Odds API 免费档的空白。"""
+    cache_path = os.path.join(CACHE_DIR, "sporttery.json")
+    raw = read_cache("sporttery.json")
+    if raw and cache_age(raw, cache_path) < 600:
+        _ms = raw.get("matches") or []
+        try:
+            os.makedirs(os.path.join(ROOT, "odds_snapshots"), exist_ok=True)
+            with open(os.path.join(ROOT, "odds_snapshots", "sporttery.json"), "w", encoding="utf-8") as f:
+                json.dump({"_t": raw.get("_t") or time.time(), "matches": _ms}, f, ensure_ascii=False, separators=(",", ":"))
+        except OSError:
+            pass
+        return _ms
+    try:
+        req = urllib.request.Request(
+            SPORTTERY_URL,
+            headers={"User-Agent": UA, "Referer": "https://www.sporttery.cn/"},
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        log(f"  竞彩官方赔率失败：{str(e)[:80]}")
+        # 回退：仓库里提交的上一次快照（防止 CI 境外 IP 被竞彩接口拦截）
+        try:
+            with open(os.path.join(ROOT, "odds_snapshots", "sporttery.json"), "r", encoding="utf-8") as f:
+                snap = json.load(f)
+            ms = snap.get("matches") or []
+            if ms:
+                log(f"  竞彩官方赔率：改用快照 {len(ms)} 场")
+                return ms
+        except (OSError, ValueError):
+            pass
+        return (raw or {}).get("matches") or []
+    out = []
+    for day in ((data.get("value") or {}).get("matchInfoList") or []):
+        for m in (day.get("subMatchList") or []):
+            had = m.get("had") or {}
+            hhad = m.get("hhad") or {}
+            try:
+                dt = datetime.fromisoformat(f"{m.get('matchDate')}T{m.get('matchTime')}") - timedelta(hours=8)
+            except (TypeError, ValueError):
+                continue
+            out.append({
+                "id": str(m.get("matchId")), "date": dt.replace(tzinfo=timezone.utc).isoformat(),
+                "league": m.get("leagueAbbName") or "", "num": m.get("matchNumStr") or "",
+                "home": m.get("homeTeamAbbName") or "", "homeFull": m.get("homeTeamAllName") or "",
+                "away": m.get("awayTeamAbbName") or "", "awayFull": m.get("awayTeamAllName") or "",
+                "had": [_sp_num(had.get("h")), _sp_num(had.get("d")), _sp_num(had.get("a"))],
+                "hhad": {"line": _sp_num(hhad.get("goalLine")),
+                         "h": _sp_num(hhad.get("h")), "d": _sp_num(hhad.get("d")),
+                         "a": _sp_num(hhad.get("a"))},
+            })
+    write_cache("sporttery.json", {"_t": time.time(), "matches": out})
+    try:
+        os.makedirs(os.path.join(ROOT, "odds_snapshots"), exist_ok=True)
+        with open(os.path.join(ROOT, "odds_snapshots", "sporttery.json"), "w", encoding="utf-8") as f:
+            json.dump({"_t": time.time(), "matches": out}, f, ensure_ascii=False, separators=(",", ":"))
+    except OSError:
+        pass
+    if out:
+        log(f"  竞彩官方赔率：{len(out)} 场（{len(set(x['league'] for x in out))} 个赛事）")
+    return out
+
+
+def _norm_cn(s):
+    s = re.sub(r"[（(].*?[)）]", "", s or "")
+    s = re.sub(r"[·\s\.\-\']", "", s)
+    for suf in ("足球俱乐部", "俱乐部", "队", "FC"):
+        s = s.replace(suf, "")
+    return s.lower()
+
+
+def _name_match(our, abb, full):
+    a = _norm_cn(our)
+    if not a:
+        return False
+    for cand in (abb, full):
+        b = _norm_cn(cand)
+        if not b:
+            continue
+        if a == b or (len(a) >= 3 and a in b) or (len(b) >= 3 and b in a):
+            return True
+    return False
+
+
+def attach_sporttery(fixture_rows, teams, sp_matches):
+    """把竞彩官方盘口挂到对应赛程上（北京时间 + 队名模糊匹配）。"""
+    if not sp_matches:
+        return 0
+    hit = 0
+    parsed = []
+    for s in sp_matches:
+        try:
+            parsed.append((datetime.fromisoformat(s["date"].replace("Z", "+00:00")), s))
+        except (TypeError, ValueError):
+            continue
+    for f in fixture_rows:
+        if not f.get("date"):
+            continue
+        try:
+            ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        h = teams.get(str(f.get("home"))) or {}
+        a = teams.get(str(f.get("away"))) or {}
+        hn, an = h.get("cn") or h.get("name"), a.get("cn") or a.get("name")
+        for st, s in parsed:
+            if abs((st - ft).total_seconds()) > 45 * 60:
+                continue
+            if _name_match(hn, s["home"], s["homeFull"]) and _name_match(an, s["away"], s["awayFull"]):
+                if s["had"] and all(v is not None for v in s["had"]):
+                    f["sp"] = {"had": s["had"], "hhad": s["hhad"], "num": s["num"], "league": s["league"]}
+                    # 同时作为一家机构进入比价/共识（欧赔 3 项，让球 3 项单独展示）
+                    f.setdefault("books", []).append({"book": "竞彩官方", "m": s["had"], "src": "sporttery"})
+                    hit += 1
+                break
+    if hit:
+        log(f"  竞彩官方盘口：匹配 {hit} 场")
+    return hit
 
 
 def fetch_oddsapi_books(fixture_rows, teams):
@@ -3586,6 +3719,11 @@ def main():
         log(f"  ⚠ Odds API 抓取失败：{e}")
     filter_whitelist_books(fixture_rows)
     apply_odds_open(fixture_rows)
+    # 中国体彩竞彩官方赔率（公开接口）：补国家队赛事的胜平负 + 让球盘
+    try:
+        attach_sporttery(fixture_rows, teams, fetch_sporttery())
+    except Exception as e:
+        log(f"  ⚠ 竞彩官方盘口挂载失败：{str(e)[:80]}")
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()

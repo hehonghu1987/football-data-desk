@@ -4507,6 +4507,7 @@ function renderPreMatch(m){
           <div><div class="k">客胜</div><div class="o">${(1 / ipc[2]).toFixed(2)}</div><div class="p">${pct(ipc[2])}</div></div>
         </div>
         <div class="odds-src">多家机构去水共识 · 小数赔率</div>
+        ${(m.sp && m.sp.had) ? `<div class="odds-src sp-line">竞彩官方：${m.sp.had.map(v => Number(v).toFixed(2)).join(" / ")}${(m.sp.hhad && m.sp.hhad.line != null) ? ` · 让球 ${m.sp.hhad.line > 0 ? "主受让" : (m.sp.hhad.line < 0 ? "主让" : "平手")}${Math.abs(m.sp.hhad.line)} 球 ${m.sp.hhad.h} / ${m.sp.hhad.d} / ${m.sp.hhad.a}` : ""}</div>` : ""}
       </div>`);
       const ahc = consensusLine(m, "ah");
       cells.push(ahc ? `<div class="odds-cell">
