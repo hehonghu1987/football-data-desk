@@ -321,7 +321,7 @@ def main():
     match_dir = os.path.join(OUT, "matches")
     os.makedirs(match_dir, exist_ok=True)
     now_iso = now.isoformat()
-    cutoff = (now - timedelta(days=30)).isoformat()
+    cutoff = (now - timedelta(days=90)).isoformat()
     match_pages = []
 
     def team_link(tid):
@@ -500,13 +500,22 @@ def main():
                       ibody, f"{SITE}/teams/index.html"))
 
     today = now.strftime("%Y-%m-%d")
-    urls = [f"{SITE}/", f"{SITE}/teams/index.html"] + [p[0] for p in pages]
+    entries = [(f"{SITE}/", today), (f"{SITE}/teams/index.html", today)]
+    # pages 里保存了 (url, lastmod)，用页面自身的最新数据日期作为 lastmod
+    for u, d in pages:
+        entries.append((u, d or today))
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for u in urls:
+    seen = set()
+    for u, d in entries:
+        if u in seen:
+            continue
+        seen.add(u)
         pr = "1.0" if u == f"{SITE}/" else ("0.8" if "index.html" in u else "0.6")
-        sm.append(f"<url><loc>{u}</loc><lastmod>{today}</lastmod>"
-                  f"<changefreq>daily</changefreq><priority>{pr}</priority></url>")
+        # 当天更新的页面（球队/比赛）用 daily，其余 weekly
+        freq = "daily" if d == today else "weekly"
+        sm.append(f"<url><loc>{u}</loc><lastmod>{d}</lastmod>"
+                  f"<changefreq>{freq}</changefreq><priority>{pr}</priority></url>")
     sm.append("</urlset>")
     with open(os.path.join(OUT, "sitemap.xml"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(sm))

@@ -3600,22 +3600,34 @@ def main():
             t = teams.get(tid)
             if not t:
                 continue
-            code = None
+            cands = []
             for lg in (t.get("currentLeagues") or []) + (t.get("leagues") or []):
-                if lg in label2code:
-                    code = label2code[lg]
-                    break
-            if code:
-                roster_jobs.append((code, tid))
+                if lg in label2code and label2code[lg] not in cands:
+                    cands.append(label2code[lg])
+            # 国家队优先尝试国际赛事代码（部分联赛的 roster 接口不提供）
+            if t.get("cat") == "national" or any(x in (t.get("currentLeagues") or []) for x in ("欧国联", "国际友谊赛", "世界杯", "欧洲杯")):
+                for extra in ("fifa.friendly", "uefa.nations", "fifa.world"):
+                    if extra not in cands:
+                        cands.append(extra)
+            if cands:
+                roster_jobs.append((cands[:4], tid))
         rosters = {}
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
-            futs = {ex.submit(fetch_roster, code, tid): tid for code, tid in roster_jobs}
+            def _one(cands, tid):
+                for code in cands:
+                    try:
+                        pl = fetch_roster(code, tid)
+                    except Exception:
+                        pl = []
+                    if pl:
+                        return tid, pl
+                return tid, []
+            futs = {ex.submit(_one, cands, tid): tid for cands, tid in roster_jobs}
             for fut in as_completed(futs):
-                tid = futs[fut]
                 try:
-                    pl = fut.result()
+                    tid, pl = fut.result()
                 except Exception:
-                    pl = []
+                    tid, pl = futs[fut], []
                 if pl:
                     rosters[tid] = pl
         ros_path = os.path.join(DATA_DIR, "rosters.json")
