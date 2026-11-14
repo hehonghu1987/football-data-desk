@@ -2764,7 +2764,7 @@ function renderHero(){
   const subChips = [];
   if(todayCount) subChips.push(`<span class="hchip"><b>${todayCount}</b> 场今日</span>`);
   else subChips.push(`<span class="hchip muted">今日暂无比赛</span>`);
-  subChips.push(`<span class="hchip"><b>${weekCount}</b> 场未来 5 天</span>`);
+  subChips.push(`<span class="hchip"><b>${weekCount}</b> 场未来赛程</span>`);
   $("#hero-sub").innerHTML = subChips.join("");
   const meta = DATA.meta || {};
   $("#stat-leagues").textContent = (DATA.leagues || []).length;
@@ -2974,6 +2974,16 @@ function dayEntries(key){
   return out;
 }
 
+function syncSrcCounts(c){
+  const seg = $("#src-seg");
+  if(!seg) return;
+  const labels = { all: "全部", jc: "竞彩", bj: "北单" };
+  seg.querySelectorAll("[data-src]").forEach(b => {
+    const k = b.dataset.src;
+    if(labels[k]) b.textContent = `${labels[k]} ${c[k] || 0}`;
+  });
+}
+
 function srcOk(f){
   if(state.src === "jc") return !!f.sp;
   if(state.src === "bj") return !!f.bj;
@@ -2985,7 +2995,9 @@ function renderFixtures(){
   const note = $("#fixtures-note");
 
   if(state.day){
-    const all = dayEntries(state.day).filter(f => (state.league === "all" || f.league === state.league) && srcOk(f));
+    const dayBase = dayEntries(state.day).filter(f => state.league === "all" || f.league === state.league);
+    syncSrcCounts({ all: dayBase.length, jc: dayBase.filter(f => f.sp).length, bj: dayBase.filter(f => f.bj).length });
+    const all = dayBase.filter(srcOk);
     const [y, mo, da] = state.day.split("-").map(Number);
     const label = `${mo}月${da}日`;
     $("#fixtures-title").textContent = (state.league === "all" ? "" : state.league + " · ") + label;
@@ -2999,9 +3011,14 @@ function renderFixtures(){
     return;
   }
 
-  const list = leagueFixtureList(state.league).filter(f =>
-    !f.hide && new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00") && srcOk(f)
+  const baseAll = leagueFixtureList(state.league).filter(f =>
+    !f.hide && new Date(f.date) >= new Date(TODAY_KEY + "T00:00:00")
   );
+  // 计数与面板展示窗口一致：只统计前 5 个比赛日
+  const dayKeys5 = [...new Set(baseAll.map(f => dayKey(new Date(f.date))))].sort().slice(0, 5);
+  const baseList = baseAll.filter(f => dayKeys5.includes(dayKey(new Date(f.date))));
+  syncSrcCounts({ all: baseList.length, jc: baseList.filter(f => f.sp).length, bj: baseList.filter(f => f.bj).length });
+  const list = baseList.filter(srcOk);
   if(note){
     const started = list.some(f => fixtureStatus(f).kind !== "pre");
     if(started){
