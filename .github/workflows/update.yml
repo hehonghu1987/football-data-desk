@@ -112,7 +112,8 @@ jobs:
           mkdir -p dist
           cp football_database.html dist/index.html
           cp sw.js dist/sw.js
-          cp robots.txt sitemap.xml og-image.png og-icon.png dist/
+          cp robots.txt sitemap.xml og-image.png og-icon.png manifest.json dist/
+          if [ -d icons ]; then cp -R icons dist/icons; fi
           if [ -d seo/teams ]; then
             cp -R seo/teams dist/teams
             cp seo/sitemap.xml dist/sitemap.xml

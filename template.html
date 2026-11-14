@@ -23,7 +23,14 @@
 <meta name="twitter:title" content="绿茵数据台 · 足球赛程比分与模型预测">
 <meta name="twitter:description" content="每 30 分钟刷新的足球数据台：赛程比分、技术统计与攻防模型预测，含进球线、亚盘与角球盘口概率。">
 <meta name="twitter:image" content="https://hehonghu1987.github.io/football-data-desk/og-image.png">
-<link rel="apple-touch-icon" href="og-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="绿茵数据台">
+<meta name="application-name" content="绿茵数据台">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="icon" href="og-icon.png" type="image/png">
 <link rel="prefetch" href="data/history.json" as="fetch" crossorigin>
 <script type="application/ld+json">
@@ -1342,6 +1349,20 @@ main:focus{outline:none}
 .insight-list li{padding:14px 16px;border-radius:var(--card-radius)}
 .sum-tile{border-radius:var(--card-radius)}
 @media(max-width:760px){
+  /* 顶栏精简：隐藏更新时间文字，避免与站名挤在一起 */
+  #update-time,#update-age{display:none}
+  .topbar-meta .update-chip .txt{display:none}
+  .brand small{display:none}
+  /* 赛程行改卡片式两行布局 */
+  .fix-row{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);grid-template-areas:"time league league" "home vs away" "pred pred pred";gap:4px 8px;padding:12px 14px}
+  .fix-time{grid-area:time;display:flex;align-items:center;gap:4px;font-size:11px}
+  .fix-row>div:nth-child(2){grid-area:league;justify-self:end}
+  .fix-team.home{grid-area:home;justify-content:flex-start;text-align:left;font-size:14px}
+  .fix-vs{grid-area:vs;align-self:center;padding:0 6px;font-size:11px}
+  .fix-team.away{grid-area:away;justify-content:flex-end;text-align:right;font-size:14px}
+  .fix-pred{grid-area:pred;margin-top:2px}
+  .fix-row .pin-btn{margin-left:0}
+  body{padding-bottom:env(safe-area-inset-bottom)}
   .section{margin-top:24px}
   .section-title{font-size:21px}
   .deep-card{padding:14px 14px}

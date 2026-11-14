@@ -1,0 +1,17 @@
+{
+  "name": "绿茵数据台 · 足球数据与模型预测",
+  "short_name": "绿茵数据台",
+  "description": "赛程比分、技术统计、球队近况与攻防模型预测，含欧赔、亚盘、大小球与竞彩/北单盘口。",
+  "lang": "zh-CN",
+  "start_url": "/football-data-desk/",
+  "scope": "/football-data-desk/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2F5EF",
+  "theme_color": "#0E7A49",
+  "categories": ["sports", "news"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
