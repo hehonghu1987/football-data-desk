@@ -1019,7 +1019,7 @@ html{scroll-behavior:smooth}
 .section-head{align-items:baseline;gap:12px;padding-bottom:10px;margin-bottom:14px;border-bottom:1px solid var(--line)}
 .section-title{position:relative;padding-left:12px;font-size:17px}
 .section-title::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:4px;height:16px;border-radius:2px;background:var(--accent)}
-#insight,#pre-match,#match-h2h,#match-squads,#match-books,#match-timeline{scroll-margin-top:calc(var(--topbar-h) + 64px)}
+#insight,#pre-match,#recent-form,#match-h2h,#match-squads,#match-books,#match-timeline{scroll-margin-top:calc(var(--topbar-h) + 64px)}
 
 /* 比赛页内导航 */
 .match-nav{position:sticky;top:calc(var(--topbar-h) + 4px);z-index:30;display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin:12px 0 2px;scrollbar-width:none;background:var(--bg);box-shadow:0 10px 14px -14px rgba(18,33,26,.35)}
@@ -1140,6 +1140,27 @@ main:focus{outline:none}
 .insight-details>summary::-webkit-details-marker{display:none}
 .insight-details[open]>summary{border-bottom:1px solid var(--line)}
 .insight-details .insight-list{border:0;border-radius:0}
+/* 双方近期战绩 */
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.form-col{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.form-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);font-size:13.5px;font-weight:600}
+.form-h a{color:inherit;text-decoration:none}
+.form-h a:hover{color:var(--accent)}
+.form-h span{font-size:11px;color:var(--muted);font-weight:400}
+.form-row{display:grid;grid-template-columns:34px 52px minmax(0,1fr) 46px 64px;gap:8px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;font-size:12px}
+.form-row:last-child{border-bottom:0}
+.form-row:hover{background:var(--surface-2)}
+.fr-res{display:inline-flex;align-items:center;justify-content:center;width:24px;height:20px;border-radius:6px;font-size:10.5px;font-weight:700}
+.fr-res.W{background:color-mix(in srgb,var(--win) 16%,transparent);color:var(--win)}
+.fr-res.D{background:color-mix(in srgb,var(--draw) 16%,transparent);color:var(--draw)}
+.fr-res.L{background:color-mix(in srgb,var(--loss) 14%,transparent);color:var(--loss)}
+.fr-date{color:var(--muted);font-family:var(--font-mono);font-size:11px}
+.fr-opp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr-score{font-family:var(--font-mono);font-weight:600;text-align:right}
+.fr-lg{color:var(--muted);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.form-empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:12px}
+@media(max-width:760px){.form-grid{grid-template-columns:1fr}.form-row{grid-template-columns:30px 46px minmax(0,1fr) 42px;padding:9px 12px}.fr-lg{display:none}}
+
 /* 深度分析：均衡排版 */
 .deep-stack{display:grid;gap:14px;padding:14px}
 .tac-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
@@ -1675,6 +1696,7 @@ main:focus{outline:none}
       <button type="button" data-nav="match-timeline">比赛事件</button>
       <button type="button" data-nav="match-books">多机构盘口</button>
       <button type="button" data-nav="match-h2h">历史交锋</button>
+      <button type="button" data-nav="recent-form">近期战绩</button>
       <button type="button" data-nav="match-squads">双方阵容</button>
     </nav>
     <div id="match-compare"></div>
@@ -1726,6 +1748,14 @@ main:focus{outline:none}
       <div class="lineup-compare" id="lineup-compare"></div>
 
       <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+    </section>
+
+    <section class="section" id="recent-form" hidden>
+      <div class="section-head">
+        <h2 class="section-title">双方近期战绩</h2>
+        <span class="section-note">最近 8 场已结束比赛 · 点行进入比赛页</span>
+      </div>
+      <div class="form-grid" id="form-panel"></div>
     </section>
 
     <section class="section" id="match-h2h">
@@ -5453,6 +5483,7 @@ function renderMatch(id){
   renderInsight(m);
   renderDeep(m);
 
+  renderRecentForm(m);
   renderMatchH2H(h, a, m);
   if(!HISTORY_LOADED){
     loadHistory().then(() => {
@@ -5798,6 +5829,38 @@ function fdcoCard(fd, m){
 }
 
 /* 比赛页的双方历史交锋，支持按主客场筛选（以本场主队为参照） */
+function renderRecentForm(m){
+  const sec = $("#recent-form"), panel = $("#form-panel");
+  if(!sec || !panel) return;
+  const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+  if(!h || !a){ sec.hidden = true; return; }
+  const rowsOf = (tid) => {
+    const id = String(tid);
+    const ms = (DATA.matches || []).filter(x => x.hs != null && x.as != null && x.date
+      && (String(x.home) === id || String(x.away) === id));
+    ms.sort((p, q) => String(q.date).localeCompare(String(p.date)));
+    return ms.slice(0, 8);
+  };
+  const col = (t, ms) => `<div class="form-col">
+    <div class="form-h"><a href="#/team/${esc(t.id)}">${esc(t.cn || t.name)}</a><span>近 ${ms.length} 场</span></div>
+    ${ms.length ? ms.map(x => {
+      const home = String(x.home) === String(t.id);
+      const opp = TEAMS.get(String(home ? x.away : x.home)) || {};
+      const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
+      const res = gf > ga ? "W" : (gf < ga ? "L" : "D");
+      return `<a class="form-row" href="#/match/${esc(x.id)}">
+        <span class="fr-res ${res}">${res === "W" ? "胜" : res === "L" ? "负" : "平"}</span>
+        <span class="fr-date">${String(x.date).slice(5, 10).replace("-", "/")}</span>
+        <span class="fr-opp">${home ? "主" : "客"} vs ${esc(opp.cn || opp.name || "")}</span>
+        <span class="fr-score">${gf}–${ga}</span>
+        <span class="fr-lg">${esc(x.league || "")}</span>
+      </a>`;
+    }).join("") : `<div class="form-empty">近期暂无已结束比赛</div>`}
+  </div>`;
+  panel.innerHTML = col(h, rowsOf(h.id)) + col(a, rowsOf(a.id));
+  sec.hidden = false;
+}
+
 function renderMatchH2H(h, a, m){
   const all = h2hMatches(h.id, a.id, m.id);
   const sec = $("#match-h2h");
