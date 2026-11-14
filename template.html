@@ -1243,6 +1243,32 @@ main:focus{outline:none}
 .team-hero::after{background:linear-gradient(120deg,color-mix(in srgb,var(--team-color,var(--accent)) 5%,transparent),transparent 45%)}
 .team-count .n{font-size:40px}
 .match-hero{margin-bottom:12px}
+
+/* ===== 模块统一规范：间距 / 卡片 / 标题 / 表格 ===== */
+:root{--card-pad:16px 18px;--card-radius:12px}
+.section{margin-top:30px}
+.section-head{align-items:center;margin-bottom:12px}
+.section-title{font-size:24px;line-height:1.15}
+.section-note{font-size:11.5px;line-height:1.5}
+/* 卡片统一内边距、圆角、标题分隔 */
+.deep-card{padding:var(--card-pad);border-radius:var(--card-radius);display:flex;flex-direction:column;gap:8px;height:100%}
+.deep-card h3{margin:0;padding-bottom:10px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:600;width:100%}
+.deep-card p{font-size:12.5px;line-height:1.85;margin:0}
+.deep-card > p:last-child{margin-top:auto}
+.deep-table{width:100%;border-collapse:collapse;font-size:12px;margin:0}
+.deep-table th,.deep-table td{padding:6px 8px}
+.deep-grid{align-items:stretch}
+.odds-cell{padding:var(--card-pad);border-radius:var(--card-radius)}
+.odds-cell .l{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.value-col{border-radius:var(--card-radius)}
+.insight-list li{padding:14px 16px;border-radius:var(--card-radius)}
+.sum-tile{border-radius:var(--card-radius)}
+@media(max-width:760px){
+  .section{margin-top:24px}
+  .section-title{font-size:21px}
+  .deep-card{padding:14px 14px}
+  .odds-cell{padding:14px}
+}
 </style>
 </head>
 <body>
