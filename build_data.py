@@ -1032,6 +1032,16 @@ ODDSAPI_EXTRA_LEAGUES = {
     "西乙": "soccer_spain_segunda_division",
     "土超": "soccer_turkey_super_league",
     "比甲": "soccer_belgium_first_div",
+    "奥甲": "soccer_austria_bundesliga",
+    "希腊超": "soccer_greece_super_league",
+    "丹超": "soccer_denmark_superliga",
+    "瑞士超": "soccer_switzerland_superleague",
+    "波兰超": "soccer_poland_ekstraklasa",
+    "挪超": "soccer_norway_eliteserien",
+    "瑞典超": "soccer_sweden_allsvenskan",
+    "日职联": "soccer_japan_j_league",
+    "美职联": "soccer_usa_mls",
+    "阿甲": "soccer_argentina_primera_division",
 }
 
 # 只保留用户指定的机构（欧赔 10 家 + 亚盘 8 家）；不在名单内的机构一律不展示。
@@ -1769,7 +1779,7 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
         state = {}
     force = bool(os.environ.get("ODDSAPI_FORCE"))
     now_utc = datetime.utcnow()
-    win_hours = 18 if force else 14
+    win_hours = 30 if force else 30   # 额外联赛提前 30 小时补欧赔，避免开赛前才空白
     by_league = {}
     for f in fixture_rows:
         lab = f.get("league")
@@ -1786,11 +1796,12 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
         by_league.setdefault(lab, []).append(f)
     if not by_league:
         return
-    # 每次最多补 3 个联赛（按最早开赛时间优先），控制额度
+    # 每次最多补 6 个联赛（额度充足）/ 3 个（额度偏紧），按最早开赛时间优先
     def _earliest(item):
         rows = item[1]
         return min((x.get("date") or "9999") for x in rows)
-    picked = sorted(by_league.items(), key=_earliest)[:3]
+    _cap = 6 if (remaining is None or remaining > 250) else 3
+    picked = sorted(by_league.items(), key=_earliest)[:_cap]
     total = 0
     for lab, rows in picked:
         sport = ODDSAPI_EXTRA_LEAGUES[lab]
