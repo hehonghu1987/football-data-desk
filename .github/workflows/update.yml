@@ -130,7 +130,7 @@ jobs:
           if [ -d fonts ]; then
             cp -R fonts dist/fonts
           fi
-          if [ -f data/ht.json ]; then cp data/ht.json dist/data/ht.json; fi
+          if [ -f data/ht.json ]; then mkdir -p dist/data; cp data/ht.json dist/data/ht.json; fi
           if [ -f data/fdco.json ]; then
             mkdir -p dist/data
             cp data/fdco.json dist/data/fdco.json
