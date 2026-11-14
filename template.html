@@ -1140,6 +1140,29 @@ main:focus{outline:none}
 .insight-details>summary::-webkit-details-marker{display:none}
 .insight-details[open]>summary{border-bottom:1px solid var(--line)}
 .insight-details .insight-list{border:0;border-radius:0}
+/* 深度分析：均衡排版 */
+.deep-stack{display:grid;gap:14px;padding:14px}
+.tac-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.tac-team{background:var(--surface-2);border-radius:10px;padding:10px 12px}
+.tac-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.tac-style{font-size:11px;color:var(--muted)}
+.tac-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px}
+.tac-kv>div{display:flex;justify-content:space-between;gap:6px;font-size:11.5px;color:var(--muted);border-bottom:1px dashed var(--line);padding-bottom:3px}
+.tac-kv b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+.cmp-table td{vertical-align:middle}
+.cmp-v{font-family:var(--font-mono);font-size:12px;display:block;text-align:right}
+.cmp-bar{display:block;height:4px;border-radius:2px;background:var(--line);margin-top:3px;overflow:hidden}
+.cmp-bar i{display:block;height:100%;border-radius:2px}
+.cmp-bar i.b-home{background:var(--accent)}
+.cmp-bar i.b-away{background:color-mix(in srgb,var(--draw) 80%,transparent)}
+.per-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.per-team{background:var(--surface-2);border-radius:10px;padding:10px 12px}
+.per-h{font-weight:600;font-size:13px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.per-f{font-size:10.5px;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:1px 7px;font-weight:600}
+.per-row{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px;font-size:11.5px;line-height:1.7;margin-top:5px;color:var(--ink-2)}
+.deep-foot{font-size:11px;color:var(--muted);line-height:1.6;margin-top:8px}
+@media(max-width:760px){.tac-grid,.per-grid{grid-template-columns:1fr}.deep-stack{padding:10px}}
+
 /* 深度分析折叠细节 */
 .deep-details{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
 .deep-details>summary{cursor:pointer;list-style:none;padding:11px 14px;font-size:12.5px;color:var(--accent);font-weight:600}
@@ -1289,7 +1312,6 @@ main:focus{outline:none}
 .deep-card{padding:var(--card-pad);border-radius:var(--card-radius);display:flex;flex-direction:column;gap:8px;height:100%}
 .deep-card h3{margin:0;padding-bottom:10px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:600;width:100%}
 .deep-card p{font-size:12.5px;line-height:1.85;margin:0}
-.deep-card > p:last-child{margin-top:auto}
 .deep-table{width:100%;border-collapse:collapse;font-size:12px;margin:0}
 .deep-table th,.deep-table td{padding:6px 8px}
 .deep-grid{align-items:stretch}
@@ -1680,7 +1702,7 @@ main:focus{outline:none}
         <span class="section-note">战术风格 · 人员配置 · 机构数值方向</span>
       </div>
       <div id="deep-summary"></div>
-      <div class="deep-grid" id="deep-panel"></div>
+      <div class="deep-panel" id="deep-panel"></div>
       <div class="insight-note">深度分析由球队近期比赛数据、参考阵容与多机构/竞彩盘口自动生成，仅供研究参考，不构成投注建议。</div>
     </section>
 
@@ -5507,61 +5529,163 @@ function _closestKey(obj, line){
   return bd <= 0.3 ? best : null;
 }
 function renderDeep(m){
-  const sec = $("#deep-sec"), panel = $("#deep-panel");
+  const sec = $("#deep-sec"), panel = $("#deep-panel"), sumEl = $("#deep-summary");
   if(!sec || !panel) return;
   const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
   if(!h || !a){ sec.hidden = true; return; }
   const pd = m.pred;
   const hn = h.cn || h.name, an = a.cn || a.name;
   const ha = _teamAgg(h.id), aa = _teamAgg(a.id);
+  const styleH = _styleOf(ha), styleA = _styleOf(aa);
   const luH = lineupOf(h.id), luA = lineupOf(a.id);
   const starters = lu => ((lu && lu.p) || []).filter(x => x.p !== "SUB").map(x => x.n).filter(Boolean);
   const xiH = starters(luH), xiA = starters(luA);
   const done = m.hs != null && m.as != null && m.state !== "pre";
-  const cards = [];
 
-  // 1) 战术风格
-  const styleH = _styleOf(ha), styleA = _styleOf(aa);
-  const tac = [];
-  tac.push(`<p><span class="deep-tag">${esc(hn)}</span>${styleH}${ha.pos != null ? `，近 ${ha.n} 场场均控球 ${_f1(ha.pos)}%` : ""}${ha.shots != null ? `、射门 ${_f1(ha.shots)} 次（射正 ${_f1(ha.sot)}）` : ""}${ha.cor != null ? `、角球 ${_f1(ha.cor)} 个` : ""}。</p>`);
-  tac.push(`<p><span class="deep-tag">${esc(an)}</span>${styleA}${aa.pos != null ? `，场均控球 ${_f1(aa.pos)}%` : ""}${aa.shots != null ? `、射门 ${_f1(aa.shots)} 次（射正 ${_f1(aa.sot)}）` : ""}${aa.cor != null ? `、角球 ${_f1(aa.cor)} 个` : ""}。</p>`);
+  /* ---------- 顶部核心结论 ---------- */
+  const dirs = [];
+  const market = (m.books && m.books.length) ? marketProbs(m) : null;
+  const model = pd ? [pd.ph, pd.pd, pd.pa] : null;
+  if(market && model){
+    const names = ["主胜", "平", "客胜"];
+    const diffs = [0, 1, 2].map(i => ({ i, d: model[i] - market[i] }));
+    const top = diffs.slice().sort((x, y) => Math.abs(y.d) - Math.abs(x.d))[0];
+    if(Math.abs(top.d) >= 0.03){
+      dirs.push({ k: "胜负", v: `模型${top.d > 0 ? "更看好" : "更不看好"}${names[top.i]}（${pct(model[top.i])} vs 市场 ${pct(market[top.i])}）` });
+    } else {
+      dirs.push({ k: "胜负", v: "模型与市场分歧不大" });
+    }
+  }
+  if(pd && pd.ah && market){
+    const ahc = consensusLine(m, "ah");
+    if(ahc){
+      const key = _closestKey(pd.ah, ahc.line);
+      const pm = _devig2(ahc.h, ahc.a);
+      if(key != null && pm != null){
+        const d = Number(pd.ah[key]) - pm;
+        dirs.push({ k: "让球", v: Math.abs(d) >= 0.03 ? (d > 0 ? `模型偏向主队让球（${ahText(ahc.line)}）` : `模型偏向客队受让（${ahText(ahc.line)}）`) : "模型与市场基本一致" });
+      }
+    }
+  }
+  if(pd && pd.lines && market){
+    const ouc = consensusLine(m, "ou");
+    if(ouc){
+      const key = _closestKey(pd.lines, ouc.line);
+      const pm = _devig2(ouc.over, ouc.under);
+      if(key != null && pm != null){
+        const d = Number(pd.lines[key]) - pm;
+        dirs.push({ k: "大小球", v: Math.abs(d) >= 0.05 ? (d > 0 ? `模型偏大 ${Number(ouc.line).toFixed(1)}` : `模型偏小 ${Number(ouc.line).toFixed(1)}`) : "模型与市场接近" });
+      }
+    }
+  }
+  const tacLine = `${hn} ${styleH}，${an} ${styleA}${pd ? `；模型预期进球 ${_f1(pd.xgH)}–${_f1(pd.xgA)}` : ""}`;
+  if(sumEl){
+    sumEl.innerHTML = `<div class="deep-sum-card">
+      <div class="v-k">核心结论</div>
+      <div class="deep-sum-main">${esc(tacLine)}</div>
+      ${dirs.length ? `<div class="deep-sum-chips">${dirs.map(x => `<span class="deep-tag">${esc(x.k)}：${esc(x.v)}</span>`).join("")}</div>` : ""}
+    </div>`;
+  }
+
+  /* ---------- 1) 机构方向（常显） ---------- */
+  let marketBody = "";
+  if(market && model){
+    const names = ["主胜", "平", "客胜"];
+    const best = [0, 0, 0];
+    for(const b of (m.books || [])) if(b.m) for(let i = 0; i < 3; i++) best[i] = Math.max(best[i], b.m[i] || 0);
+    marketBody += `<table class="deep-table"><thead><tr><th>结果</th><th>模型</th><th>市场</th><th>差</th><th>最优价</th></tr></thead><tbody>`;
+    for(let i = 0; i < 3; i++){
+      const d = model[i] - market[i];
+      marketBody += `<tr><td>${names[i]}</td><td>${pct(model[i])}</td><td>${pct(market[i])}</td><td>${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)}</td><td>${best[i] ? best[i].toFixed(2) : "—"}</td></tr>`;
+    }
+    marketBody += `</tbody></table>`;
+    const ahc = pd && pd.ah ? consensusLine(m, "ah") : null;
+    if(ahc){
+      const key = _closestKey(pd.ah, ahc.line);
+      const pm = _devig2(ahc.h, ahc.a);
+      if(key != null && pm != null){
+        const pmod = Number(pd.ah[key]), d = pmod - pm;
+        marketBody += `<p><span class="deep-tag">让球 ${ahText(ahc.line)}</span>模型赢盘 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.03 ? (d > 0 ? "，方向偏向让球方" : "，方向偏向受让方") : "，分歧不大"}。</p>`;
+      }
+    }
+    const ouc = pd && pd.lines ? consensusLine(m, "ou") : null;
+    if(ouc){
+      const key = _closestKey(pd.lines, ouc.line);
+      const pm = _devig2(ouc.over, ouc.under);
+      if(key != null && pm != null){
+        const pmod = Number(pd.lines[key]), d = pmod - pm;
+        marketBody += `<p><span class="deep-tag">大小球 ${Number(ouc.line).toFixed(1)}</span>模型大球 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.05 ? (d > 0 ? "，模型更偏大球" : "，模型更偏小球") : "，与市场接近"}。</p>`;
+      }
+    }
+    const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}${m.bj ? `<span class="deep-tag">北单 ${esc(m.bj.num || "")}</span>` : ""}`;
+    marketBody = `<div class="deep-kv" style="margin-bottom:10px">${srcTags}</div>` + marketBody +
+      `<p class="deep-foot">「差」为模型概率减市场去水概率；正值表示模型认为市场低估了该结果。模型整体弱于收盘线，方向仅供参考。</p>`;
+  } else {
+    marketBody = `<p class="deep-foot">该场暂无多机构赔率，无法做模型-市场对比。</p>`;
+  }
+  const marketCard = `<div class="deep-card"><h3><span class="dotm"></span>机构数值与方向判断</h3>${marketBody}</div>`;
+
+  /* ---------- 2) 战术风格（两队列 + 判断，左右均衡） ---------- */
+  const teamBlock = (name, agg, style) => `<div class="tac-team">
+    <div class="tac-h"><span class="deep-tag">${esc(name)}</span><span class="tac-style">${esc(style)}</span></div>
+    <div class="tac-kv">
+      <div><span>场均控球</span><b>${agg.pos != null ? _f1(agg.pos) + "%" : "—"}</b></div>
+      <div><span>场均射门</span><b>${agg.shots != null ? _f1(agg.shots) : "—"}</b></div>
+      <div><span>射正</span><b>${agg.sot != null ? _f1(agg.sot) : "—"}</b></div>
+      <div><span>场均角球</span><b>${agg.cor != null ? _f1(agg.cor) : "—"}</b></div>
+    </div>
+  </div>`;
+  const tacText = [];
   const bothControl = styleH === "控球主导" && styleA === "控球主导";
   const oneCounter = (styleH === "控球主导" && styleA === "防守反击") || (styleA === "控球主导" && styleH === "防守反击");
   if(bothControl){
-    tac.push(`<p>两队都偏向控球推进，中场出球质量与反抢强度是胜负手；一旦一方丢球被打转换，肋部空当会被放大。</p>`);
+    tacText.push("两队都偏向控球推进，中场出球质量与反抢强度是胜负手；一旦丢球被打转换，肋部空当会被放大。");
   } else if(oneCounter){
-    tac.push(`<p>典型的「控球 vs 反击」对位：控球方需要耐心破低位，反击方则依赖第一脚出球与边路速度；比赛前 20 分钟的进球会显著改变走势。</p>`);
+    tacText.push("典型「控球 vs 反击」对位：控球方需要耐心破低位，反击方依赖第一脚出球与边路速度；前 20 分钟的进球会显著改变走势。");
   } else if(ha.gf != null && aa.ga != null && ha.gf - aa.ga >= 0.4){
-    tac.push(`<p>主队进攻端场均 ${_f1(ha.gf)} 球，对方场均失球 ${_f1(aa.ga)}，主队在禁区内的终结效率上占优，重点看定位球与二点球。</p>`);
+    tacText.push(`主队进攻端场均 ${_f1(ha.gf)} 球，对方场均失球 ${_f1(aa.ga)}，主队在禁区内的终结效率上占优，重点看定位球与二点球。`);
   } else if(aa.gf != null && ha.ga != null && aa.gf - ha.ga >= 0.4){
-    tac.push(`<p>客队进攻端场均 ${_f1(aa.gf)} 球，主队场均失球 ${_f1(ha.ga)}，客队的推进效率更值得关注，主队需控制中场丢球。</p>`);
+    tacText.push(`客队进攻端场均 ${_f1(aa.gf)} 球，主队场均失球 ${_f1(ha.ga)}，客队推进效率更值得关注，主队需控制中场丢球。`);
   } else {
-    tac.push(`<p>双方攻防数据接近，比赛更可能由个别球员的发挥或定位球决定。</p>`);
+    tacText.push("双方攻防数据接近，比赛更可能由个别球员的发挥或定位球决定。");
   }
-  if(pd){
-    const total = Number(pd.xgH) + Number(pd.xgA);
-    tac.push(`<p>模型预期进球 ${_f1(pd.xgH)}–${_f1(pd.xgA)}（总进球期望 ${_f1(total)}），${total >= 2.8 ? "节奏偏快、双方都有进球机会" : (total <= 2.2 ? "节奏偏慢、小球概率更高" : "整体节奏中等")}。</p>`);
-  }
-  cards.push(`<div class="deep-card"><h3><span class="dotm"></span>战术风格与比赛剧本</h3>${tac.join("")}</div>`);
+  if(pd) tacText.push(`模型预期进球 ${_f1(pd.xgH)}–${_f1(pd.xgA)}（总进球期望 ${_f1(Number(pd.xgH) + Number(pd.xgA))}），${(Number(pd.xgH) + Number(pd.xgA)) >= 2.8 ? "节奏偏快、双方都有进球机会" : ((Number(pd.xgH) + Number(pd.xgA)) <= 2.2 ? "节奏偏慢、小球概率更高" : "整体节奏中等")}。`);
+  const tacCard = `<div class="deep-card"><h3><span class="dotm"></span>战术风格与比赛剧本</h3>
+    <div class="tac-grid">${teamBlock(hn, ha, styleH)}${teamBlock(an, aa, styleA)}</div>
+    ${tacText.map(t => `<p>${esc(t)}</p>`).join("")}
+  </div>`;
 
-  // 2) 近况数据对比
+  /* ---------- 3) 数据对比（带条形图） ---------- */
+  const bar = (v, max, cls) => {
+    if(v == null || !isFinite(v)) return `<span class="cmp-bar"></span>`;
+    const w = max ? Math.max(4, Math.min(100, Math.round(v / max * 100))) : 0;
+    return `<span class="cmp-bar"><i class="${cls}" style="width:${w}%"></i></span>`;
+  };
+  const metricRow = (label, hv, av, fmt) => {
+    const f = fmt || (x => x == null ? "—" : _f1(x));
+    const max = Math.max(hv || 0, av || 0) || 0;
+    return `<tr><td>${esc(label)}</td>
+      <td><span class="cmp-v">${esc(f(hv))}</span>${bar(hv, max, "b-home")}</td>
+      <td><span class="cmp-v">${esc(f(av))}</span>${bar(av, max, "b-away")}</td></tr>`;
+  };
   const cmpRows = [
-    ["场均控球 %", _f1(ha.pos), _f1(aa.pos)],
-    ["场均射门", _f1(ha.shots), _f1(aa.shots)],
-    ["场均射正", _f1(ha.sot), _f1(aa.sot)],
-    ["场均角球", _f1(ha.cor), _f1(aa.cor)],
-    ["场均进球", _f1(ha.gf), _f1(aa.gf)],
-    ["场均失球", _f1(ha.ga), _f1(aa.ga)],
-    ["近 5 场", ha.form || "—", aa.form || "—"],
+    metricRow("场均控球 %", ha.pos, aa.pos, x => x == null ? "—" : _f1(x) + "%"),
+    metricRow("场均射门", ha.shots, aa.shots),
+    metricRow("场均射正", ha.sot, aa.sot),
+    metricRow("场均角球", ha.cor, aa.cor),
+    metricRow("场均进球", ha.gf, aa.gf),
+    metricRow("场均失球", ha.ga, aa.ga),
+    `<tr><td>近 5 场</td><td><span class="cmp-v">${esc(ha.form || "—")}</span></td><td><span class="cmp-v">${esc(aa.form || "—")}</span></td></tr>`,
   ];
   const sparse = (ha.n < 3 && aa.n < 3) || (ha.pos == null && aa.pos == null);
-  cards.push(`<div class="deep-card"><h3><span class="dotm"></span>近期数据对比（近 ${Math.max(ha.n, aa.n)} 场）</h3>
-    ${sparse ? `<p class="deep-tag warn" style="margin-bottom:6px">两队近期技术统计不足，以下以模型数据为主</p>` : ""}
-    <table class="deep-table"><thead><tr><th>指标</th><th>${esc(hn)}</th><th>${esc(an)}</th></tr></thead>
-    <tbody>${cmpRows.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join("")}</tbody></table>
-    <p>数据来自已结束比赛的官方技术统计，仅统计该队最近 10 场（不足则按实际场次）。</p></div>`);
+  const cmpCard = `<div class="deep-card"><h3><span class="dotm"></span>近期数据对比（近 ${Math.max(ha.n, aa.n)} 场）</h3>
+    ${sparse ? `<p class="deep-foot">两队近期技术统计不足，以下以模型数据为主。</p>` : ""}
+    <table class="deep-table cmp-table"><thead><tr><th>指标</th><th>${esc(hn)}</th><th>${esc(an)}</th></tr></thead>
+    <tbody>${cmpRows.join("")}</tbody></table>
+    <p class="deep-foot">数据来自已结束比赛的官方技术统计，仅统计两队最近 10 场（不足按实际场次）。</p>
+  </div>`;
 
-  // 3) 人员配置
+  /* ---------- 4) 人员配置（左右两队均衡） ---------- */
   const keyPlayers = (tid) => {
     const pl = (rosterOf(tid) || []).slice().sort((x, y) => ((y.g || 0) + (y.a || 0)) - ((x.g || 0) + (x.a || 0)));
     return pl.slice(0, 2).map(p => {
@@ -5571,110 +5695,37 @@ function renderDeep(m){
       return bits.length ? `${p.n}（${bits.join("、")}）` : p.n;
     });
   };
-  const kpH = keyPlayers(h.id), kpA = keyPlayers(a.id);
-  const personnel = [];
-  personnel.push(`<p><span class="deep-tag">阵型</span>${esc(hn)} ${esc((luH && luH.f) || "未提供")} · ${esc(an)} ${esc((luA && luA.f) || "未提供")}</p>`);
-  personnel.push(`<p><span class="deep-tag">预计首发</span>${xiH.length ? `${esc(hn)}：${esc(xiH.slice(0, 6).join("、"))}${xiH.length > 6 ? " 等 " + xiH.length + " 人" : ""}。` : `${esc(hn)}：暂无参考首发。`}${xiA.length ? `${esc(an)}：${esc(xiA.slice(0, 6).join("、"))}${xiA.length > 6 ? " 等 " + xiA.length + " 人" : ""}。` : `${esc(an)}：暂无参考首发。`}</p>`);
-  if(kpH.length || kpA.length){
-    personnel.push(`<p><span class="deep-tag">关键球员</span>${kpH.length ? `${esc(hn)}：${esc(kpH.join("；"))}` : ""}${kpH.length && kpA.length ? "。" : ""}${kpA.length ? `${esc(an)}：${esc(kpA.join("；"))}` : ""}。</p>`);
-  }
-  personnel.push(`<p><span class="deep-tag warn">说明</span>预计首发按最近一场比赛的首发推断，非官方名单；ESPN 暂不提供足球伤停明细，实际缺阵情况以官方为准。</p>`);
-  cards.push(`<div class="deep-card wide"><h3><span class="dotm"></span>人员配置与可用性</h3>${personnel.join("")}</div>`);
+  const roster = (tid) => (rosterOf(tid) || []).length;
+  const perTeam = (name, lu, xi, kp, benchN) => `<div class="per-team">
+    <div class="per-h">${esc(name)}${lu && lu.f ? `<span class="per-f">${esc(lu.f)}</span>` : ""}</div>
+    <div class="per-row"><span class="deep-tag">预计首发</span><div>${xi.length ? esc(xi.join("、")) + `（${xi.length} 人）` : "暂无参考阵容"}</div></div>
+    ${kp.length ? `<div class="per-row"><span class="deep-tag">关键球员</span><div>${esc(kp.join("；"))}</div></div>` : ""}
+    ${benchN ? `<div class="per-row"><span class="deep-tag">名单人数</span><div>${benchN} 人</div></div>` : ""}
+  </div>`;
+  const perCard = `<div class="deep-card"><h3><span class="dotm"></span>人员配置与可用性</h3>
+    <div class="per-grid">
+      ${perTeam(hn, luH, xiH, keyPlayers(h.id), roster(h.id))}
+      ${perTeam(an, luA, xiA, keyPlayers(a.id), roster(a.id))}
+    </div>
+    <p class="deep-foot">预计首发按最近一场比赛首发推断，非官方名单；ESPN 暂不提供足球伤停明细，实际缺阵以官方为准。</p>
+  </div>`;
 
-  // 4) 机构数值与方向
-  const books = (m.books || []).filter(b => b.m || b.ah || b.ou);
-  const market = books.length ? marketProbs(m) : null;
-  const model = pd ? [pd.ph, pd.pd, pd.pa] : null;
-  const dirs = [];
-  let marketHtml = "";
-  if(market && model){
-    const names = ["主胜", "平", "客胜"];
-    const best = [0, 0, 0];
-    for(const b of books) if(b.m) for(let i = 0; i < 3; i++) best[i] = Math.max(best[i], b.m[i] || 0);
-    marketHtml += `<table class="deep-table"><thead><tr><th>结果</th><th>模型</th><th>市场</th><th>差</th><th>最优价</th></tr></thead><tbody>`;
-    for(let i = 0; i < 3; i++){
-      const d = model[i] - market[i];
-      marketHtml += `<tr><td>${names[i]}</td><td>${pct(model[i])}</td><td>${pct(market[i])}</td><td>${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)}</td><td>${best[i] ? best[i].toFixed(2) : "—"}</td></tr>`;
-    }
-    marketHtml += `</tbody></table>`;
-    const diffs = [0, 1, 2].map(i => ({ i, d: model[i] - market[i] }));
-    const top = diffs.slice().sort((x, y) => Math.abs(y.d) - Math.abs(x.d))[0];
-    if(Math.abs(top.d) >= 0.03){
-      dirs.push({ k: "胜负方向", v: `模型${top.d > 0 ? "更看好" : "更不看好"}${names[top.i]}（模型 ${pct(model[top.i])} vs 市场 ${pct(market[top.i])}）` });
-    } else {
-      dirs.push({ k: "胜负方向", v: "模型与市场分歧不大，方向跟随市场即可" });
-    }
-  } else {
-    marketHtml += `<p>该场暂无多机构欧赔，无法做模型-市场对比。</p>`;
-  }
-  // 让球
-  if(pd && pd.ah && books.length){
-    const ahc = consensusLine(m, "ah");
-    if(ahc){
-      const key = _closestKey(pd.ah, ahc.line);
-      const pModel = key != null ? pd.ah[key] : null;
-      const pMarket = _devig2(ahc.h, ahc.a);
-      if(pModel != null && pMarket != null){
-        const d = pModel - pMarket;
-        marketHtml += `<p><span class="deep-tag">让球 ${ahText(ahc.line)}</span>模型认为主队赢盘 ${pct(pModel)}，市场隐含 ${pct(pMarket)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）。${Math.abs(d) >= 0.03 ? (d > 0 ? "方向偏向让球方（主队）" : "方向偏向受让方（客队）") : "分歧不大，按市场盘面理解"}</p>`;
-        dirs.push({ k: "让球方向", v: Math.abs(d) >= 0.03 ? (d > 0 ? `模型偏向主队让球（${ahText(ahc.line)}）` : `模型偏向客队受让（${ahText(ahc.line)}）`) : "模型与市场基本一致" });
-      }
-    }
-  }
-  // 大小球
-  if(pd && pd.lines && books.length){
-    const ouc = consensusLine(m, "ou");
-    if(ouc){
-      const key = _closestKey(pd.lines, ouc.line);
-      const pModel = key != null ? pd.lines[key] : null;
-      const pMarket = _devig2(ouc.over, ouc.under);
-      if(pModel != null && pMarket != null){
-        const d = pModel - pMarket;
-        marketHtml += `<p><span class="deep-tag">大小球 ${Number(ouc.line).toFixed(1)}</span>模型大球 ${pct(pModel)}，市场隐含 ${pct(pMarket)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）。${Math.abs(d) >= 0.05 ? (d > 0 ? "模型更偏大球" : "模型更偏小球") : "模型与市场接近"}</p>`;
-        dirs.push({ k: "大小球方向", v: Math.abs(d) >= 0.05 ? (d > 0 ? `模型偏大 ${Number(ouc.line).toFixed(1)}` : `模型偏小 ${Number(ouc.line).toFixed(1)}`) : "模型与市场接近" });
-      }
-    }
-  }
-  const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}${m.bj ? `<span class="deep-tag">北单 ${esc(m.bj.num || "")}</span>` : ""}`;
-  // 方向标签已在顶部「核心结论」展示，这里不再重复，只保留明细
-  marketHtml = `${srcTags ? `<p style="margin-bottom:8px">${srcTags}</p>` : ""}` + marketHtml;
-  cards.push(`<div class="deep-card wide"><h3><span class="dotm"></span>机构数值与方向判断</h3>${marketHtml}
-    <p>「差」为模型概率减市场去水概率；正值表示模型认为市场低估了该结果。模型整体弱于收盘线，方向仅供参考。</p></div>`);
-
+  /* ---------- 赛后复盘 ---------- */
+  let postCard = "";
   if(done){
-    // 赛后补一条简要复盘
     const s = m.stats;
     if(s && s.home && s.away){
-      cards.push(`<div class="deep-card wide"><h3><span class="dotm"></span>赛后复盘</h3>
-        <p>全场射门 ${s.home.shots ?? "—"}–${s.away.shots ?? "—"}、射正 ${s.home.sot ?? "—"}–${s.away.sot ?? "—"}、控球 ${s.home.possession ?? "—"}%–${s.away.possession ?? "—"}%，比分 ${m.hs}–${m.as}。${pd ? `赛前模型预期 ${_f1(pd.xgH)}–${_f1(pd.xgA)}，实际总进球 ${Number(m.hs) + Number(m.as)}。` : ""}</p></div>`);
+      postCard = `<div class="deep-card"><h3><span class="dotm"></span>赛后复盘</h3>
+        <p>全场射门 ${s.home.shots ?? "—"}–${s.away.shots ?? "—"}、射正 ${s.home.sot ?? "—"}–${s.away.sot ?? "—"}、控球 ${s.home.possession ?? "—"}%–${s.away.possession ?? "—"}%，比分 ${m.hs}–${m.as}。${pd ? `赛前模型预期 ${_f1(pd.xgH)}–${_f1(pd.xgA)}，实际总进球 ${Number(m.hs) + Number(m.as)}。` : ""}</p>
+      </div>`;
     }
   }
 
-  // 顶部「核心结论」：把最关键的三条方向提到最上面
-  try {
-    const sumV = k => { const d = dirs.find(x => x.k === k); return d ? d.v : ""; };
-    const sumEl = $("#deep-summary");
-    if(sumEl){
-      const tacLine = `${hn} ${styleH}，${an} ${styleA}${pd ? `；模型预期进球 ${_f1(pd.xgH)}–${_f1(pd.xgA)}` : ""}`;
-      const chips = [
-        ["胜负", sumV("胜负方向")], ["让球", sumV("让球方向")], ["大小球", sumV("大小球方向")]
-      ].filter(x => x[1]);
-      sumEl.innerHTML = `<div class="deep-sum-card">
-        <div class="v-k">核心结论</div>
-        <div class="deep-sum-main">${esc(tacLine)}</div>
-        ${chips.length ? `<div class="deep-sum-chips">${chips.map(x => `<span class="deep-tag">${esc(x[0])}：${esc(x[1])}</span>`).join("")}</div>` : ""}
-      </div>`;
-    }
-  } catch(e){ /* ignore */ }
-
   sec.hidden = false;
-  // 版式：核心结论(顶部) → 机构方向(直接可见) → 战术/数据/人员(折叠) → 赛后复盘
-  const detailCards = cards.slice(0, 3);   // 战术 / 数据对比 / 人员
-  const marketCard = cards[3] || "";       // 机构数值与方向
-  const postCards = cards.slice(4);        // 赛后复盘（如有）
   panel.innerHTML = marketCard +
-    (detailCards.length ? `<details class="deep-details"><summary>展开战术、数据与人员细节</summary><div class="deep-grid">${detailCards.join("")}</div></details>` : "") +
-    postCards.join("");
+    `<details class="deep-details"><summary>展开战术、数据与人员细节</summary>
+       <div class="deep-stack">${tacCard}${cmpCard}${perCard}</div>
+     </details>` + postCard;
 }
 
 /* ---------- 多机构赛前盘口（football-data.co.uk，按需加载） ---------- */
