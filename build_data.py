@@ -1042,6 +1042,12 @@ ODDSAPI_EXTRA_LEAGUES = {
     "日职联": "soccer_japan_j_league",
     "美职联": "soccer_usa_mls",
     "阿甲": "soccer_argentina_primera_division",
+    "法国杯": "soccer_france_coupe_de_france",
+    "国王杯": "soccer_spain_copa_del_rey",
+    "德国杯": "soccer_germany_dfb_pokal",
+    "英联杯": "soccer_england_efl_cup",
+    "法乙": "soccer_france_ligue_two",
+    "德国丙": "soccer_germany_liga3",
 }
 
 # 只保留用户指定的机构（欧赔 10 家 + 亚盘 8 家）；不在名单内的机构一律不展示。
@@ -1779,7 +1785,11 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
         state = {}
     force = bool(os.environ.get("ODDSAPI_FORCE"))
     now_utc = datetime.utcnow()
-    win_hours = 30 if force else 30   # 额外联赛提前 30 小时补欧赔，避免开赛前才空白
+    # 额外联赛提前补欧赔：额度充足看未来 72 小时，紧张时缩到 30 小时
+    if remaining is not None and remaining <= 200:
+        win_hours = 30
+    else:
+        win_hours = 72
     by_league = {}
     for f in fixture_rows:
         lab = f.get("league")
