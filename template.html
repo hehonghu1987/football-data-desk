@@ -5671,7 +5671,7 @@ function renderDeep(m){
     }
     const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}${m.bj ? `<span class="deep-tag">北单 ${esc(m.bj.num || "")}</span>` : ""}`;
     marketBody = `<div class="deep-kv" style="margin-bottom:10px">${srcTags}</div>` + marketBody +
-      `<p class="deep-foot">「差」为模型概率减市场去水概率；正值表示模型认为市场低估了该结果。模型整体弱于收盘线，方向仅供参考。</p>`;
+      `<p class="deep-foot">「差」为模型概率减市场去水概率，正值表示模型认为市场低估了该结果；「最优价」为该结果在比价机构中的最高小数赔率（机构覆盖场次不同，仅供参考）。模型整体弱于收盘线，方向仅供参考。</p>`;
   } else {
     marketBody = `<p class="deep-foot">该场暂无多机构赔率，无法做模型-市场对比。</p>`;
   }
