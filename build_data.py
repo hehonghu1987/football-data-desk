@@ -1557,6 +1557,8 @@ def fetch_oddsapi_books(fixture_rows, teams):
 
     by_league = {}
     now_utc = datetime.utcnow()
+    # 午间补抓/强制刷新时扩大窗口到 18 小时，覆盖当晚欧洲场次；常规时点仍用 14 小时控制额度
+    win_hours = 18 if (midday or force) else 14
     for f in fixture_rows:
         lab = f.get("league")
         if lab not in ODDSAPI_LEAGUES or not f.get("date"):
@@ -1567,7 +1569,7 @@ def fetch_oddsapi_books(fixture_rows, teams):
             continue
         # 默认只抓「最近 2 小时 ~ 未来 14 小时」有比赛的联赛；其余联赛用快照，避免空刷额度。
         # 特殊情况可用 ODDSAPI_ALL=1 强制覆盖全部有赛程的联赛（仅首次铺数据/调试用）。
-        if not os.environ.get("ODDSAPI_ALL") and not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=14)):
+        if not os.environ.get("ODDSAPI_ALL") and not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=win_hours)):
             continue
         # 午间补抓：只补还没有任何机构赔率的场次，避免覆盖晚间已抓到的亚盘/大小球
         if midday and (f.get("books") or []):
