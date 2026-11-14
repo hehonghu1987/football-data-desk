@@ -1197,7 +1197,10 @@ main:focus{outline:none}
 .form-h a{color:inherit;text-decoration:none}
 .form-h a:hover{color:var(--accent)}
 .form-h span{font-size:11px;color:var(--muted);font-weight:400}
-.form-row{display:grid;grid-template-columns:34px 52px minmax(0,1fr) auto 64px;gap:8px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;font-size:12px}
+.form-row{display:block;padding:9px 16px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;font-size:12px}
+.fr-main{display:grid;grid-template-columns:34px 52px minmax(0,1fr) auto 64px;gap:8px;align-items:center;font-size:12px}
+.fr-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;font-size:10.5px;color:var(--muted)}
+.fr-meta em{font-style:normal}
 .form-row:last-child{border-bottom:0}
 .form-row:hover{background:var(--surface-2)}
 .fr-res{display:inline-flex;align-items:center;justify-content:center;width:24px;height:20px;border-radius:6px;font-size:10.5px;font-weight:700}
@@ -1213,7 +1216,7 @@ main:focus{outline:none}
 .fr-score .fr-ht{font-style:normal;color:var(--muted);font-size:10.5px;margin-left:4px;font-weight:400}
 .fr-lg{color:var(--muted);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .form-empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:12px}
-@media(max-width:760px){.form-grid{grid-template-columns:1fr}.form-row{grid-template-columns:30px 46px minmax(0,1fr) auto;padding:9px 12px}.fr-lg{display:none}}
+@media(max-width:760px){.form-grid{grid-template-columns:1fr}.fr-main{grid-template-columns:30px 46px minmax(0,1fr) auto;gap:7px}.form-row{padding:9px 12px}.fr-lg{display:none}}
 
 /* 深度分析：均衡排版 */
 .deep-stack{display:grid;gap:14px;padding:14px}
@@ -5941,6 +5944,15 @@ function renderDeep(m){
 let FDCO = null, fdcoLoading = null;
 /* 轻量半场比分（data/ht.json），给「近期进失球上下半场拆分」用，避免拉 4MB 全量盘口 */
 let HT_MAP = null, HT_LOADING = null;
+let MK = null, MK_LOADING = null;
+function loadMarkets(){
+  if(MK) return Promise.resolve(MK);
+  if(!MK_LOADING){
+    MK_LOADING = fetch("data/markets.json").then(r => r.ok ? r.json() : {}).catch(() => ({}))
+      .then(m => { MK = m || {}; return MK; });
+  }
+  return MK_LOADING;
+}
 function loadHT(){
   if(HT_MAP) return Promise.resolve(HT_MAP);
   if(!HT_LOADING){
@@ -6042,6 +6054,22 @@ function teamGoalSplit(tid, side, n){
   return st;
 }
 
+function ahSettle(hs, as, line){
+  if(line == null) return null;
+  const outcome = l => {
+    const d = (hs - as) + l;
+    if(Math.abs(d) < 1e-9) return 0;
+    return d > 0 ? 1 : -1;
+  };
+  const quarter = Math.abs(line * 2 - Math.round(line * 2)) > 1e-9;
+  if(!quarter){
+    const d = (hs - as) + line;
+    if(Math.abs(d) < 1e-9) return "走";
+    return d > 0 ? "赢" : "输";
+  }
+  const sum = outcome(line - 0.25) + outcome(line + 0.25);
+  return sum === 2 ? "赢" : (sum === 1 ? "半赢" : (sum === 0 ? "走" : (sum === -1 ? "半输" : "输")));
+}
 function renderRecentForm(m){
   const sec = $("#recent-form"), panel = $("#form-panel");
   if(!sec || !panel) return;
@@ -6082,17 +6110,36 @@ function renderRecentForm(m){
         const home = String(x.home) === String(t.id);
         const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
         const res = gf > ga ? "W" : (gf < ga ? "L" : "D");
-        return `<a class="form-row" href="#/match/${esc(x.id)}">
+        const mk = (MK && MK[String(x.id)]) || {};
+      const metaBits = [];
+      const stt = x.stats;
+      if(stt && stt.home && stt.away && stt.home.corners != null && stt.away.corners != null){
+        metaBits.push(`角球 ${stt.home.corners}–${stt.away.corners}`);
+      }
+      if(mk.a != null){
+        // mk.a 是主队让球盘口；换算成当前球队视角
+        const lineForTeam = home ? mk.a : -mk.a;
+        const ar = ahSettle(gf, ga, lineForTeam);
+        if(ar) metaBits.push(`让球 ${lineForTeam > 0 ? "+" : ""}${lineForTeam} ${ar}`);
+      }
+      if(mk.o != null){
+        const total = Number(x.hs) + Number(x.as);
+        metaBits.push(`总进球 ${total} · ${total > mk.o ? "大" : "小"} ${mk.o}`);
+      }
+      return `<a class="form-row" href="#/match/${esc(x.id)}">
+        <span class="fr-main">
           <span class="fr-res ${res}">${res === "W" ? "胜" : res === "L" ? "负" : "平"}</span>
           <span class="fr-date">${String(x.date).slice(5, 10).replace("-", "/")}</span>
           <span class="fr-opp"><b class="${home ? "is-us" : ""}">${esc(nameOf(x.home))}</b><i>vs</i><b class="${!home ? "is-us" : ""}">${esc(nameOf(x.away))}</b></span>
           <span class="fr-score">${x.hs}–${x.as}${(function(){
-            const htm = HT_MAP || {};
-            const ht = htm[String(x.id)] || (FDCO && FDCO[String(x.id)] && FDCO[String(x.id)].ht);
-            return (ht && ht[0] != null && ht[1] != null) ? `<i class="fr-ht">(${ht[0]}–${ht[1]})</i>` : "";
-          })()}</span>
+              const htm = HT_MAP || {};
+              const ht = htm[String(x.id)] || (FDCO && FDCO[String(x.id)] && FDCO[String(x.id)].ht);
+              return (ht && ht[0] != null && ht[1] != null) ? `<i class="fr-ht">(${ht[0]}–${ht[1]})</i>` : "";
+            })()}</span>
           <span class="fr-lg">${esc(x.league || "")}</span>
-        </a>`;
+        </span>
+        ${metaBits.length ? `<span class="fr-meta">${metaBits.map(t => `<em>${esc(t)}</em>`).join("")}</span>` : ""}
+      </a>`;
       }).join("") : `<div class="form-empty">${sideLabel}暂无已结束比赛</div>`}
     </div>`;
   };
@@ -6102,12 +6149,12 @@ function renderRecentForm(m){
   $("#form-note").textContent = side === "all" ? "最近 8 场已结束比赛 · 点行进入比赛页" : `只看${sideLabel}场次 · 点行进入比赛页`;
   panel.innerHTML = col(h, rowsOf(h.id)) + col(a, rowsOf(a.id));
   sec.hidden = false;
-  // 半场比分来自 data/ht.json（轻量懒加载），加载完成后再刷新一次
-  if(!HT_MAP){
-    loadHT().then(() => {
-      if(String(state.matchId) === String(m.id) && !$("#recent-form").hidden) renderRecentForm(m);
-    });
-  }
+  // 半场比分 / 收盘盘口轻量懒加载，加载完成后再刷新一次
+  const refresh = () => {
+    if(String(state.matchId) === String(m.id) && !$("#recent-form").hidden) renderRecentForm(m);
+  };
+  if(!HT_MAP) loadHT().then(refresh);
+  if(!MK) loadMarkets().then(refresh);
 }
 
 function renderMatchH2H(h, a, m){

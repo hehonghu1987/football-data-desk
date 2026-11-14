@@ -131,6 +131,7 @@ jobs:
             cp -R fonts dist/fonts
           fi
           if [ -f data/ht.json ]; then mkdir -p dist/data; cp data/ht.json dist/data/ht.json; fi
+          if [ -f data/markets.json ]; then mkdir -p dist/data; cp data/markets.json dist/data/markets.json; fi
           if [ -f data/fdco.json ]; then
             mkdir -p dist/data
             cp data/fdco.json dist/data/fdco.json

@@ -3931,6 +3931,24 @@ def main():
                 log(f"  半场比分文件：{len(ht_map)} 场（{os.path.getsize(ht_path) / 1024:.0f} KB，data/ht.json）")
             except OSError as e:
                 log(f"  ⚠ 半场比分文件写入失败：{e}")
+            # 轻量收盘盘口文件：近期战绩每行显示 让球/大小球 结果用
+            try:
+                mk_map = {}
+                for _mid, _rec in fd_map.items():
+                    _item = {}
+                    _ah = _rec.get("closeAh") or _rec.get("ah")
+                    if _ah and _ah.get("line") is not None:
+                        _item["a"] = _ah["line"]
+                    if _rec.get("closeOu") or _rec.get("ou"):
+                        _item["o"] = 2.5
+                    if _item:
+                        mk_map[str(_mid)] = _item
+                mk_path = os.path.join(DATA_DIR, "markets.json")
+                with open(mk_path, "w", encoding="utf-8") as fh:
+                    json.dump(mk_map, fh, ensure_ascii=False, separators=(",", ":"))
+                log(f"  收盘盘口文件：{len(mk_map)} 场（{os.path.getsize(mk_path) / 1024:.0f} KB，data/markets.json）")
+            except OSError as e:
+                log(f"  ⚠ 收盘盘口文件写入失败：{e}")
     except Exception as e:
         fd_map = {}
         log(f"  ⚠ 多机构盘口生成失败：{e}")
