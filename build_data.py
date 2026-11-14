@@ -1193,6 +1193,11 @@ def load_oddsapi_snapshot(fixture_rows):
         f = by_id.get(str(fid))
         if not f:
             continue
+        # 新格式：{items:[...], date, t}；旧格式：纯 list
+        if isinstance(entries, dict):
+            entries = entries.get("items") or []
+        if not isinstance(entries, list):
+            continue
         books = f.setdefault("books", [])
         have = {re.sub(r"[^a-z0-9]", "", (x.get("book") or "").lower()) for x in books}
         for entry in entries:
