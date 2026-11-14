@@ -1144,6 +1144,9 @@ ODDSAPI_MIN_REMAINING = 20            # 剩余额度低于此值就停抓
 ODDSAPI_SLOTS_WEEKDAY = ["17:30", "21:00", "00:30"]     # 周一~周四：3 次（00:30 补凌晨场）
 ODDSAPI_SLOTS_FRIDAY = ["17:30", "20:30", "23:30"]      # 周五：3 次
 ODDSAPI_SLOTS_WEEKEND = ["17:00", "19:30", "22:00"]     # 周六、周日：3 次（次日 00:30 由工作日时点覆盖）
+# 午间补抓（北京 12:29 后 1 小时）：只抓欧赔 h2h、只补「还没有任何机构赔率」的场次，
+# 让白天浏览时也能看到 10+ 家机构；成本 1 credit/联赛。
+ODDSAPI_MIDDAY_SLOT = "12:29"
 
 
 def load_oddsapi_snapshot(fixture_rows):
@@ -1531,7 +1534,10 @@ def fetch_oddsapi_books(fixture_rows, teams):
     elif state.get("last") and now_ts - state["last"] < 20 * 60:
         log("  Odds API：20 分钟内刚刷新过，跳过")
         return
-    if not force and not _oddsapi_slot_ready(now_ts):
+    _now_local = datetime.utcfromtimestamp(now_ts) + timedelta(hours=8)
+    midday = (not force) and ((
+        _now_local.hour == 12 and _now_local.minute >= 29) or _now_local.hour == 13)
+    if not force and not midday and not _oddsapi_slot_ready(now_ts):
         log("  Odds API：当前不在计划刷新时段（北京 05:00–12:00 不刷，集中在 17:00–01:00），跳过")
         return
     if state.get("remaining") is not None and state["remaining"] < ODDSAPI_MIN_REMAINING:
@@ -1563,6 +1569,9 @@ def fetch_oddsapi_books(fixture_rows, teams):
         # 特殊情况可用 ODDSAPI_ALL=1 强制覆盖全部有赛程的联赛（仅首次铺数据/调试用）。
         if not os.environ.get("ODDSAPI_ALL") and not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=14)):
             continue
+        # 午间补抓：只补还没有任何机构赔率的场次，避免覆盖晚间已抓到的亚盘/大小球
+        if midday and (f.get("books") or []):
+            continue
         by_league.setdefault(lab, []).append(f)
     targets = [(lab, ODDSAPI_LEAGUES[lab]) for lab in ODDSAPI_LEAGUES if lab in by_league]
     if not targets:
@@ -1572,9 +1581,10 @@ def fetch_oddsapi_books(fixture_rows, teams):
     total_books = 0
     remaining = state.get("remaining")
     for lab, sport in targets:
+        _markets = "h2h" if midday else "h2h,totals,spreads"
         url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
                f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS}"
-               f"&markets=h2h,totals,spreads&oddsFormat=decimal&dateFormat=iso")
+               f"&markets={_markets}&oddsFormat=decimal&dateFormat=iso")
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=40) as resp:
@@ -1587,7 +1597,8 @@ def fetch_oddsapi_books(fixture_rows, teams):
             continue
         merged = list(data)
         # 主流机构补充包：额度充足时也抓大小球/亚盘（3 credits），额度紧张时只抓 h2h（1 credit）
-        if remaining is None or remaining > 120:
+        # 午间补抓只拉核心 9 家 h2h，不请求补充包，控制成本
+        if (not midday) and (remaining is None or remaining > 120):
             extra_markets = "h2h,totals,spreads" if (remaining is None or remaining > 200) else "h2h"
             extra_url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
                          f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS_EXTRA}"

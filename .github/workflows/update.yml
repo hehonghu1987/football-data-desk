@@ -6,6 +6,11 @@ on:
     # 每次先检查线上数据年龄，>22 分钟才真正构建，正常保持约 30 分钟一次部署。
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      force_odds:
+        description: "强制刷新机构赔率（忽略时段判断，会消耗 Odds API 额度）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -69,6 +74,7 @@ jobs:
       - name: 采集数据并生成页面
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDSAPI_FORCE: ${{ (github.event.inputs.force_odds == 'true') && '1' || '' }}
         run: python3 build_data.py --workers 6 --rate 0.1
 
       - name: 保存采集缓存
