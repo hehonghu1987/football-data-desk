@@ -1744,7 +1744,7 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
         lab = f.get("league")
         if lab not in ODDSAPI_EXTRA_LEAGUES or not f.get("date"):
             continue
-        if f.get("books"):
+        if any(b.get("src") == "oddsapi" for b in (f.get("books") or [])):
             continue
         try:
             ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00")).replace(tzinfo=None)
