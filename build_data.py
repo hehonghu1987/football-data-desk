@@ -1019,6 +1019,16 @@ ODDSAPI_LEAGUES = {
     "欧联杯": "soccer_uefa_europa_league",
     "欧国联": "soccer_uefa_nations_league",
 }
+# 额外联赛：这些联赛不在上面 8 个主力 key 里，但 The Odds API 免费档有 h2h 欧赔；
+# 只抓欧赔、只补「还没有机构赔率」的场次，成本 1 credit/联赛，用于英冠/荷甲等热门赛事。
+ODDSAPI_EXTRA_LEAGUES = {
+    "英冠": "soccer_efl_champ",
+    "荷甲": "soccer_eredivisie",
+    "葡超": "soccer_portugal_primeira_liga",
+    "巴西甲": "soccer_brazil_campeonato",
+    "苏超": "soccer_spl",
+}
+
 # 只保留用户指定的机构（欧赔 10 家 + 亚盘 8 家）；不在名单内的机构一律不展示。
 # 说明：ODDSET/SNAI/Codere/SBOBET/188BET/12BET/Crown/Macau Slot/Dafabet 在 The Odds API
 # 免费档没有覆盖；bet365 在 ESPN 有（俱乐部场次），Ladbrokes 需 UK 区域。
@@ -1710,6 +1720,114 @@ def fetch_oddsapi_books(fixture_rows, teams):
         pass
     _write_oddsapi_snapshot(fixture_rows)
     log(f"  Odds API：{len(targets)} 个联赛，写入 {total_books} 条机构报价，剩余额度 {remaining}")
+
+
+def fetch_oddsapi_extra(fixture_rows, teams, remaining):
+    """额外联赛补抓（英冠/荷甲/葡超/巴西甲/苏超）：只抓 h2h 欧赔，成本 1 credit/联赛。
+    只补当前没有任何机构赔率的场次，避免覆盖已有的亚盘/大小球数据。"""
+    key = os.environ.get("ODDS_API_KEY", "").strip()
+    if not key:
+        return
+    if remaining is not None and remaining < 150:
+        log("  Odds API 额外联赛：额度不足 150，跳过")
+        return
+    try:
+        with open(ODDSAPI_STATE, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        state = {}
+    force = bool(os.environ.get("ODDSAPI_FORCE"))
+    now_utc = datetime.utcnow()
+    win_hours = 18 if force else 14
+    by_league = {}
+    for f in fixture_rows:
+        lab = f.get("league")
+        if lab not in ODDSAPI_EXTRA_LEAGUES or not f.get("date"):
+            continue
+        if f.get("books"):
+            continue
+        try:
+            ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        if not (now_utc - timedelta(hours=2) <= ft <= now_utc + timedelta(hours=win_hours)):
+            continue
+        by_league.setdefault(lab, []).append(f)
+    if not by_league:
+        return
+    total = 0
+    for lab, rows in by_league.items():
+        sport = ODDSAPI_EXTRA_LEAGUES[lab]
+        url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
+               f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS}"
+               f"&markets=h2h&oddsFormat=decimal&dateFormat=iso")
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                rem = resp.headers.get("x-requests-remaining")
+                if rem is not None:
+                    remaining = int(rem)
+        except Exception as e:
+            log(f"  Odds API 额外联赛 {lab} 失败：{str(e)[:70]}")
+            continue
+        for ev in data:
+            try:
+                ev_t = datetime.fromisoformat((ev.get("commence_time") or "").replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            home_n, away_n = ev.get("home_team") or "", ev.get("away_team") or ""
+            best, best_score = None, 0.0
+            for f in rows:
+                try:
+                    ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if abs((ft - ev_t).total_seconds()) > 3 * 3600:
+                    continue
+                th = teams.get(str(f.get("home"))) or {}
+                ta = teams.get(str(f.get("away"))) or {}
+                score = _team_sim(home_n, th.get("name") or "") + _team_sim(away_n, ta.get("name") or "")
+                if score > best_score:
+                    best, best_score = f, score
+            if best is None or best_score < 1.0:
+                continue
+            for b in (ev.get("bookmakers") or []):
+                title = (b.get("title") or "").strip()
+                canon = _canon_book(title)
+                if not canon:
+                    continue
+                mkts = {m.get("key"): m for m in (b.get("markets") or [])}
+                mkt = mkts.get("h2h")
+                if not mkt:
+                    continue
+                prices = {}
+                for o in (mkt.get("outcomes") or []):
+                    nm = (o.get("name") or "").strip()
+                    pr = o.get("price")
+                    if pr is None:
+                        continue
+                    if nm.lower() == "draw":
+                        prices["d"] = pr
+                    elif _team_sim(nm, home_n) >= _team_sim(nm, away_n):
+                        prices["h"] = pr
+                    else:
+                        prices["a"] = pr
+                if not all(k in prices for k in ("h", "d", "a")):
+                    continue
+                books = best.setdefault("books", [])
+                books[:] = [x for x in books if x.get("book") != canon]
+                books.append({"book": canon, "src": "oddsapi", "m": [prices["h"], prices["d"], prices["a"]]})
+                total += 1
+    if total:
+        try:
+            with open(ODDSAPI_STATE, "w", encoding="utf-8") as f:
+                json.dump({"last": state.get("last") or time.time(), "remaining": remaining,
+                           "at": datetime.utcnow().isoformat()}, f)
+        except OSError:
+            pass
+        _write_oddsapi_snapshot(fixture_rows)
+    log(f"  Odds API 额外联赛：{len(by_league)} 个联赛，写入 {total} 条欧赔，剩余额度 {remaining}")
 
 
 def fetch_event_odds(league_code, event_id):
@@ -3847,6 +3965,12 @@ def main():
     try:
         load_oddsapi_snapshot(fixture_rows)   # 非刷新时点也保留上次的多机构赔率
         fetch_oddsapi_books(fixture_rows, teams)
+        try:
+            with open(ODDSAPI_STATE, "r", encoding="utf-8") as _f:
+                _rem = json.load(_f).get("remaining")
+        except (OSError, ValueError):
+            _rem = None
+        fetch_oddsapi_extra(fixture_rows, teams, _rem)
     except Exception as e:
         log(f"  ⚠ Odds API 抓取失败：{e}")
     filter_whitelist_books(fixture_rows)
