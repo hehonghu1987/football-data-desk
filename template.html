@@ -6047,7 +6047,8 @@ function renderGoalSplit(h, a){
   const sideTxt = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
   const A = teamGoalSplit(h.id, side, 10), B = teamGoalSplit(a.id, side, 10);
   const loading = !HT_MAP;
-  const f1 = v => loading ? "…" : ((v == null || !isFinite(v)) ? "—" : v.toFixed(1));
+  const f1 = v => (v == null || !isFinite(v)) ? "—" : v.toFixed(1);
+  const fh = v => loading ? "…" : f1(v);
   const row = (label, av, bv) => `<tr><td>${label}</td><td>${av}</td><td>${bv}</td></tr>`;
   const avgF = st => st.n ? st.ftF / st.n : null;
   const avgA = st => st.n ? st.ftA / st.n : null;
@@ -6060,11 +6061,11 @@ function renderGoalSplit(h, a){
       <thead><tr><th>指标</th><th>${esc(h.cn || h.name)}</th><th>${esc(a.cn || a.name)}</th></tr></thead>
       <tbody>
         ${row("场均进球", f1(avgF(A)), f1(avgF(B)))}
-        ${row("└ 上半场", f1(hF(A)), f1(hF(B)))}
-        ${row("└ 下半场", f1(sF(A)), f1(sF(B)))}
+        ${row("└ 上半场", fh(hF(A)), fh(hF(B)))}
+        ${row("└ 下半场", fh(sF(A)), fh(sF(B)))}
         ${row("场均失球", f1(avgA(A)), f1(avgA(B)))}
-        ${row("└ 上半场", f1(hA(A)), f1(hA(B)))}
-        ${row("└ 下半场", f1(sA(A)), f1(sA(B)))}
+        ${row("└ 上半场", fh(hA(A)), fh(hA(B)))}
+        ${row("└ 下半场", fh(sA(A)), fh(sA(B)))}
       </tbody>
     </table>
     <div class="deep-foot">上下半场按半场比分拆分；缺少半场数据的比赛不计入上下半场均值。</div>`;
