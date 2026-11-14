@@ -1191,7 +1191,9 @@ main:focus{outline:none}
 /* 双方近期战绩 */
 .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .form-col{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.form-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);font-size:13.5px;font-weight:600}
+.form-head{background:var(--surface-2);border-bottom:1px solid var(--line);padding:12px 16px}
+.form-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px;font-weight:600}
+.form-sub{margin-top:5px;font-size:10.5px;color:var(--muted);line-height:1.6}
 .form-h a{color:inherit;text-decoration:none}
 .form-h a:hover{color:var(--accent)}
 .form-h span{font-size:11px;color:var(--muted);font-weight:400}
@@ -1852,7 +1854,6 @@ main:focus{outline:none}
         </div>
         <span class="table-note" id="form-count"></span>
       </div>
-      <div class="goal-split" id="goal-split" hidden></div>
       <div class="form-grid" id="form-panel"></div>
     </section>
 
@@ -6041,38 +6042,6 @@ function teamGoalSplit(tid, side, n){
   return st;
 }
 
-function renderGoalSplit(h, a){
-  const el = $("#goal-split");
-  if(!el) return;
-  const side = state.formSide || "all";
-  const sideTxt = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
-  const A = teamGoalSplit(h.id, side, 8);
-  const B8 = teamGoalSplit(a.id, side, 8);
-  const loading = !HT_MAP;
-  const f1 = v => (v == null || !isFinite(v)) ? "—" : v.toFixed(1);
-  const fh = v => loading ? "…" : ((v == null || !isFinite(v)) ? "—" : v);
-  const pctOf = (part, whole) => (whole > 0 && !loading) ? Math.round(part / whole * 100) + "%" : "—";
-  const row = (label, av, bv) => `<tr><td>${label}</td><td>${av}</td><td>${bv}</td></tr>`;
-  const avgF = st => st.n ? st.ftF / st.n : null;
-  const avgA = st => st.n ? st.ftA / st.n : null;
-  el.innerHTML = `<div class="goal-split-h">近 8 场进球 / 失球统计（${sideTxt}）</div>
-    <table class="deep-table goal-table">
-      <thead><tr><th>指标</th><th>${esc(h.cn || h.name)}</th><th>${esc(a.cn || a.name)}</th></tr></thead>
-      <tbody>
-        ${row("近 8 场进球", `${A.ftF} 球`, `${B8.ftF} 球`)}
-        ${row("└ 上半场", loading ? "…" : `${fh(A.htF)} 球 · ${pctOf(A.htF, A.htF + A.shF)}`, loading ? "…" : `${fh(B8.htF)} 球 · ${pctOf(B8.htF, B8.htF + B8.shF)}`)}
-        ${row("└ 下半场", loading ? "…" : `${fh(A.shF)} 球 · ${pctOf(A.shF, A.htF + A.shF)}`, loading ? "…" : `${fh(B8.shF)} 球 · ${pctOf(B8.shF, B8.htF + B8.shF)}`)}
-        ${row("场均进球", f1(avgF(A)), f1(avgF(B8)))}
-        ${row("近 8 场失球", `${A.ftA} 球`, `${B8.ftA} 球`)}
-        ${row("└ 上半场", loading ? "…" : `${fh(A.htA)} 球 · ${pctOf(A.htA, A.htA + A.shA)}`, loading ? "…" : `${fh(B8.htA)} 球 · ${pctOf(B8.htA, B8.htA + B8.shA)}`)}
-        ${row("└ 下半场", loading ? "…" : `${fh(A.shA)} 球 · ${pctOf(A.shA, A.htA + A.shA)}`, loading ? "…" : `${fh(B8.shA)} 球 · ${pctOf(B8.shA, B8.htA + B8.shA)}`)}
-        ${row("场均失球", f1(avgA(A)), f1(avgA(B8)))}
-      </tbody>
-    </table>
-    <div class="deep-foot">上下半场按半场比分拆分，仅统计有半场数据的比赛；百分比为上半场 / 下半场占该部分进球（失球）的比例。</div>`;
-  el.hidden = false;
-}
-
 function renderRecentForm(m){
   const sec = $("#recent-form"), panel = $("#form-panel");
   if(!sec || !panel) return;
@@ -6097,8 +6066,18 @@ function renderRecentForm(m){
       const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
       if(gf > ga) rec.w++; else if(gf < ga) rec.l++; else rec.d++;
     }
+    const st = teamGoalSplit(t.id, side, 8);
+    const halfTxt = st.htN
+      ? `（上 ${st.htF} / 下 ${st.shF}）`
+      : "";
+    const halfATxt = st.htN
+      ? `（上 ${st.htA} / 下 ${st.shA}）`
+      : "";
     return `<div class="form-col">
-      <div class="form-h"><a href="#/team/${esc(t.id)}">${esc(t.cn || t.name)}</a><span>${sideLabel} ${ms.length} 场 · ${rec.w}胜${rec.d}平${rec.l}负</span></div>
+      <div class="form-head">
+        <div class="form-h"><a href="#/team/${esc(t.id)}">${esc(t.cn || t.name)}</a><span>${sideLabel} ${ms.length} 场 · ${rec.w}胜${rec.d}平${rec.l}负</span></div>
+        <div class="form-sub">进 ${st.ftF} 球${halfTxt} · 失 ${st.ftA} 球${halfATxt} · 场均 ${(st.n ? st.ftF / st.n : 0).toFixed(1)} / ${(st.n ? st.ftA / st.n : 0).toFixed(1)}</div>
+      </div>
       ${ms.length ? ms.map(x => {
         const home = String(x.home) === String(t.id);
         const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
@@ -6123,7 +6102,6 @@ function renderRecentForm(m){
   $("#form-note").textContent = side === "all" ? "最近 8 场已结束比赛 · 点行进入比赛页" : `只看${sideLabel}场次 · 点行进入比赛页`;
   panel.innerHTML = col(h, rowsOf(h.id)) + col(a, rowsOf(a.id));
   sec.hidden = false;
-  renderGoalSplit(h, a);
   // 半场比分来自 data/ht.json（轻量懒加载），加载完成后再刷新一次
   if(!HT_MAP){
     loadHT().then(() => {
