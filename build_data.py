@@ -1338,6 +1338,8 @@ def fetch_sporttery():
                 "hhad": {"line": _sp_num(hhad.get("goalLine")),
                          "h": _sp_num(hhad.get("h")), "d": _sp_num(hhad.get("d")),
                          "a": _sp_num(hhad.get("a"))},
+                "ttg": {k: _sp_num(v) for k, v in (m.get("ttg") or {}).items()
+                        if isinstance(k, str) and k.startswith("s") and not k.endswith("f")},
             })
     write_cache("sporttery.json", {"_t": time.time(), "matches": out})
     try:
@@ -1398,9 +1400,30 @@ def attach_sporttery(fixture_rows, teams, sp_matches):
                 continue
             if _name_match(hn, s["home"], s["homeFull"]) and _name_match(an, s["away"], s["awayFull"]):
                 if s["had"] and all(v is not None for v in s["had"]):
-                    f["sp"] = {"had": s["had"], "hhad": s["hhad"], "num": s["num"], "league": s["league"]}
+                    f["sp"] = {"had": s["had"], "hhad": s["hhad"], "num": s["num"],
+                               "league": s["league"], "ttg": s.get("ttg")}
                     # 同时作为一家机构进入比价/共识（欧赔 3 项，让球 3 项单独展示）
                     f.setdefault("books", []).append({"book": "竞彩官方", "m": s["had"], "src": "sporttery"})
+                    # 用竞彩「总进球」赔率合成 2.5 线大小球（去水后折算），补缺
+                    ttg = s.get("ttg") or {}
+                    try:
+                        ps = []
+                        for k in ("s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7"):
+                            v = ttg.get(k)
+                            if v and v > 1:
+                                ps.append(1.0 / v)
+                        if len(ps) == 8:
+                            tot = sum(ps)
+                            p_over = sum(ps[3:]) / tot
+                            p_under = sum(ps[:3]) / tot
+                            if 0.02 < p_over < 0.98:
+                                f.setdefault("books", []).append({
+                                    "book": "竞彩总进球", "src": "sporttery",
+                                    "ou": {"line": 2.5, "over": round(1 / p_over, 2),
+                                           "under": round(1 / p_under, 2)},
+                                })
+                    except (TypeError, ZeroDivisionError):
+                        pass
                     hit += 1
                 break
     if hit:
@@ -1522,6 +1545,8 @@ def attach_beidan(fixture_rows, teams, bj_matches):
                 continue
             if _name_match_loose(hn, m["home"]) and _name_match_loose(an, m["away"]):
                 f["bj"] = {"num": m["num"], "line": m["line"], "h": m["h"], "d": m["d"], "a": m["a"]}
+                if m.get("h") and m.get("d") and m.get("a"):
+                    f.setdefault("books", []).append({"book": "北单", "m": [m["h"], m["d"], m["a"]], "src": "beidan"})
                 hit += 1
                 break
     return hit

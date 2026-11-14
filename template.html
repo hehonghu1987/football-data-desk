@@ -1129,6 +1129,18 @@ main:focus{outline:none}
 }
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
+/* 官方让球盘 */
+.oa-panel{margin-top:12px;padding:0}
+.oa-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;background:var(--surface-2)}
+.oa-head span{font-size:11px;color:var(--muted);font-weight:400}
+.oa-row{display:grid;grid-template-columns:96px minmax(90px,1fr) minmax(140px,1.2fr) auto;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);font-size:12.5px}
+.oa-row:last-child{border-bottom:0}
+.oa-k{color:var(--muted);font-size:11.5px}
+.oa-line{font-weight:600}
+.oa-odds{font-family:var(--font-mono);font-size:12.5px}
+.oa-note{font-size:10.5px;color:var(--muted)}
+@media(max-width:640px){.oa-row{grid-template-columns:84px minmax(0,1fr) auto;row-gap:2px}.oa-note{display:none}}
+
 /* 深度分析 */
 .deep-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
 .deep-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
@@ -1651,6 +1663,7 @@ main:focus{outline:none}
       </div>
 
       <div class="odds-grid" id="odds-grid"></div>
+      <div id="official-ah" hidden></div>
 
       <div class="pred-card" id="pred-card"></div>
 
@@ -4597,10 +4610,11 @@ function renderPreMatch(m){
   const cells = [];
   if(odds || hasBooks){
     const books = (m.books || []).filter(b => b.m || b.ah || b.ou);
+    const mbooks = books.filter(b => b.m);
     if(books.length){
       const ipc = marketProbs(m) || ip;
       cells.push(`<div class="odds-cell">
-        <div class="l">欧赔 · 共识（${books.length} 家）</div>
+        <div class="l">欧赔 · 共识（${mbooks.length} 家）</div>
         <div class="odds-three">
           <div><div class="k">主胜</div><div class="o">${(1 / ipc[0]).toFixed(2)}</div><div class="p">${pct(ipc[0])}</div></div>
           <div><div class="k">平</div><div class="o">${(1 / ipc[1]).toFixed(2)}</div><div class="p">${pct(ipc[1])}</div></div>
@@ -4622,7 +4636,7 @@ function renderPreMatch(m){
       </div>` : `<div class="odds-cell empty">
         <div class="l">亚盘 · 让球</div>
         <div class="odds-line"><b>—</b></div>
-        <div class="odds-src">该场暂无亚盘数据（机构未提供让球盘）</div>
+        <div class="odds-src">该场暂无亚盘数据${(m.sp || m.bj) ? "（可参考下方官方让球盘）" : "（机构未提供让球盘）"}</div>
       </div>`);
       const ouc = consensusLine(m, "ou");
       cells.push(ouc ? `<div class="odds-cell">
@@ -4712,6 +4726,24 @@ function renderPreMatch(m){
   $("#odds-grid").innerHTML = cells.length ? cells.join("")
     : `<div class="odds-cell"><div class="l">赔率</div><div class="odds-src">该场暂无可用赔率</div></div>`;
   $("#odds-grid").hidden = !(odds || hasBooks);
+  // 官方让球盘（竞彩 / 北单）：3 项含平，单独展示，不混入亚盘 2 项口径
+  try {
+    const oa = $("#official-ah");
+    if(oa){
+      const rows = [];
+      const lineTxt = ln => ln > 0 ? `主受让 ${ln} 球` : (ln < 0 ? `主让 ${Math.abs(ln)} 球` : "平手");
+      if(m.sp && m.sp.hhad && m.sp.hhad.line != null && m.sp.hhad.h != null){
+        rows.push(`<div class="oa-row"><span class="oa-k">竞彩让球</span><span class="oa-line">${lineTxt(Number(m.sp.hhad.line))}</span><span class="oa-odds">${Number(m.sp.hhad.h).toFixed(2)} / ${Number(m.sp.hhad.d).toFixed(2)} / ${Number(m.sp.hhad.a).toFixed(2)}</span><span class="oa-note">主 / 平 / 客</span></div>`);
+      }
+      if(m.bj && m.bj.line != null && m.bj.h != null){
+        rows.push(`<div class="oa-row"><span class="oa-k">北单让球</span><span class="oa-line">${lineTxt(Number(m.bj.line))}</span><span class="oa-odds">${Number(m.bj.h).toFixed(2)} / ${Number(m.bj.d).toFixed(2)} / ${Number(m.bj.a).toFixed(2)}</span><span class="oa-note">SP 主 / 平 / 客</span></div>`);
+      }
+      if(rows.length){
+        oa.innerHTML = `<div class="panel oa-panel"><div class="oa-head">官方让球盘（竞彩 / 北单）<span>含平局选项，与亚盘 2 项口径不同，仅作参考</span></div>${rows.join("")}</div>`;
+        oa.hidden = false;
+      } else { oa.hidden = true; oa.innerHTML = ""; }
+    }
+  } catch(e){ /* ignore */ }
 
   const homeName = (TEAMS.get(String(m.home)) || {}).cn || (TEAMS.get(String(m.home)) || {}).name || "";
   const awayName = (TEAMS.get(String(m.away)) || {}).cn || (TEAMS.get(String(m.away)) || {}).name || "";
