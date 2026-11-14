@@ -1227,8 +1227,77 @@ def load_oddsapi_snapshot(fixture_rows):
         log(f"  Odds API 快照：恢复 {n} 条机构报价")
 
 
+BOOKS_PERSIST = os.path.join(ROOT, "odds_snapshots", "books_persist.json")
+
+
+def merge_books_persist(fixture_rows, ttl_hours=36):
+    """合并「所有来源」的机构报价：同一场比赛一旦抓到过某机构，后续构建即使该轮没返回，
+    在 TTL 内仍保留（数值可能略旧），避免机构一下有一下没有。"""
+    now = time.time()
+    try:
+        with open(BOOKS_PERSIST, "r", encoding="utf-8") as f:
+            persist = json.load(f)
+    except (OSError, ValueError):
+        persist = {}
+    kept = {}
+    filled = 0
+    for f in fixture_rows:
+        fid = str(f.get("id"))
+        date = f.get("date") or ""
+        try:
+            ft = datetime.fromisoformat(date.replace("Z", "+00:00")).timestamp()
+        except (TypeError, ValueError):
+            ft = None
+        # 只持久化未来 10 天内、未开赛的场次
+        if ft is not None and not (now - 2 * 3600 <= ft <= now + 10 * 86400):
+            continue
+        cur = {}
+        for b in (f.get("books") or []):
+            name = b.get("book")
+            if name:
+                cur[name] = b
+        old = (persist.get(fid) or {}).get("books") or {}
+        for name, rec in old.items():
+            if name in cur:
+                continue
+            if now - (rec.get("t") or 0) > ttl_hours * 3600:
+                continue
+            b = rec.get("b") or {}
+            if b:
+                f.setdefault("books", []).append(b)
+                cur[name] = b
+                filled += 1
+        if cur:
+            kept[fid] = {"date": date, "books": {name: {"b": b, "t": now} for name, b in cur.items()}}
+    # 写入（保留未在当前窗口但仍在 TTL 内的旧场次）
+    for fid, rec in persist.items():
+        if fid in kept:
+            continue
+        try:
+            ft = datetime.fromisoformat((rec.get("date") or "").replace("Z", "+00:00")).timestamp()
+        except (TypeError, ValueError):
+            continue
+        if now - 2 * 3600 <= ft <= now + 10 * 86400 and now - (rec.get("t") or 0) <= ttl_hours * 3600:
+            kept[fid] = rec
+    try:
+        os.makedirs(os.path.dirname(BOOKS_PERSIST), exist_ok=True)
+        with open(BOOKS_PERSIST, "w", encoding="utf-8") as f:
+            json.dump(kept, f, ensure_ascii=False, separators=(",", ":"))
+    except OSError:
+        pass
+    if filled:
+        log(f"  机构报价持久化：补齐 {filled} 条（避免行情波动导致机构消失）")
+
+
 def _write_oddsapi_snapshot(fixture_rows):
-    data = {}
+    """把本轮抓到的 Odds API 报价合并进快照（保留未出现在本轮窗口里的历史场次）。"""
+    try:
+        with open(ODDSAPI_BOOKS, "r", encoding="utf-8") as f:
+            old = json.load(f)
+        data = dict(old.get("fixtures") or {})
+    except (OSError, ValueError):
+        data = {}
+    now = time.time()
     for f in fixture_rows:
         bs = [b for b in (f.get("books") or []) if b.get("src") == "oddsapi"]
         if not bs:
@@ -1240,15 +1309,28 @@ def _write_oddsapi_snapshot(fixture_rows):
                 if b.get(k):
                     item[k] = b.get(k)
             items.append(item)
-        data[str(f.get("id"))] = items
-    if not data:
+        data[str(f.get("id"))] = {"items": items, "date": f.get("date"), "t": now}
+    # 清理 21 天前的旧场次（兼容老格式：纯 list 视为已过期）
+    pruned = {}
+    for fid, rec in data.items():
+        if isinstance(rec, list):
+            continue
+        d = rec.get("date") or ""
+        try:
+            dt = datetime.fromisoformat(d.replace("Z", "+00:00")).replace(tzinfo=None)
+        except (TypeError, ValueError):
+            dt = None
+        if dt and (now - dt.timestamp()) > 21 * 86400:
+            continue
+        pruned[fid] = rec
+    if not pruned:
         return
     try:
         os.makedirs(os.path.dirname(ODDSAPI_BOOKS), exist_ok=True)
         with open(ODDSAPI_BOOKS, "w", encoding="utf-8") as f:
-            json.dump({"fetchedAt": datetime.utcnow().isoformat(), "fixtures": data},
+            json.dump({"fetchedAt": datetime.utcnow().isoformat(), "fixtures": pruned},
                       f, ensure_ascii=False, separators=(",", ":"))
-        log(f"  Odds API 快照：已保存 {len(data)} 场")
+        log(f"  Odds API 快照：已保存 {len(pruned)} 场（合并保留）")
     except OSError as e:
         log(f"  ⚠ Odds API 快照保存失败：{e}")
 
@@ -4048,6 +4130,10 @@ def main():
             log(f"  ⚠ 北单挂载失败：{str(e)[:80]}")
     except Exception as e:
         log(f"  ⚠ 竞彩官方盘口挂载失败：{str(e)[:80]}")
+    try:
+        merge_books_persist(fixture_rows)
+    except Exception as e:
+        log(f"  ⚠ 机构报价持久化失败：{str(e)[:80]}")
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()

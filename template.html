@@ -1147,6 +1147,18 @@ main:focus{outline:none}
 .insight-details>summary::-webkit-details-marker{display:none}
 .insight-details[open]>summary{border-bottom:1px solid var(--line)}
 .insight-details .insight-list{border:0;border-radius:0}
+/* 数据覆盖说明 */
+.cov-panel{padding:0;overflow:hidden}
+.cov-table{width:100%;border-collapse:collapse;font-size:12px}
+.cov-table th,.cov-table td{padding:10px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;line-height:1.7}
+.cov-table th{font-size:11px;color:var(--muted);font-weight:500;background:var(--surface-2);white-space:nowrap}
+.cov-table tr:last-child td{border-bottom:0}
+.cov-table td:first-child{font-weight:600;white-space:nowrap}
+.cov-table b.ok{color:var(--win);font-weight:600}
+.cov-table b.warn{color:var(--draw);font-weight:600}
+.cov-note{padding:12px 14px;font-size:11px;color:var(--muted);line-height:1.7;border-top:1px solid var(--line);background:var(--surface-2)}
+@media(max-width:760px){.cov-table{font-size:11px}.cov-table th,.cov-table td{padding:8px 10px}.cov-table td:first-child{white-space:normal}}
+
 /* 双方近期战绩 */
 .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .form-col{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -1589,6 +1601,29 @@ main:focus{outline:none}
         <span class="section-note">点击球队查看近 30 场逐场数据</span>
       </div>
       <div id="team-index" hidden></div>
+    </section>
+
+    <section class="section" id="coverage-sec">
+      <div class="section-head">
+        <h2 class="section-title">数据覆盖说明</h2>
+        <span class="section-note">哪些数据稳定有、哪些不会有，固定规则</span>
+      </div>
+      <div class="panel cov-panel">
+        <table class="cov-table">
+          <thead><tr><th>数据类型</th><th>来源</th><th>覆盖范围</th><th>稳定性</th></tr></thead>
+          <tbody>
+            <tr><td>多机构欧赔 / 亚盘 / 大小球</td><td>The Odds API</td><td>英超、西甲、意甲、德甲、法甲、欧冠、欧联、欧国联</td><td><b class="ok">稳定 10–15 家</b></td></tr>
+            <tr><td>补充欧赔（h2h）</td><td>The Odds API</td><td>英冠、荷甲、葡超、巴西甲、苏超、德乙、意乙、西乙、土超、比甲、奥甲、希腊超、丹超、瑞士超、波兰超、挪超、瑞典超、日职联、美职联、阿甲、法国杯、国王杯、德国杯、英联杯、法乙、德国丙</td><td><b class="ok">开赛前 7 天内分批补 1–9 家</b></td></tr>
+            <tr><td>DraftKings / Bet365</td><td>ESPN</td><td>有盘口的俱乐部比赛</td><td><b class="ok">稳定</b></td></tr>
+            <tr><td>竞彩官方（胜平负 / 让球 / 总进球→大小球）</td><td>中国体彩公开接口</td><td>竞彩在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
+            <tr><td>北单（胜平负 / 让球 SP）</td><td>澳客北单列表</td><td>北单在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
+            <tr><td>模型公平赔率 / 大小球 / 亚盘</td><td>本站模型</td><td>所有有模型预测的比赛</td><td><b class="ok">兜底显示，不会空白</b></td></tr>
+            <tr><td>多机构赔率（友谊赛 / 世预赛等）</td><td>—</td><td>免费数据源不提供</td><td><b class="warn">不会有（仅竞彩/北单/模型）</b></td></tr>
+            <tr><td>伤停名单、伤缺原因</td><td>—</td><td>ESPN 不提供足球伤停</td><td><b class="warn">不会有</b></td></tr>
+          </tbody>
+        </table>
+        <p class="cov-note">机构报价一旦抓到，36 小时内即使接口本轮没返回也会保留（数值可能略旧）；Odds API 快照会合并保留，不会因某轮窗口变化而丢失。空白场次会显示模型兜底数据。</p>
+      </div>
     </section>
   </section>
 
