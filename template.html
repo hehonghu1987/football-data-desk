@@ -4824,6 +4824,46 @@ function renderPreMatch(m){
       }
     }
   }
+  // 没有任何机构赔率时，用模型公平赔率兜底，避免整块空白
+  if(!cells.length){
+    const md = pred || pre;
+    if(md && md.ph != null && md.pd != null && md.pa != null){
+      const fo = x => (x > 0 ? (1 / x).toFixed(2) : "—");
+      cells.push(`<div class="odds-cell">
+        <div class="l">模型 · 公平赔率</div>
+        <div class="odds-three">
+          <div><div class="k">主胜</div><div class="o">${fo(md.ph)}</div><div class="p">${pct(md.ph)}</div></div>
+          <div><div class="k">平</div><div class="o">${fo(md.pd)}</div><div class="p">${pct(md.pd)}</div></div>
+          <div><div class="k">客胜</div><div class="o">${fo(md.pa)}</div><div class="p">${pct(md.pa)}</div></div>
+        </div>
+        <div class="odds-src">该场暂无机构赔率，以上由模型概率折算，仅供参考</div>
+      </div>`);
+      const o25 = (pred && pred.o25 != null) ? pred.o25 : ((pre && pre.o && pre.o[2] != null) ? pre.o[2] / 1000 : null);
+      if(o25 != null){
+        cells.push(`<div class="odds-cell">
+          <div class="l">模型 · 大小球 2.5</div>
+          <div class="odds-line"><b>2.5 球</b></div>
+          <div class="odds-two">
+            <div><div class="k">大球</div><div class="o">${fo(o25)}</div><div class="p">${pct(o25)}</div></div>
+            <div><div class="k">小球</div><div class="o">${fo(1 - o25)}</div><div class="p">${pct(1 - o25)}</div></div>
+          </div>
+          <div class="odds-src">模型概率折算的公平赔率</div>
+        </div>`);
+      }
+      if(pred && pred.ah && pred.ah["0"] != null){
+        const p0 = pred.ah["0"];
+        cells.push(`<div class="odds-cell">
+          <div class="l">模型 · 亚盘（平手）</div>
+          <div class="odds-line"><b>平手盘</b></div>
+          <div class="odds-two">
+            <div><div class="k">主队</div><div class="o">${fo(p0)}</div><div class="p">${pct(p0)}</div></div>
+            <div><div class="k">客队</div><div class="o">${fo(1 - p0)}</div><div class="p">${pct(1 - p0)}</div></div>
+          </div>
+          <div class="odds-src">模型给出的主队不败概率折算</div>
+        </div>`);
+      }
+    }
+  }
   $("#odds-grid").innerHTML = cells.length ? cells.join("")
     : `<div class="odds-cell"><div class="l">赔率</div><div class="odds-src">该场暂无可用赔率</div></div>`;
   $("#odds-grid").hidden = !(odds || hasBooks);
