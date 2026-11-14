@@ -1785,11 +1785,13 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
         state = {}
     force = bool(os.environ.get("ODDSAPI_FORCE"))
     now_utc = datetime.utcnow()
-    # 额外联赛提前补欧赔：额度充足看未来 72 小时，紧张时缩到 30 小时
-    if remaining is not None and remaining <= 200:
+    # 额外联赛提前补欧赔：额度充足看未来 7 天（未覆盖的联赛分批补，成本可控），紧张时缩窗口
+    if remaining is not None and remaining <= 150:
         win_hours = 30
-    else:
+    elif remaining is not None and remaining <= 250:
         win_hours = 72
+    else:
+        win_hours = 168
     by_league = {}
     for f in fixture_rows:
         lab = f.get("league")
@@ -1810,7 +1812,7 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
     def _earliest(item):
         rows = item[1]
         return min((x.get("date") or "9999") for x in rows)
-    _cap = 6 if (remaining is None or remaining > 250) else 3
+    _cap = 4 if (remaining is None or remaining > 150) else 3
     picked = sorted(by_league.items(), key=_earliest)[:_cap]
     total = 0
     for lab, rows in picked:
