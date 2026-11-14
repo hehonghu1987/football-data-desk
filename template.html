@@ -1194,6 +1194,11 @@ main:focus{outline:none}
 .form-head{background:var(--surface-2);border-bottom:1px solid var(--line);padding:12px 16px}
 .form-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px;font-weight:600}
 .form-sub{margin-top:5px;font-size:10.5px;color:var(--muted);line-height:1.6}
+.form-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+.form-tile{display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:10.5px;color:var(--muted)}
+.form-tile b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+.form-chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.form-chk input{accent-color:var(--accent);width:15px;height:15px}
 .form-h a{color:inherit;text-decoration:none}
 .form-h a:hover{color:var(--accent)}
 .form-h span{font-size:11px;color:var(--muted);font-weight:400}
@@ -1855,6 +1860,12 @@ main:focus{outline:none}
           <button type="button" data-side="home" aria-pressed="false">主场</button>
           <button type="button" data-side="away" aria-pressed="false">客场</button>
         </div>
+        <select class="st-select" id="form-n" aria-label="近期场次">
+          <option value="8" selected>近 8 场</option>
+          <option value="10">近 10 场</option>
+          <option value="20">近 20 场</option>
+        </select>
+        <label class="form-chk"><input type="checkbox" id="form-same"> 同赛事</label>
         <span class="table-note" id="form-count"></span>
       </div>
       <div class="form-grid" id="form-panel"></div>
@@ -2475,6 +2486,8 @@ const state = {
   h2hSide: "all",
   mvSide: "all",
   formSide: "all",
+  formN: 8,
+  formSame: false,
   indexOpen: false,
   teamN: 30,
   h2hComp: "all",
@@ -4136,6 +4149,16 @@ $("#form-side")?.addEventListener("click", e => {
   const b = e.target.closest("[data-side]");
   if(!b) return;
   state.formSide = b.dataset.side;
+  const m = MATCH_BY_ID.get(String(state.matchId));
+  if(m) renderRecentForm(m);
+});
+$("#form-n")?.addEventListener("change", e => {
+  state.formN = parseInt(e.target.value, 10) || 8;
+  const m = MATCH_BY_ID.get(String(state.matchId));
+  if(m) renderRecentForm(m);
+});
+$("#form-same")?.addEventListener("change", e => {
+  state.formSame = !!e.target.checked;
   const m = MATCH_BY_ID.get(String(state.matchId));
   if(m) renderRecentForm(m);
 });
@@ -6077,76 +6100,110 @@ function renderRecentForm(m){
   if(!h || !a){ sec.hidden = true; return; }
   const side = state.formSide || "all";
   const sideLabel = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
+  const nLimit = state.formN || 8;
+  const sameLeague = !!state.formSame;
   const rowsOf = (tid) => {
     const id = String(tid);
     let ms = (DATA.matches || []).filter(x => x.hs != null && x.as != null && x.date
       && (String(x.home) === id || String(x.away) === id));
     if(side === "home") ms = ms.filter(x => String(x.home) === id);
     else if(side === "away") ms = ms.filter(x => String(x.away) === id);
+    if(sameLeague && m && m.league) ms = ms.filter(x => x.league === m.league);
     ms.sort((p, q) => String(q.date).localeCompare(String(p.date)));
-    return ms.slice(0, 8);
+    return ms.slice(0, nLimit);
   };
   const nameOf = (tid) => { const t = TEAMS.get(String(tid)); return (t && (t.cn || t.name)) || "?"; };
   const col = (t, ms) => {
     const rec = { w: 0, d: 0, l: 0 };
+    let ftF = 0, ftA = 0, htF = 0, htA = 0, htN = 0;
+    let btts = 0, over25 = 0, corOver = 0, leadHT = 0, ahW = 0, ahN = 0, ouN = 0;
+    let shF = 0, shA = 0;
     for(const x of ms){
       const home = String(x.home) === String(t.id);
       const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
       if(gf > ga) rec.w++; else if(gf < ga) rec.l++; else rec.d++;
+      ftF += gf; ftA += ga;
+      if(gf > 0 && ga > 0) btts++;
+      const htm = HT_MAP || {};
+      const ht = htm[String(x.id)];
+      if(ht && ht[0] != null && ht[1] != null){
+        const hf = home ? ht[0] : ht[1], ha = home ? ht[1] : ht[0];
+        htF += hf; htA += ha; htN++;
+        shF += gf - hf; shA += ga - ha;
+        if(hf > ha) leadHT++;
+      }
+      const stt = x.stats;
+      if(stt && stt.home && stt.away && stt.home.corners != null && stt.away.corners != null){
+        const tot = Number(stt.home.corners) + Number(stt.away.corners);
+        if(tot > 10.5) corOver++;
+      }
+      const mk = (MK && MK[String(x.id)]) || {};
+      if(mk.a != null){
+        const lineForTeam = home ? mk.a : -mk.a;
+        const ar = ahSettle(gf, ga, lineForTeam);
+        if(ar){ ahN++; if(ar === "赢") ahW += 1; else if(ar === "半赢") ahW += 0.5; }
+      }
+      if(mk.o != null){ ouN++; if(gf + ga > mk.o) over25++; }
     }
-    const st = teamGoalSplit(t.id, side, 8);
-    const halfTxt = st.htN
-      ? `（上 ${st.htF} / 下 ${st.shF}）`
-      : "";
-    const halfATxt = st.htN
-      ? `（上 ${st.htA} / 下 ${st.shA}）`
-      : "";
+    const n = ms.length || 1;
+    const winPct = Math.round(rec.w / n * 100);
+    const ahPct = ahN ? Math.round(ahW / ahN * 100) : null;
+    const ouPct = ouN ? Math.round(over25 / ouN * 100) : null;
+    const halfTxt = htN ? `（上 ${htF} / 下 ${shF}）` : "";
+    const halfATxt = htN ? `（上 ${htA} / 下 ${shA}）` : "";
+    const tile = (label, val) => `<span class="form-tile"><span>${label}</span><b>${val}</b></span>`;
     return `<div class="form-col">
       <div class="form-head">
         <div class="form-h"><a href="#/team/${esc(t.id)}">${esc(t.cn || t.name)}</a><span>${sideLabel} ${ms.length} 场 · ${rec.w}胜${rec.d}平${rec.l}负</span></div>
-        <div class="form-sub">进 ${st.ftF} 球${halfTxt} · 失 ${st.ftA} 球${halfATxt} · 场均 ${(st.n ? st.ftF / st.n : 0).toFixed(1)} / ${(st.n ? st.ftA / st.n : 0).toFixed(1)}</div>
+        <div class="form-sub">胜率 ${winPct}%${ahPct != null ? ` · 赢盘率 ${ahPct}%` : ""}${ouPct != null ? ` · 大球率 ${ouPct}%` : ""}</div>
+        <div class="form-sub">进 ${ftF} 球${halfTxt} · 失 ${ftA} 球${halfATxt} · 场均 ${(ftF / n).toFixed(1)} / ${(ftA / n).toFixed(1)}</div>
+        <div class="form-tiles">
+          ${tile("半场领先", `${leadHT} 场`)}
+          ${tile("两队均进球", `${btts} 场`)}
+          ${tile(">2.5 球", `${over25} 场`)}
+          ${tile(">10.5 角球", `${corOver} 场`)}
+        </div>
       </div>
       ${ms.length ? ms.map(x => {
         const home = String(x.home) === String(t.id);
         const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
         const res = gf > ga ? "W" : (gf < ga ? "L" : "D");
         const mk = (MK && MK[String(x.id)]) || {};
-      const metaBits = [];
-      const stt = x.stats;
-      if(stt && stt.home && stt.away && stt.home.corners != null && stt.away.corners != null){
-        metaBits.push(`角球 ${stt.home.corners}–${stt.away.corners}`);
-      }
-      if(mk.a != null){
-        // mk.a 是主队让球盘口；换算成当前球队视角
-        const lineForTeam = home ? mk.a : -mk.a;
-        const ar = ahSettle(gf, ga, lineForTeam);
-        if(ar) metaBits.push(`让球 ${lineForTeam > 0 ? "+" : ""}${lineForTeam} ${ar}`);
-      }
-      if(mk.o != null){
-        const total = Number(x.hs) + Number(x.as);
-        metaBits.push(`总进球 ${total} · ${total > mk.o ? "大" : "小"} ${mk.o}`);
-      }
-      return `<a class="form-row" href="#/match/${esc(x.id)}">
-        <span class="fr-main">
-          <span class="fr-res ${res}">${res === "W" ? "胜" : res === "L" ? "负" : "平"}</span>
-          <span class="fr-date">${String(x.date).slice(5, 10).replace("-", "/")}</span>
-          <span class="fr-opp"><b class="${home ? "is-us" : ""}">${esc(nameOf(x.home))}</b><i>vs</i><b class="${!home ? "is-us" : ""}">${esc(nameOf(x.away))}</b></span>
-          <span class="fr-score">${x.hs}–${x.as}${(function(){
-              const htm = HT_MAP || {};
-              const ht = htm[String(x.id)] || (FDCO && FDCO[String(x.id)] && FDCO[String(x.id)].ht);
-              return (ht && ht[0] != null && ht[1] != null) ? `<i class="fr-ht">(${ht[0]}–${ht[1]})</i>` : "";
-            })()}</span>
-          <span class="fr-lg">${esc(x.league || "")}</span>
-        </span>
-        ${metaBits.length ? `<span class="fr-meta">${metaBits.map(t => `<em>${esc(t)}</em>`).join("")}</span>` : ""}
-      </a>`;
+        const metaBits = [];
+        const stt = x.stats;
+        if(stt && stt.home && stt.away && stt.home.corners != null && stt.away.corners != null){
+          metaBits.push(`角球 ${stt.home.corners}–${stt.away.corners}`);
+        }
+        if(mk.a != null){
+          const lineForTeam = home ? mk.a : -mk.a;
+          const ar = ahSettle(gf, ga, lineForTeam);
+          if(ar) metaBits.push(`让球 ${lineForTeam > 0 ? "+" : ""}${lineForTeam} ${ar}`);
+        }
+        if(mk.o != null){
+          const total = Number(x.hs) + Number(x.as);
+          metaBits.push(`总进球 ${total} · ${total > mk.o ? "大" : "小"} ${mk.o}`);
+        }
+        return `<a class="form-row" href="#/match/${esc(x.id)}">
+          <span class="fr-main">
+            <span class="fr-res ${res}">${res === "W" ? "胜" : res === "L" ? "负" : "平"}</span>
+            <span class="fr-date">${String(x.date).slice(5, 10).replace("-", "/")}</span>
+            <span class="fr-opp"><b class="${home ? "is-us" : ""}">${esc(nameOf(x.home))}</b><i>vs</i><b class="${!home ? "is-us" : ""}">${esc(nameOf(x.away))}</b></span>
+            <span class="fr-score">${x.hs}–${x.as}${(function(){
+                const htm = HT_MAP || {};
+                const ht = htm[String(x.id)];
+                return (ht && ht[0] != null && ht[1] != null) ? `<i class="fr-ht">(${ht[0]}–${ht[1]})</i>` : "";
+              })()}</span>
+            <span class="fr-lg">${esc(x.league || "")}</span>
+          </span>
+          ${metaBits.length ? `<span class="fr-meta">${metaBits.map(t => `<em>${esc(t)}</em>`).join("")}</span>` : ""}
+        </a>`;
       }).join("") : `<div class="form-empty">${sideLabel}暂无已结束比赛</div>`}
     </div>`;
   };
   $$("#form-side [data-side]").forEach(b => b.setAttribute("aria-pressed", b.dataset.side === side ? "true" : "false"));
   const totalH = rowsOf(h.id).length, totalA = rowsOf(a.id).length;
-  $("#form-count").textContent = `${sideLabel} · 主队 ${totalH} 场 / 客队 ${totalA} 场（各取最近 8 场）`;
-  $("#form-note").textContent = side === "all" ? "最近 8 场已结束比赛 · 点行进入比赛页" : `只看${sideLabel}场次 · 点行进入比赛页`;
+  $("#form-count").textContent = `${sideLabel}${sameLeague ? " · 同赛事" : ""} · 主队 ${totalH} 场 / 客队 ${totalA} 场（各取最近 ${nLimit} 场）`;
+  $("#form-note").textContent = `最近 ${nLimit} 场已结束比赛${sameLeague ? "（同赛事）" : ""} · 点行进入比赛页`;
   panel.innerHTML = col(h, rowsOf(h.id)) + col(a, rowsOf(a.id));
   sec.hidden = false;
   // 半场比分 / 收盘盘口轻量懒加载，加载完成后再刷新一次
