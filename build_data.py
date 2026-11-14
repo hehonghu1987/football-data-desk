@@ -3918,6 +3918,19 @@ def main():
                 json.dump(fd_map, fh, ensure_ascii=False, separators=(",", ":"))
             log(f"  多机构盘口文件：{len(fd_map)} 场，"
                 f"{os.path.getsize(fd_path) / 1024 / 1024:.2f} MB（data/fdco.json）")
+            # 轻量半场比分文件：近期进失球上下半场拆分用，避免比赛页拉 4MB 全量盘口
+            try:
+                ht_map = {}
+                for _mid, _rec in fd_map.items():
+                    _ht = _rec.get("ht")
+                    if _ht and len(_ht) >= 2 and _ht[0] is not None and _ht[1] is not None:
+                        ht_map[str(_mid)] = [_ht[0], _ht[1]]
+                ht_path = os.path.join(DATA_DIR, "ht.json")
+                with open(ht_path, "w", encoding="utf-8") as fh:
+                    json.dump(ht_map, fh, ensure_ascii=False, separators=(",", ":"))
+                log(f"  半场比分文件：{len(ht_map)} 场（{os.path.getsize(ht_path) / 1024:.0f} KB，data/ht.json）")
+            except OSError as e:
+                log(f"  ⚠ 半场比分文件写入失败：{e}")
     except Exception as e:
         fd_map = {}
         log(f"  ⚠ 多机构盘口生成失败：{e}")

@@ -5937,6 +5937,16 @@ function renderDeep(m){
 
 /* ---------- 多机构赛前盘口（football-data.co.uk，按需加载） ---------- */
 let FDCO = null, fdcoLoading = null;
+/* 轻量半场比分（data/ht.json），给「近期进失球上下半场拆分」用，避免拉 4MB 全量盘口 */
+let HT_MAP = null, HT_LOADING = null;
+function loadHT(){
+  if(HT_MAP) return Promise.resolve(HT_MAP);
+  if(!HT_LOADING){
+    HT_LOADING = fetch("data/ht.json").then(r => r.ok ? r.json() : {}).catch(() => ({}))
+      .then(m => { HT_MAP = m || {}; return HT_MAP; });
+  }
+  return HT_LOADING;
+}
 function loadFdco(){
   if(FDCO) return Promise.resolve(FDCO);
   if(!fdcoLoading){
@@ -6018,8 +6028,8 @@ function teamGoalSplit(tid, side, n){
     const home = String(x.home) === id;
     const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
     st.ftF += gf; st.ftA += ga;
-    const rec = FDCO ? FDCO[String(x.id)] : null;
-    const ht = rec && rec.ht;
+    const htm = HT_MAP || {};
+    const ht = htm[String(x.id)] || (FDCO && FDCO[String(x.id)] && FDCO[String(x.id)].ht);
     if(ht && ht[0] != null && ht[1] != null){
       const hf = home ? ht[0] : ht[1], ha = home ? ht[1] : ht[0];
       st.htF += hf; st.htA += ha;
@@ -6036,7 +6046,8 @@ function renderGoalSplit(h, a){
   const side = state.formSide || "all";
   const sideTxt = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
   const A = teamGoalSplit(h.id, side, 10), B = teamGoalSplit(a.id, side, 10);
-  const f1 = v => (v == null || !isFinite(v)) ? "—" : v.toFixed(1);
+  const loading = !HT_MAP;
+  const f1 = v => loading ? "…" : ((v == null || !isFinite(v)) ? "—" : v.toFixed(1));
   const row = (label, av, bv) => `<tr><td>${label}</td><td>${av}</td><td>${bv}</td></tr>`;
   const avgF = st => st.n ? st.ftF / st.n : null;
   const avgA = st => st.n ? st.ftA / st.n : null;
@@ -6107,9 +6118,9 @@ function renderRecentForm(m){
   panel.innerHTML = col(h, rowsOf(h.id)) + col(a, rowsOf(a.id));
   sec.hidden = false;
   renderGoalSplit(h, a);
-  // 半场比分来自 data/fdco.json（懒加载），加载完成后再刷新一次
-  if(!FDCO){
-    loadFdco().then(() => {
+  // 半场比分来自 data/ht.json（轻量懒加载），加载完成后再刷新一次
+  if(!HT_MAP){
+    loadHT().then(() => {
       if(String(state.matchId) === String(m.id) && !$("#recent-form").hidden) renderGoalSplit(h, a);
     });
   }
