@@ -1023,10 +1023,15 @@ ODDSAPI_LEAGUES = {
 # 只抓欧赔、只补「还没有机构赔率」的场次，成本 1 credit/联赛，用于英冠/荷甲等热门赛事。
 ODDSAPI_EXTRA_LEAGUES = {
     "英冠": "soccer_efl_champ",
-    "荷甲": "soccer_eredivisie",
+    "荷甲": "soccer_netherlands_eredivisie",
     "葡超": "soccer_portugal_primeira_liga",
     "巴西甲": "soccer_brazil_campeonato",
     "苏超": "soccer_spl",
+    "德乙": "soccer_germany_bundesliga2",
+    "意乙": "soccer_italy_serie_b",
+    "西乙": "soccer_spain_segunda_division",
+    "土超": "soccer_turkey_super_league",
+    "比甲": "soccer_belgium_first_div",
 }
 
 # 只保留用户指定的机构（欧赔 10 家 + 亚盘 8 家）；不在名单内的机构一律不展示。
@@ -1593,7 +1598,8 @@ def fetch_oddsapi_books(fixture_rows, teams):
     total_books = 0
     remaining = state.get("remaining")
     for lab, sport in targets:
-        _markets = "h2h" if midday else "h2h,totals,spreads"
+        _low_budget = remaining is not None and remaining <= 120
+        _markets = "h2h" if (midday or _low_budget) else "h2h,totals,spreads"
         url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
                f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS}"
                f"&markets={_markets}&oddsFormat=decimal&dateFormat=iso")
@@ -1610,7 +1616,7 @@ def fetch_oddsapi_books(fixture_rows, teams):
         merged = list(data)
         # 主流机构补充包：额度充足时也抓大小球/亚盘（3 credits），额度紧张时只抓 h2h（1 credit）
         # 午间补抓只拉核心 9 家 h2h，不请求补充包，控制成本
-        if (not midday) and (remaining is None or remaining > 120):
+        if (not midday) and (not _low_budget) and (remaining is None or remaining > 200):
             extra_markets = "h2h,totals,spreads" if (remaining is None or remaining > 200) else "h2h"
             extra_url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
                          f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS_EXTRA}"
@@ -1755,8 +1761,13 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
         by_league.setdefault(lab, []).append(f)
     if not by_league:
         return
+    # 每次最多补 3 个联赛（按最早开赛时间优先），控制额度
+    def _earliest(item):
+        rows = item[1]
+        return min((x.get("date") or "9999") for x in rows)
+    picked = sorted(by_league.items(), key=_earliest)[:3]
     total = 0
-    for lab, rows in by_league.items():
+    for lab, rows in picked:
         sport = ODDSAPI_EXTRA_LEAGUES[lab]
         url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
                f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS}"
