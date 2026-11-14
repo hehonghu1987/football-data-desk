@@ -1194,7 +1194,10 @@ main:focus{outline:none}
 .fr-res.D{background:color-mix(in srgb,var(--draw) 16%,transparent);color:var(--draw)}
 .fr-res.L{background:color-mix(in srgb,var(--loss) 14%,transparent);color:var(--loss)}
 .fr-date{color:var(--muted);font-family:var(--font-mono);font-size:11px}
-.fr-opp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr-opp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.fr-opp b{font-weight:500;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr-opp b.is-us{color:var(--ink);font-weight:700}
+.fr-opp i{color:var(--muted);font-style:normal;font-size:10px;flex:none}
 .fr-score{font-family:var(--font-mono);font-weight:600;text-align:right}
 .fr-lg{color:var(--muted);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .form-empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:12px}
@@ -1829,7 +1832,15 @@ main:focus{outline:none}
     <section class="section" id="recent-form" hidden>
       <div class="section-head">
         <h2 class="section-title">双方近期战绩</h2>
-        <span class="section-note">最近 8 场已结束比赛 · 点行进入比赛页</span>
+        <span class="section-note" id="form-note">最近 8 场已结束比赛 · 点行进入比赛页</span>
+      </div>
+      <div class="filters">
+        <div class="seg" id="form-side" role="group" aria-label="按主客场筛选近期战绩">
+          <button type="button" data-side="all" aria-pressed="true">全部</button>
+          <button type="button" data-side="home" aria-pressed="false">主场</button>
+          <button type="button" data-side="away" aria-pressed="false">客场</button>
+        </div>
+        <span class="table-note" id="form-count"></span>
       </div>
       <div class="form-grid" id="form-panel"></div>
     </section>
@@ -2448,6 +2459,7 @@ const state = {
   h2hOpp: null,
   h2hSide: "all",
   mvSide: "all",
+  formSide: "all",
   indexOpen: false,
   teamN: 30,
   h2hComp: "all",
@@ -4103,6 +4115,14 @@ $("#team-view").addEventListener("click", e => {
     ROSTER_CACHE.delete(String(state.id)); ROSTER_PENDING.delete(String(state.id));
     renderTeamSquad(state.id);
   }
+});
+
+$("#form-side")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-side]");
+  if(!b) return;
+  state.formSide = b.dataset.side;
+  const m = MATCH_BY_ID.get(String(state.matchId));
+  if(m) renderRecentForm(m);
 });
 
 $("#m-tabbar")?.addEventListener("click", e => {
@@ -5980,29 +6000,45 @@ function renderRecentForm(m){
   if(!sec || !panel) return;
   const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
   if(!h || !a){ sec.hidden = true; return; }
+  const side = state.formSide || "all";
+  const sideLabel = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
   const rowsOf = (tid) => {
     const id = String(tid);
-    const ms = (DATA.matches || []).filter(x => x.hs != null && x.as != null && x.date
+    let ms = (DATA.matches || []).filter(x => x.hs != null && x.as != null && x.date
       && (String(x.home) === id || String(x.away) === id));
+    if(side === "home") ms = ms.filter(x => String(x.home) === id);
+    else if(side === "away") ms = ms.filter(x => String(x.away) === id);
     ms.sort((p, q) => String(q.date).localeCompare(String(p.date)));
     return ms.slice(0, 8);
   };
-  const col = (t, ms) => `<div class="form-col">
-    <div class="form-h"><a href="#/team/${esc(t.id)}">${esc(t.cn || t.name)}</a><span>近 ${ms.length} 场</span></div>
-    ${ms.length ? ms.map(x => {
+  const nameOf = (tid) => { const t = TEAMS.get(String(tid)); return (t && (t.cn || t.name)) || "?"; };
+  const col = (t, ms) => {
+    const rec = { w: 0, d: 0, l: 0 };
+    for(const x of ms){
       const home = String(x.home) === String(t.id);
-      const opp = TEAMS.get(String(home ? x.away : x.home)) || {};
       const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
-      const res = gf > ga ? "W" : (gf < ga ? "L" : "D");
-      return `<a class="form-row" href="#/match/${esc(x.id)}">
-        <span class="fr-res ${res}">${res === "W" ? "胜" : res === "L" ? "负" : "平"}</span>
-        <span class="fr-date">${String(x.date).slice(5, 10).replace("-", "/")}</span>
-        <span class="fr-opp">${home ? "主" : "客"} vs ${esc(opp.cn || opp.name || "")}</span>
-        <span class="fr-score">${gf}–${ga}</span>
-        <span class="fr-lg">${esc(x.league || "")}</span>
-      </a>`;
-    }).join("") : `<div class="form-empty">近期暂无已结束比赛</div>`}
-  </div>`;
+      if(gf > ga) rec.w++; else if(gf < ga) rec.l++; else rec.d++;
+    }
+    return `<div class="form-col">
+      <div class="form-h"><a href="#/team/${esc(t.id)}">${esc(t.cn || t.name)}</a><span>${sideLabel} ${ms.length} 场 · ${rec.w}胜${rec.d}平${rec.l}负</span></div>
+      ${ms.length ? ms.map(x => {
+        const home = String(x.home) === String(t.id);
+        const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
+        const res = gf > ga ? "W" : (gf < ga ? "L" : "D");
+        return `<a class="form-row" href="#/match/${esc(x.id)}">
+          <span class="fr-res ${res}">${res === "W" ? "胜" : res === "L" ? "负" : "平"}</span>
+          <span class="fr-date">${String(x.date).slice(5, 10).replace("-", "/")}</span>
+          <span class="fr-opp"><b class="${home ? "is-us" : ""}">${esc(nameOf(x.home))}</b><i>vs</i><b class="${!home ? "is-us" : ""}">${esc(nameOf(x.away))}</b></span>
+          <span class="fr-score">${x.hs}–${x.as}</span>
+          <span class="fr-lg">${esc(x.league || "")}</span>
+        </a>`;
+      }).join("") : `<div class="form-empty">${sideLabel}暂无已结束比赛</div>`}
+    </div>`;
+  };
+  $$("#form-side [data-side]").forEach(b => b.setAttribute("aria-pressed", b.dataset.side === side ? "true" : "false"));
+  const totalH = rowsOf(h.id).length, totalA = rowsOf(a.id).length;
+  $("#form-count").textContent = `${sideLabel} · 主队 ${totalH} 场 / 客队 ${totalA} 场（各取最近 8 场）`;
+  $("#form-note").textContent = side === "all" ? "最近 8 场已结束比赛 · 点行进入比赛页" : `只看${sideLabel}场次 · 点行进入比赛页`;
   panel.innerHTML = col(h, rowsOf(h.id)) + col(a, rowsOf(a.id));
   sec.hidden = false;
 }
