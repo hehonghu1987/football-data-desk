@@ -1195,7 +1195,7 @@ main:focus{outline:none}
 .form-h a{color:inherit;text-decoration:none}
 .form-h a:hover{color:var(--accent)}
 .form-h span{font-size:11px;color:var(--muted);font-weight:400}
-.form-row{display:grid;grid-template-columns:34px 52px minmax(0,1fr) 46px 64px;gap:8px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;font-size:12px}
+.form-row{display:grid;grid-template-columns:34px 52px minmax(0,1fr) auto 64px;gap:8px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;font-size:12px}
 .form-row:last-child{border-bottom:0}
 .form-row:hover{background:var(--surface-2)}
 .fr-res{display:inline-flex;align-items:center;justify-content:center;width:24px;height:20px;border-radius:6px;font-size:10.5px;font-weight:700}
@@ -1207,10 +1207,11 @@ main:focus{outline:none}
 .fr-opp b{font-weight:500;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fr-opp b.is-us{color:var(--ink);font-weight:700}
 .fr-opp i{color:var(--muted);font-style:normal;font-size:10px;flex:none}
-.fr-score{font-family:var(--font-mono);font-weight:600;text-align:right}
+.fr-score{font-family:var(--font-mono);font-weight:600;text-align:right;white-space:nowrap}
+.fr-score .fr-ht{font-style:normal;color:var(--muted);font-size:10.5px;margin-left:4px;font-weight:400}
 .fr-lg{color:var(--muted);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .form-empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:12px}
-@media(max-width:760px){.form-grid{grid-template-columns:1fr}.form-row{grid-template-columns:30px 46px minmax(0,1fr) 42px;padding:9px 12px}.fr-lg{display:none}}
+@media(max-width:760px){.form-grid{grid-template-columns:1fr}.form-row{grid-template-columns:30px 46px minmax(0,1fr) auto;padding:9px 12px}.fr-lg{display:none}}
 
 /* 深度分析：均衡排版 */
 .deep-stack{display:grid;gap:14px;padding:14px}
@@ -6045,30 +6046,30 @@ function renderGoalSplit(h, a){
   if(!el) return;
   const side = state.formSide || "all";
   const sideTxt = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
-  const A = teamGoalSplit(h.id, side, 10), B = teamGoalSplit(a.id, side, 10);
+  const A = teamGoalSplit(h.id, side, 8);
+  const B8 = teamGoalSplit(a.id, side, 8);
   const loading = !HT_MAP;
   const f1 = v => (v == null || !isFinite(v)) ? "—" : v.toFixed(1);
-  const fh = v => loading ? "…" : f1(v);
+  const fh = v => loading ? "…" : ((v == null || !isFinite(v)) ? "—" : v);
+  const pctOf = (part, whole) => (whole > 0 && !loading) ? Math.round(part / whole * 100) + "%" : "—";
   const row = (label, av, bv) => `<tr><td>${label}</td><td>${av}</td><td>${bv}</td></tr>`;
   const avgF = st => st.n ? st.ftF / st.n : null;
   const avgA = st => st.n ? st.ftA / st.n : null;
-  const hF = st => st.htN ? st.htF / st.htN : null;
-  const hA = st => st.htN ? st.htA / st.htN : null;
-  const sF = st => st.htN ? st.shF / st.htN : null;
-  const sA = st => st.htN ? st.shA / st.htN : null;
-  el.innerHTML = `<div class="goal-split-h">近期进球 / 失球分布（${sideTxt} · 各取最近 10 场）</div>
+  el.innerHTML = `<div class="goal-split-h">近 8 场进球 / 失球统计（${sideTxt}）</div>
     <table class="deep-table goal-table">
       <thead><tr><th>指标</th><th>${esc(h.cn || h.name)}</th><th>${esc(a.cn || a.name)}</th></tr></thead>
       <tbody>
-        ${row("场均进球", f1(avgF(A)), f1(avgF(B)))}
-        ${row("└ 上半场", fh(hF(A)), fh(hF(B)))}
-        ${row("└ 下半场", fh(sF(A)), fh(sF(B)))}
-        ${row("场均失球", f1(avgA(A)), f1(avgA(B)))}
-        ${row("└ 上半场", fh(hA(A)), fh(hA(B)))}
-        ${row("└ 下半场", fh(sA(A)), fh(sA(B)))}
+        ${row("近 8 场进球", `${A.ftF} 球`, `${B8.ftF} 球`)}
+        ${row("└ 上半场", loading ? "…" : `${fh(A.htF)} 球 · ${pctOf(A.htF, A.htF + A.shF)}`, loading ? "…" : `${fh(B8.htF)} 球 · ${pctOf(B8.htF, B8.htF + B8.shF)}`)}
+        ${row("└ 下半场", loading ? "…" : `${fh(A.shF)} 球 · ${pctOf(A.shF, A.htF + A.shF)}`, loading ? "…" : `${fh(B8.shF)} 球 · ${pctOf(B8.shF, B8.htF + B8.shF)}`)}
+        ${row("场均进球", f1(avgF(A)), f1(avgF(B8)))}
+        ${row("近 8 场失球", `${A.ftA} 球`, `${B8.ftA} 球`)}
+        ${row("└ 上半场", loading ? "…" : `${fh(A.htA)} 球 · ${pctOf(A.htA, A.htA + A.shA)}`, loading ? "…" : `${fh(B8.htA)} 球 · ${pctOf(B8.htA, B8.htA + B8.shA)}`)}
+        ${row("└ 下半场", loading ? "…" : `${fh(A.shA)} 球 · ${pctOf(A.shA, A.htA + A.shA)}`, loading ? "…" : `${fh(B8.shA)} 球 · ${pctOf(B8.shA, B8.htA + B8.shA)}`)}
+        ${row("场均失球", f1(avgA(A)), f1(avgA(B8)))}
       </tbody>
     </table>
-    <div class="deep-foot">上下半场按半场比分拆分；缺少半场数据的比赛不计入上下半场均值。</div>`;
+    <div class="deep-foot">上下半场按半场比分拆分，仅统计有半场数据的比赛；百分比为上半场 / 下半场占该部分进球（失球）的比例。</div>`;
   el.hidden = false;
 }
 
@@ -6106,7 +6107,11 @@ function renderRecentForm(m){
           <span class="fr-res ${res}">${res === "W" ? "胜" : res === "L" ? "负" : "平"}</span>
           <span class="fr-date">${String(x.date).slice(5, 10).replace("-", "/")}</span>
           <span class="fr-opp"><b class="${home ? "is-us" : ""}">${esc(nameOf(x.home))}</b><i>vs</i><b class="${!home ? "is-us" : ""}">${esc(nameOf(x.away))}</b></span>
-          <span class="fr-score">${x.hs}–${x.as}</span>
+          <span class="fr-score">${x.hs}–${x.as}${(function(){
+            const htm = HT_MAP || {};
+            const ht = htm[String(x.id)] || (FDCO && FDCO[String(x.id)] && FDCO[String(x.id)].ht);
+            return (ht && ht[0] != null && ht[1] != null) ? `<i class="fr-ht">(${ht[0]}–${ht[1]})</i>` : "";
+          })()}</span>
           <span class="fr-lg">${esc(x.league || "")}</span>
         </a>`;
       }).join("") : `<div class="form-empty">${sideLabel}暂无已结束比赛</div>`}
@@ -6122,7 +6127,7 @@ function renderRecentForm(m){
   // 半场比分来自 data/ht.json（轻量懒加载），加载完成后再刷新一次
   if(!HT_MAP){
     loadHT().then(() => {
-      if(String(state.matchId) === String(m.id) && !$("#recent-form").hidden) renderGoalSplit(h, a);
+      if(String(state.matchId) === String(m.id) && !$("#recent-form").hidden) renderRecentForm(m);
     });
   }
 }
