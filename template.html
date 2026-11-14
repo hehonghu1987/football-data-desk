@@ -1147,6 +1147,26 @@ main:focus{outline:none}
 .insight-details>summary::-webkit-details-marker{display:none}
 .insight-details[open]>summary{border-bottom:1px solid var(--line)}
 .insight-details .insight-list{border:0;border-radius:0}
+/* 移动端底部 Tab */
+.m-tabbar{display:none}
+@media(max-width:760px){
+  .m-tabbar{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+    position:fixed;left:0;right:0;bottom:0;z-index:70;
+    background:var(--surface);border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -2px 12px rgba(18,33,26,.06);
+  }
+  .m-tabbar button{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    min-height:52px;border:0;background:none;color:var(--muted);
+    font-size:10.5px;cursor:pointer;padding:6px 0;
+  }
+  .m-tabbar button .ic{font-size:15px;line-height:1}
+  .m-tabbar button.on{color:var(--accent);font-weight:600}
+  body{padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+}
+
 /* 数据覆盖说明 */
 .cov-panel{padding:0;overflow:hidden}
 .cov-table{width:100%;border-collapse:collapse;font-size:12px}
@@ -1374,7 +1394,7 @@ main:focus{outline:none}
   .fix-team.away{grid-area:away;justify-content:flex-end;text-align:right;font-size:14px}
   .fix-pred{grid-area:pred;margin-top:2px}
   .fix-row .pin-btn{margin-left:0}
-  body{padding-bottom:env(safe-area-inset-bottom)}
+  body{padding-bottom:calc(56px + env(safe-area-inset-bottom))}
   .section{margin-top:24px}
   .section-title{font-size:21px}
   .deep-card{padding:14px 14px}
@@ -1857,6 +1877,13 @@ main:focus{outline:none}
   </section>
 
 </main>
+
+<nav class="m-tabbar" id="m-tabbar" aria-label="移动端导航">
+  <button type="button" data-go="home" class="on"><span class="ic">⚽</span>赛程</button>
+  <button type="button" data-go="pinned"><span class="ic">★</span>置顶</button>
+  <button type="button" data-go="data"><span class="ic">📊</span>数据</button>
+  <button type="button" data-go="about"><span class="ic">ℹ</span>说明</button>
+</nav>
 
 <footer class="footer">
   <div class="row">
@@ -4075,6 +4102,29 @@ $("#team-view").addEventListener("click", e => {
   if(e.target.closest("#roster-retry")){
     ROSTER_CACHE.delete(String(state.id)); ROSTER_PENDING.delete(String(state.id));
     renderTeamSquad(state.id);
+  }
+});
+
+$("#m-tabbar")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-go]");
+  if(!b) return;
+  const go = b.dataset.go;
+  $("#m-tabbar").querySelectorAll("[data-go]").forEach(x => x.classList.toggle("on", x === b));
+  const jump = (sel) => {
+    const el = document.querySelector(sel);
+    if(el && !el.hidden){ el.scrollIntoView({behavior: "smooth", block: "start"}); return true; }
+    return false;
+  };
+  if(go === "home"){
+    location.hash = "#/";
+    window.scrollTo({top: 0, behavior: "smooth"});
+  } else {
+    location.hash = "#/";
+    setTimeout(() => {
+      if(go === "pinned"){ if(!jump("#pinned-sec")) jump("#conf-sec"); }
+      else if(go === "data"){ if(!jump("#standings-sec")) jump("#conf-sec"); }
+      else jump("#coverage-sec");
+    }, 150);
   }
 });
 
