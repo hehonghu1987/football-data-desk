@@ -1179,6 +1179,15 @@ main:focus{outline:none}
 .cov-note{padding:12px 14px;font-size:11px;color:var(--muted);line-height:1.7;border-top:1px solid var(--line);background:var(--surface-2)}
 @media(max-width:760px){.cov-table{font-size:11px}.cov-table th,.cov-table td{padding:8px 10px}.cov-table td:first-child{white-space:normal}}
 
+/* 近期进球/失球分布 */
+.goal-split{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.goal-split-h{font-size:13px;font-weight:600;margin-bottom:8px}
+.goal-table td:first-child,.goal-table th:first-child{text-align:left;color:var(--muted)}
+.goal-table th,.goal-table td{padding:5px 8px}
+.goal-table td{font-family:var(--font-mono)}
+.goal-table td:first-child{font-family:inherit}
+@media(max-width:640px){.goal-split{padding:12px 14px}}
+
 /* 双方近期战绩 */
 .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .form-col{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -1842,6 +1851,7 @@ main:focus{outline:none}
         </div>
         <span class="table-note" id="form-count"></span>
       </div>
+      <div class="goal-split" id="goal-split" hidden></div>
       <div class="form-grid" id="form-panel"></div>
     </section>
 
@@ -5995,6 +6005,61 @@ function fdcoCard(fd, m){
 }
 
 /* 比赛页的双方历史交锋，支持按主客场筛选（以本场主队为参照） */
+function teamGoalSplit(tid, side, n){
+  const id = String(tid);
+  let ms = (DATA.matches || []).filter(x => x.hs != null && x.as != null && x.date
+    && (String(x.home) === id || String(x.away) === id));
+  if(side === "home") ms = ms.filter(x => String(x.home) === id);
+  else if(side === "away") ms = ms.filter(x => String(x.away) === id);
+  ms.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  ms = ms.slice(0, n || 10);
+  const st = { n: ms.length, ftF: 0, ftA: 0, htN: 0, htF: 0, htA: 0, shF: 0, shA: 0 };
+  for(const x of ms){
+    const home = String(x.home) === id;
+    const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
+    st.ftF += gf; st.ftA += ga;
+    const rec = FDCO ? FDCO[String(x.id)] : null;
+    const ht = rec && rec.ht;
+    if(ht && ht[0] != null && ht[1] != null){
+      const hf = home ? ht[0] : ht[1], ha = home ? ht[1] : ht[0];
+      st.htF += hf; st.htA += ha;
+      st.shF += gf - hf; st.shA += ga - ha;
+      st.htN++;
+    }
+  }
+  return st;
+}
+
+function renderGoalSplit(h, a){
+  const el = $("#goal-split");
+  if(!el) return;
+  const side = state.formSide || "all";
+  const sideTxt = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
+  const A = teamGoalSplit(h.id, side, 10), B = teamGoalSplit(a.id, side, 10);
+  const f1 = v => (v == null || !isFinite(v)) ? "—" : v.toFixed(1);
+  const row = (label, av, bv) => `<tr><td>${label}</td><td>${av}</td><td>${bv}</td></tr>`;
+  const avgF = st => st.n ? st.ftF / st.n : null;
+  const avgA = st => st.n ? st.ftA / st.n : null;
+  const hF = st => st.htN ? st.htF / st.htN : null;
+  const hA = st => st.htN ? st.htA / st.htN : null;
+  const sF = st => st.htN ? st.shF / st.htN : null;
+  const sA = st => st.htN ? st.shA / st.htN : null;
+  el.innerHTML = `<div class="goal-split-h">近期进球 / 失球分布（${sideTxt} · 各取最近 10 场）</div>
+    <table class="deep-table goal-table">
+      <thead><tr><th>指标</th><th>${esc(h.cn || h.name)}</th><th>${esc(a.cn || a.name)}</th></tr></thead>
+      <tbody>
+        ${row("场均进球", f1(avgF(A)), f1(avgF(B)))}
+        ${row("└ 上半场", f1(hF(A)), f1(hF(B)))}
+        ${row("└ 下半场", f1(sF(A)), f1(sF(B)))}
+        ${row("场均失球", f1(avgA(A)), f1(avgA(B)))}
+        ${row("└ 上半场", f1(hA(A)), f1(hA(B)))}
+        ${row("└ 下半场", f1(sA(A)), f1(sA(B)))}
+      </tbody>
+    </table>
+    <div class="deep-foot">上下半场按半场比分拆分；缺少半场数据的比赛不计入上下半场均值。</div>`;
+  el.hidden = false;
+}
+
 function renderRecentForm(m){
   const sec = $("#recent-form"), panel = $("#form-panel");
   if(!sec || !panel) return;
@@ -6041,6 +6106,13 @@ function renderRecentForm(m){
   $("#form-note").textContent = side === "all" ? "最近 8 场已结束比赛 · 点行进入比赛页" : `只看${sideLabel}场次 · 点行进入比赛页`;
   panel.innerHTML = col(h, rowsOf(h.id)) + col(a, rowsOf(a.id));
   sec.hidden = false;
+  renderGoalSplit(h, a);
+  // 半场比分来自 data/fdco.json（懒加载），加载完成后再刷新一次
+  if(!FDCO){
+    loadFdco().then(() => {
+      if(String(state.matchId) === String(m.id) && !$("#recent-form").hidden) renderGoalSplit(h, a);
+    });
+  }
 }
 
 function renderMatchH2H(h, a, m){
