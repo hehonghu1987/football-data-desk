@@ -1129,7 +1129,30 @@ main:focus{outline:none}
 }
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
-/* 官方让球盘 */
+/* 智能分析结论卡 */
+.verdict-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:2px 0 10px}
+.v-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.v-k{font-size:10.5px;color:var(--muted);letter-spacing:.04em}
+.v-v{font-size:16px;font-weight:600;margin-top:2px;line-height:1.35}
+.v-s{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5}
+.insight-details{margin-top:8px;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.insight-details>summary{cursor:pointer;list-style:none;padding:11px 14px;font-size:12.5px;color:var(--accent);font-weight:600}
+.insight-details>summary::-webkit-details-marker{display:none}
+.insight-details[open]>summary{border-bottom:1px solid var(--line)}
+.insight-details .insight-list{border:0;border-radius:0}
+/* 深度分析折叠细节 */
+.deep-details{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.deep-details>summary{cursor:pointer;list-style:none;padding:11px 14px;font-size:12.5px;color:var(--accent);font-weight:600}
+.deep-details>summary::-webkit-details-marker{display:none}
+.deep-details[open]>summary{border-bottom:1px solid var(--line)}
+.deep-details .deep-grid{padding:14px}
+@media(max-width:760px){.deep-details .deep-grid{padding:10px}}
+/* 深度分析核心结论 */
+.deep-sum-card{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.deep-sum-main{font-size:14px;font-weight:600;line-height:1.6;margin-top:4px}
+.deep-sum-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.deep-sum-chips .deep-tag{font-size:11px;padding:3px 9px;margin:0}
+@media(max-width:640px){.verdict-grid{grid-template-columns:1fr}.verdict-grid .v-card{padding:10px 12px}}
 .oa-panel{margin-top:12px;padding:0}
 .oa-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;background:var(--surface-2)}
 .oa-head span{font-size:11px;color:var(--muted);font-weight:400}
@@ -1641,9 +1664,13 @@ main:focus{outline:none}
         <h2 class="section-title">智能分析</h2>
         <span class="section-note">基于本站数据与模型自动生成</span>
       </div>
+      <div class="verdict-grid" id="insight-verdict"></div>
       <div class="insight-lead" id="insight-lead"></div>
-      <ul class="insight-list" id="insight-list"></ul>
-      <div id="insight-more" hidden></div>
+      <details class="insight-details">
+        <summary>展开详细分析</summary>
+        <ul class="insight-list" id="insight-list"></ul>
+        <div id="insight-more" hidden></div>
+      </details>
       <div class="insight-note">分析由数据规则自动生成，不含主观判断；样本不足或跨联赛时结论可靠性下降。</div>
     </section>
 
@@ -1652,6 +1679,7 @@ main:focus{outline:none}
         <h2 class="section-title">深度分析</h2>
         <span class="section-note">战术风格 · 人员配置 · 机构数值方向</span>
       </div>
+      <div id="deep-summary"></div>
       <div class="deep-grid" id="deep-panel"></div>
       <div class="insight-note">深度分析由球队近期比赛数据、参考阵容与多机构/竞彩盘口自动生成，仅供研究参考，不构成投注建议。</div>
     </section>
@@ -5191,6 +5219,50 @@ function renderInsight(m){
 
   $("#insight-lead").textContent = lead;
 
+  // 结论卡：把「胜负 / 进球 / 让球」三个最关键结论提到最上面
+  try {
+    const vg = $("#insight-verdict");
+    if(vg){
+      const vcards = [];
+      const fbp = upcoming && model ? (ip ? blendProbs(model, ip, 0.7) : [model.ph, model.pd, model.pa]) : null;
+      if(fbp && fbp.every(x => x != null)){
+        const names = ["主胜", "平", "客胜"];
+        const maxi = [0, 1, 2].reduce((bi, i) => fbp[i] > fbp[bi] ? i : bi, 0);
+        const diff = fbp[0] - fbp[2];
+        const label = diff > 0.08 ? `${hn}胜` : (diff < -0.08 ? `${an}胜` : "势均力敌");
+        const sub = ip ? `模型 ${pct(fbp[maxi])} · 市场 ${pct(ip[maxi])}` : `模型 ${pct(fbp[maxi])}`;
+        vcards.push(`<div class="v-card"><div class="v-k">胜负倾向</div><div class="v-v">${esc(label)}</div><div class="v-s">${esc(sub)}</div></div>`);
+      }
+      if(upcoming && m.pred && m.pred.o25 != null){
+        const over = m.pred.o25 >= 0.5;
+        let sub = `模型 ${pct(over ? m.pred.o25 : 1 - m.pred.o25)}`;
+        const ouc = (m.books && m.books.length) ? consensusLine(m, "ou") : null;
+        if(ouc && Math.abs(Number(ouc.line) - 2.5) < 0.01){
+          const pm = _devig2(ouc.over, ouc.under);
+          if(pm != null) sub += ` · 市场 ${pct(over ? pm : 1 - pm)}`;
+        }
+        vcards.push(`<div class="v-card"><div class="v-k">进球倾向</div><div class="v-v">${over ? "大" : "小"} 2.5 球</div><div class="v-s">${esc(sub)}</div></div>`);
+      }
+      let ahMain = "暂无亚盘", ahSub = "";
+      const ahc = (m.books && m.books.length) ? consensusLine(m, "ah") : null;
+      if(ahc && m.pred && m.pred.ah){
+        const key = _closestKey(m.pred.ah, ahc.line);
+        const pm = _devig2(ahc.h, ahc.a);
+        if(key != null && pm != null){
+          const pmod = Number(m.pred.ah[key]);
+          const d = pmod - pm;
+          ahMain = Math.abs(d) >= 0.03 ? (d > 0 ? "主队让球方占优" : "客队受让方占优") : "盘口分歧不大";
+          ahSub = `模型 ${pct(pmod)} · 市场 ${pct(pm)}`;
+        }
+      } else if(m.sp && m.sp.hhad && m.sp.hhad.line != null){
+        ahMain = "参考竞彩让球";
+        ahSub = `${m.sp.hhad.line > 0 ? "主受让" : "主让"} ${Math.abs(m.sp.hhad.line)} 球`;
+      }
+      vcards.push(`<div class="v-card"><div class="v-k">让球倾向</div><div class="v-v">${esc(ahMain)}</div><div class="v-s">${esc(ahSub || "竞彩/北单未开让球")}</div></div>`);
+      vg.innerHTML = vcards.join("");
+    }
+  } catch(e){ /* ignore */ }
+
   // 合并同类项：只保留几张重点卡，其余收进「更多分析」，避免卡片过多
   const byKey = new Map();
   for(const b of bullets) byKey.set(b.k, b.t);
@@ -5564,7 +5636,8 @@ function renderDeep(m){
     }
   }
   const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}${m.bj ? `<span class="deep-tag">北单 ${esc(m.bj.num || "")}</span>` : ""}`;
-  marketHtml = `<div class="deep-dir">${dirs.map(x => `<div class="d"><div class="k">${esc(x.k)}</div><div class="v">${esc(x.v)}</div></div>`).join("")}</div>${srcTags ? `<p style="margin-top:10px">${srcTags}</p>` : ""}` + marketHtml;
+  // 方向标签已在顶部「核心结论」展示，这里不再重复，只保留明细
+  marketHtml = `${srcTags ? `<p style="margin-bottom:8px">${srcTags}</p>` : ""}` + marketHtml;
   cards.push(`<div class="deep-card wide"><h3><span class="dotm"></span>机构数值与方向判断</h3>${marketHtml}
     <p>「差」为模型概率减市场去水概率；正值表示模型认为市场低估了该结果。模型整体弱于收盘线，方向仅供参考。</p></div>`);
 
@@ -5577,8 +5650,31 @@ function renderDeep(m){
     }
   }
 
+  // 顶部「核心结论」：把最关键的三条方向提到最上面
+  try {
+    const sumV = k => { const d = dirs.find(x => x.k === k); return d ? d.v : ""; };
+    const sumEl = $("#deep-summary");
+    if(sumEl){
+      const tacLine = `${hn} ${styleH}，${an} ${styleA}${pd ? `；模型预期进球 ${_f1(pd.xgH)}–${_f1(pd.xgA)}` : ""}`;
+      const chips = [
+        ["胜负", sumV("胜负方向")], ["让球", sumV("让球方向")], ["大小球", sumV("大小球方向")]
+      ].filter(x => x[1]);
+      sumEl.innerHTML = `<div class="deep-sum-card">
+        <div class="v-k">核心结论</div>
+        <div class="deep-sum-main">${esc(tacLine)}</div>
+        ${chips.length ? `<div class="deep-sum-chips">${chips.map(x => `<span class="deep-tag">${esc(x[0])}：${esc(x[1])}</span>`).join("")}</div>` : ""}
+      </div>`;
+    }
+  } catch(e){ /* ignore */ }
+
   sec.hidden = false;
-  panel.innerHTML = cards.join("");
+  // 版式：核心结论(顶部) → 机构方向(直接可见) → 战术/数据/人员(折叠) → 赛后复盘
+  const detailCards = cards.slice(0, 3);   // 战术 / 数据对比 / 人员
+  const marketCard = cards[3] || "";       // 机构数值与方向
+  const postCards = cards.slice(4);        // 赛后复盘（如有）
+  panel.innerHTML = marketCard +
+    (detailCards.length ? `<details class="deep-details"><summary>展开战术、数据与人员细节</summary><div class="deep-grid">${detailCards.join("")}</div></details>` : "") +
+    postCards.join("");
 }
 
 /* ---------- 多机构赛前盘口（football-data.co.uk，按需加载） ---------- */
