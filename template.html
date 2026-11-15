@@ -1167,6 +1167,15 @@ main:focus{outline:none}
   body{padding-bottom:calc(56px + env(safe-area-inset-bottom))}
 }
 
+/* 赔率涨跌颜色 */
+.mv-hint{display:flex;flex-wrap:wrap;gap:14px;padding:8px 12px;font-size:10.5px;color:var(--muted);border-bottom:1px solid var(--line);background:var(--surface-2)}
+.mv-hint .mv-up,.mv-hint .mv-down{font-weight:600}
+.books .mv-up{color:#C0392B;font-weight:600}
+.books .mv-down{color:#1E8449;font-weight:600}
+.books .mv-up i,.books .mv-down i{font-style:normal;font-size:8.5px;margin-left:1px}
+.books .row-open td{background:var(--surface-2)}
+.books .row-open td{color:var(--muted)}
+
 /* 数据覆盖说明 */
 .cov-panel{padding:0;overflow:hidden}
 .cov-table{width:100%;border-collapse:collapse;font-size:12px}
@@ -4963,6 +4972,22 @@ function renderPreMatch(m){
       </div>`);
       const qv = v => (v == null ? "—" : Number(v).toFixed(2));
       const ql = v => (v == null ? "—" : Number(v).toFixed(1));
+      // 涨跌着色：红=涨、绿=降（无变化/无初赔则灰色）
+      const mvCell = (cur, prev, fmt) => {
+        const c = (fmt || qv)(cur), p = (fmt || qv)(prev);
+        if(cur == null || prev == null) return c;
+        const d = Number(cur) - Number(prev);
+        if(!isFinite(d) || Math.abs(d) < 0.005) return c;
+        return `<span class="${d > 0 ? "mv-up" : "mv-down"}" title="${d > 0 ? "涨" : "降"} ${Math.abs(d).toFixed(2)}">${c}<i>${d > 0 ? "▲" : "▼"}</i></span>`;
+      };
+      // 让球线/大小球线：主让加深（数值变小）= 升盘（红↑），变浅 = 降盘（绿↓）
+      const lineCell = (cur, prev, fmt) => {
+        const c = (fmt || ahText)(cur);
+        if(cur == null || prev == null) return c;
+        const d = Number(cur) - Number(prev);
+        if(!isFinite(d) || Math.abs(d) < 1e-9) return c;
+        return `<span class="${d < 0 ? "mv-up" : "mv-down"}" title="${d < 0 ? "升盘" : "降盘"}">${c}<i>${d < 0 ? "▲" : "▼"}</i></span>`;
+      };
       const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
       const byName = new Map(books.map(b => [b.book, b]));
       // 只显示有数据的机构（没有数据的机构不再占行）
@@ -4974,19 +4999,26 @@ function renderPreMatch(m){
         const op = b.open || null;
         const om = (op && op.m) || [null, null, null];
         const oah = (op && op.ah) || {}, oou = (op && op.ou) || {};
-        const mk = (label, mArr, ahObj, ouObj, cls, showName) => `<tr class="${cls}">
+        const mk = (label, mArr, ahObj, ouObj, cls, showName, prev) => {
+          const pm = (prev && prev.m) || [null, null, null];
+          const pah = (prev && prev.ah) || {};
+          const pou = (prev && prev.ou) || {};
+          return `<tr class="${cls}">
           <td class="bk" title="${esc(b.book)}">${showName ? bookLabel(b.book) : ""}</td>
           <td class="mq">${label}</td>
-          <td>${qv(mArr[0])}</td><td>${qv(mArr[1])}</td><td>${qv(mArr[2])}</td>
-          <td>${ahq(ahObj)}</td><td>${qv(ahObj.h)}</td><td>${qv(ahObj.a)}</td>
-          <td>${ql(ouObj.line)}</td><td>${qv(ouObj.over)}</td><td>${qv(ouObj.under)}</td>
+          <td>${mvCell(mArr[0], pm[0])}</td><td>${mvCell(mArr[1], pm[1])}</td><td>${mvCell(mArr[2], pm[2])}</td>
+          <td>${prev ? lineCell(ahObj.line, pah.line) : ahq(ahObj)}</td>
+          <td>${mvCell(ahObj.h, pah.h)}</td><td>${mvCell(ahObj.a, pah.a)}</td>
+          <td>${mvCell(ouObj.line, pou.line, ql)}</td><td>${mvCell(ouObj.over, pou.over)}</td><td>${mvCell(ouObj.under, pou.under)}</td>
         </tr>`;
+        };
         if(op){
-          return mk("初赔", om, oah, oou, "row-open", true) + mk("即时", mm, ahb, oub, "", false);
+          return mk("初赔", om, oah, oou, "row-open", true) + mk("即时", mm, ahb, oub, "", false, op);
         }
         return mk("即时", mm, ahb, oub, "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
+        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨</span><span class="mv-down">▼ 绿 = 降</span><span>即时 vs 初赔 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
         <table class="books">
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows}</tbody>
