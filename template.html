@@ -1201,25 +1201,25 @@ main:focus{outline:none}
 .form-chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap}
 .form-chk input{accent-color:var(--accent);width:15px;height:15px}
 .ft-cat{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
-.ft-chip{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
+.ft-chip{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:11px;color:var(--muted);background:none;border:0;border-radius:0;padding:2px 0;cursor:pointer}
 .ft-chip:hover{border-color:var(--accent);color:var(--ink)}
-.ft-chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink);font-weight:600}
+.ft-chip[aria-pressed="true"]{color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent)}
 .ft-chip i{width:8px;height:8px;border-radius:2px;background:var(--c,#6B7B72);display:inline-block;flex:none}
 .ft-stack{display:grid;gap:14px}
-.ft-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.ft-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 14px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.ft-card{background:none;border:0;border-radius:0;overflow:visible;margin-bottom:18px}
+.ft-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 2px;background:none;border-bottom:1px solid var(--line)}
 .ft-logo{width:22px;height:22px;object-fit:contain;flex:none}
 .ft-name{font-size:13.5px;font-weight:700}
 .ft-name a{color:inherit;text-decoration:none}
 .ft-name a:hover{color:var(--accent)}
 .ft-rec{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
-.ft-seq{display:inline-flex;gap:3px;margin-left:2px}
-.ft-dot{width:17px;height:17px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;font-family:var(--font-mono);font-style:normal}
-.ft-dot.W{background:color-mix(in srgb,var(--win) 16%,transparent);color:var(--win)}
-.ft-dot.D{background:color-mix(in srgb,var(--draw) 18%,transparent);color:var(--draw)}
-.ft-dot.L{background:color-mix(in srgb,var(--loss) 15%,transparent);color:var(--loss)}
-.ft-kpis{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
-.ft-kpi{display:inline-flex;align-items:baseline;gap:4px;font-size:10px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.ft-seq{display:inline-flex;gap:5px;margin-left:2px}
+.ft-dot{width:auto;height:auto;border-radius:0;display:inline-block;font-size:10px;font-weight:600;font-family:var(--font-body);font-style:normal}
+.ft-dot.W{background:none;color:var(--win)}
+.ft-dot.D{background:none;color:var(--draw)}
+.ft-dot.L{background:none;color:var(--loss)}
+.ft-kpis{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap}
+.ft-kpi{display:inline-flex;align-items:baseline;gap:4px;font-size:10.5px;color:var(--muted);background:none;border:0;border-radius:0;padding:0;white-space:nowrap}
 .ft-kpi b{font-family:var(--font-mono);font-size:11px;color:var(--ink);font-weight:600}
 .ft-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.ft-tbl{width:100%;max-width:1184px;min-width:1172px;margin:0 auto;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
@@ -1253,7 +1253,7 @@ table.ft-tbl col.ftc-parity{width:40px}
 .ft-tbl tbody tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .ft-tbl tbody tr:last-child td{border-bottom:0}
 td.ft-type{padding:0;border-right:1px solid var(--line)}
-td.ft-type span{display:block;padding:4px 3px;background:var(--c,#6B7B72);color:#fff;font-family:var(--font-body);font-size:10px;font-weight:600;text-align:center;letter-spacing:.01em}
+td.ft-type span{display:block;padding:3px 2px;background:none;color:var(--c,#6B7B72);font-family:var(--font-body);font-size:10px;font-weight:600;text-align:center;letter-spacing:.01em}
 td.team{font-family:var(--font-body);font-size:11.5px;max-width:132px;overflow:hidden;text-overflow:ellipsis;text-align:right}
 td.team.aw{text-align:left}
 td.team b{font-weight:500;color:var(--ink-2)}
@@ -1270,7 +1270,7 @@ td.strong{color:var(--ink);font-weight:600}
 td.ou-v{color:var(--ink-2);font-weight:600}
 td.mut,.mut{color:var(--muted)}
 td.gsep{border-left:1px solid var(--line)}
-.ft-foot{display:flex;flex-wrap:wrap;gap:4px 16px;padding:7px 14px;background:var(--surface-2);border-top:1px solid var(--line);font-size:10.5px;color:var(--muted)}
+.ft-foot{display:flex;flex-wrap:wrap;gap:4px 16px;padding:7px 2px;background:none;border-top:1px dashed var(--line);font-size:10.5px;color:var(--muted)}
 .ft-foot b{font-family:var(--font-mono);color:var(--ink);font-weight:600}
 .ft-empty{padding:20px 16px;text-align:center;color:var(--muted);font-size:12px;font-family:var(--font-body)}
 @media(max-width:760px){
@@ -6306,7 +6306,7 @@ const FT_COLDEF = {
   type:   { label: "类型", cls: "th-c" },
   date:   { label: "日期" },
   home:   { label: "主队" },
-  score:  { label: "比分(半)" },
+  score:  { label: "比分" },
   corner: { label: "角球" },
   away:   { label: "客队", cls: "th-l" },
   ahLine: { label: "盘口", group: "亚盘" },
@@ -6346,7 +6346,7 @@ function ftHeadHtml(order){
 function ftTrHtml(r, plan){
   const x = r.x;
   const fam = ftFamily(x.league);
-  const htTxt = r.ht ? `<i>(${r.ht[0]}-${r.ht[1]})</i>` : "";
+  const htTxt = r.ht ? `<i>(半 ${r.ht[0]}-${r.ht[1]})</i>` : "";
   const hasCorner = r.sh && r.sa && r.sh.corners != null && r.sa.corners != null;
   const cell = (cls, html) => `<td${cls ? ` class="${cls}"` : ""}>${html}</td>`;
   const resCls = r.res === "W" ? "res-w" : (r.res === "L" ? "res-l" : "res-d");
@@ -6485,7 +6485,7 @@ function renderRecentForm(m){
   const plan = ftColumnPlan(rowsH.concat(rowsA));
   panel.innerHTML = ftCardHtml(h, rowsH, plan, sideLabel) + ftCardHtml(a, rowsA, plan, sideLabel);
   const note = $("#form-note");
-  if(note) note.textContent = `近 ${nLimit} 场 · ${sideLabel}${sameLeague ? " · 同赛事" : ""} · 盘口按本队视角 · 点行进入比赛页`;
+  if(note) note.textContent = `近 ${nLimit} 场 · ${sideLabel}${sameLeague ? " · 同赛事" : ""} · 比分=全场（括号为半场） · 点行进入比赛页`;
   const count = $("#form-count");
   if(count) count.textContent = `主队 ${rowsH.length} 场 / 客队 ${rowsA.length} 场${cat !== "all" ? " · " + FT_FAMILY_LABEL[cat] : ""}`;
   sec.hidden = false;
