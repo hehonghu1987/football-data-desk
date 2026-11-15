@@ -5018,7 +5018,7 @@ function renderPreMatch(m){
         return mk("即时", mm, ahb, oub, "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
-        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨</span><span class="mv-down">▼ 绿 = 降</span><span>即时 vs 初赔 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
+        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>即时 vs 初赔 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
         <table class="books">
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows}</tbody>
