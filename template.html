@@ -1188,40 +1188,97 @@ main:focus{outline:none}
 .goal-table td:first-child{font-family:inherit}
 @media(max-width:640px){.goal-split{padding:12px 14px}}
 
-/* 双方近期战绩 */
-.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.form-col{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.form-head{background:var(--surface-2);border-bottom:1px solid var(--line);padding:12px 16px}
-.form-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px;font-weight:600}
-.form-sub{margin-top:5px;font-size:10.5px;color:var(--muted);line-height:1.6}
-.form-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
-.form-tile{display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:10.5px;color:var(--muted)}
-.form-tile b{color:var(--ink);font-family:var(--font-mono);font-weight:600}
+/* 双方近期战绩 · 密集对比表：赛事色带 + 分组两行表头 + 汇总条 */
 .form-chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap}
 .form-chk input{accent-color:var(--accent);width:15px;height:15px}
-.form-h a{color:inherit;text-decoration:none}
-.form-h a:hover{color:var(--accent)}
-.form-h span{font-size:11px;color:var(--muted);font-weight:400}
-.form-row{display:block;padding:9px 16px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none;font-size:12px}
-.fr-main{display:grid;grid-template-columns:34px 52px minmax(0,1fr) auto 64px;gap:8px;align-items:center;font-size:12px}
-.fr-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;font-size:10.5px;color:var(--muted)}
-.fr-meta em{font-style:normal}
-.form-row:last-child{border-bottom:0}
-.form-row:hover{background:var(--surface-2)}
-.fr-res{display:inline-flex;align-items:center;justify-content:center;width:24px;height:20px;border-radius:6px;font-size:10.5px;font-weight:700}
-.fr-res.W{background:color-mix(in srgb,var(--win) 16%,transparent);color:var(--win)}
-.fr-res.D{background:color-mix(in srgb,var(--draw) 16%,transparent);color:var(--draw)}
-.fr-res.L{background:color-mix(in srgb,var(--loss) 14%,transparent);color:var(--loss)}
-.fr-date{color:var(--muted);font-family:var(--font-mono);font-size:11px}
-.fr-opp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:4px}
-.fr-opp b{font-weight:500;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fr-opp b.is-us{color:var(--ink);font-weight:700}
-.fr-opp i{color:var(--muted);font-style:normal;font-size:10px;flex:none}
-.fr-score{font-family:var(--font-mono);font-weight:600;text-align:right;white-space:nowrap}
-.fr-score .fr-ht{font-style:normal;color:var(--muted);font-size:10.5px;margin-left:4px;font-weight:400}
-.fr-lg{color:var(--muted);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.form-empty{padding:22px 16px;text-align:center;color:var(--muted);font-size:12px}
-@media(max-width:760px){.form-grid{grid-template-columns:1fr}.fr-main{grid-template-columns:30px 46px minmax(0,1fr) auto;gap:7px}.form-row{padding:9px 12px}.fr-lg{display:none}}
+.ft-cat{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.ft-chip{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
+.ft-chip:hover{border-color:var(--accent);color:var(--ink)}
+.ft-chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink);font-weight:600}
+.ft-chip i{width:8px;height:8px;border-radius:2px;background:var(--c,#6B7B72);display:inline-block;flex:none}
+.ft-stack{display:grid;gap:14px}
+.ft-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ft-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 14px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.ft-logo{width:22px;height:22px;object-fit:contain;flex:none}
+.ft-name{font-size:13.5px;font-weight:700}
+.ft-name a{color:inherit;text-decoration:none}
+.ft-name a:hover{color:var(--accent)}
+.ft-rec{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.ft-seq{display:inline-flex;gap:3px;margin-left:2px}
+.ft-dot{width:17px;height:17px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;font-family:var(--font-mono);font-style:normal}
+.ft-dot.W{background:color-mix(in srgb,var(--win) 16%,transparent);color:var(--win)}
+.ft-dot.D{background:color-mix(in srgb,var(--draw) 18%,transparent);color:var(--draw)}
+.ft-dot.L{background:color-mix(in srgb,var(--loss) 15%,transparent);color:var(--loss)}
+.ft-kpis{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.ft-kpi{display:inline-flex;align-items:baseline;gap:4px;font-size:10px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.ft-kpi b{font-family:var(--font-mono);font-size:11px;color:var(--ink);font-weight:600}
+.ft-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.ft-tbl{width:100%;max-width:1184px;min-width:1172px;margin:0 auto;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
+
+table.ft-tbl col.ftc-type{width:64px}
+table.ft-tbl col.ftc-date{width:74px}
+table.ft-tbl col.ftc-home{width:90px}
+table.ft-tbl col.ftc-away{width:90px}
+table.ft-tbl col.ftc-score{width:92px}
+table.ft-tbl col.ftc-corner{width:58px}
+table.ft-tbl col.ftc-ahLine,table.ft-tbl col.ftc-ouLine{width:58px}
+table.ft-tbl col.ftc-ahRes,table.ft-tbl col.ftc-ouRes{width:48px}
+table.ft-tbl col.ftc-mH,table.ft-tbl col.ftc-mD,table.ft-tbl col.ftc-mA{width:48px}
+table.ft-tbl col.ftc-shots{width:54px}
+table.ft-tbl col.ftc-sot{width:50px}
+table.ft-tbl col.ftc-poss{width:60px}
+table.ft-tbl col.ftc-fouls{width:50px}
+table.ft-tbl col.ftc-yellow{width:46px}
+table.ft-tbl col.ftc-res{width:48px}
+table.ft-tbl col.ftc-parity{width:40px}
+
+.ft-tbl thead th.th-l{text-align:left}
+.ft-tbl thead th.th-c{text-align:center}
+.ft-tbl thead th{background:var(--surface-2);color:var(--muted);font-size:10px;font-weight:500;text-align:right;padding:5px 7px;border-bottom:1px solid var(--line);white-space:nowrap}
+.ft-tbl thead th.grp{text-align:center;color:var(--ink-2);font-size:9.5px;letter-spacing:.08em;background:color-mix(in srgb,var(--accent) 7%,var(--surface-2));border-left:1px solid var(--line)}
+.ft-tbl thead tr.sub th{padding:3px 7px;font-size:9.5px;color:var(--muted);font-weight:400;border-top:1px solid var(--surface-3);border-bottom:1px solid var(--line)}
+.ft-tbl tbody td{padding:4px 7px;text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums;border-bottom:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+.ft-tbl tbody tr{cursor:pointer}
+.ft-tbl tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--surface-2) 78%,transparent)}
+.ft-tbl tbody tr:hover td{background:var(--accent-soft)}
+.ft-tbl tbody tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ft-tbl tbody tr:last-child td{border-bottom:0}
+td.ft-type{padding:0;border-right:1px solid var(--line)}
+td.ft-type span{display:block;padding:4px 3px;background:var(--c,#6B7B72);color:#fff;font-family:var(--font-body);font-size:10px;font-weight:600;text-align:center;letter-spacing:.01em}
+td.team{font-family:var(--font-body);font-size:11.5px;max-width:132px;overflow:hidden;text-overflow:ellipsis;text-align:right}
+td.team.aw{text-align:left}
+td.team b{font-weight:500;color:var(--ink-2)}
+td.team b.us{color:var(--accent);font-weight:700}
+td.ft-date{color:var(--muted)}
+td.score a{color:var(--ink);font-weight:700;text-decoration:none}
+td.score a:hover{color:var(--accent)}
+td.score b{color:var(--ink);font-weight:700}
+td.score i{font-style:normal;color:var(--muted);font-size:10px;font-weight:400;margin-left:2px}
+td.res-w{color:var(--win);font-weight:600}
+td.res-l{color:var(--loss);font-weight:600}
+td.res-d{color:var(--draw);font-weight:600}
+td.strong{color:var(--ink);font-weight:600}
+td.ou-v{color:var(--ink-2);font-weight:600}
+td.mut,.mut{color:var(--muted)}
+td.gsep{border-left:1px solid var(--line)}
+.ft-foot{display:flex;flex-wrap:wrap;gap:4px 16px;padding:7px 14px;background:var(--surface-2);border-top:1px solid var(--line);font-size:10.5px;color:var(--muted)}
+.ft-foot b{font-family:var(--font-mono);color:var(--ink);font-weight:600}
+.ft-empty{padding:20px 16px;text-align:center;color:var(--muted);font-size:12px;font-family:var(--font-body)}
+@media(max-width:760px){
+  table.ft-tbl{width:auto;min-width:0}
+  table.ft-tbl col.ftc-type{width:44px}
+  table.ft-tbl col.ftc-date{width:62px}
+  table.ft-tbl col.ftc-home{width:78px}
+  table.ft-tbl col.ftc-away{width:78px}
+  table.ft-tbl col.ftc-score{width:80px}
+  table.ft-tbl col.ftc-corner{width:52px}
+  td.score i{display:none}
+  .ft-top{padding:8px 10px;gap:7px}
+  .ft-kpis{margin-left:0;width:100%}
+  .ft-foot{padding:7px 10px;gap:4px 12px}
+  table.ft-tbl{font-size:11px}
+  .ft-tbl thead th,.ft-tbl tbody td{padding:5px 5px}
+}
 
 /* 深度分析：均衡排版 */
 .deep-stack{display:grid;gap:14px;padding:14px}
@@ -1789,87 +1846,15 @@ main:focus{outline:none}
     <div class="match-tools"><button class="chip-btn" id="export-match" type="button">导出图片</button></div>
     <div id="match-hero"></div>
     <nav class="match-nav" id="match-nav" aria-label="页内导航">
+      <button type="button" data-nav="match-h2h">历史交锋</button>
+      <button type="button" data-nav="recent-form">近期战绩</button>
       <button type="button" data-nav="insight">分析</button>
-      <button type="button" data-nav="deep-sec">深度分析</button>
       <button type="button" data-nav="pre-match">赛前数据</button>
       <button type="button" data-nav="match-timeline">比赛事件</button>
       <button type="button" data-nav="match-books">多机构盘口</button>
-      <button type="button" data-nav="match-h2h">历史交锋</button>
-      <button type="button" data-nav="recent-form">近期战绩</button>
       <button type="button" data-nav="match-squads">双方阵容</button>
     </nav>
     <div id="match-compare"></div>
-    <div id="match-timeline" hidden></div>
-    <div id="match-books"></div>
-
-    <section class="section insight" id="insight" hidden>
-      <div class="section-head">
-        <h2 class="section-title">智能分析</h2>
-        <span class="section-note">基于本站数据与模型自动生成</span>
-      </div>
-      <div class="verdict-grid" id="insight-verdict"></div>
-      <div class="insight-lead" id="insight-lead"></div>
-      <details class="insight-details">
-        <summary>展开详细分析</summary>
-        <ul class="insight-list" id="insight-list"></ul>
-        <div id="insight-more" hidden></div>
-      </details>
-      <div class="insight-note">分析由数据规则自动生成，不含主观判断；样本不足或跨联赛时结论可靠性下降。</div>
-    </section>
-
-    <section class="section" id="deep-sec" hidden>
-      <div class="section-head">
-        <h2 class="section-title">深度分析</h2>
-        <span class="section-note">战术风格 · 人员配置 · 机构数值方向</span>
-      </div>
-      <div id="deep-summary"></div>
-      <div class="deep-panel" id="deep-panel"></div>
-      <div class="insight-note">深度分析由球队近期比赛数据、参考阵容与多机构/竞彩盘口自动生成，仅供研究参考，不构成投注建议。</div>
-    </section>
-
-    <section class="section pre-match" id="pre-match" hidden>
-      <div class="section-head">
-        <h2 class="section-title">赛前数据</h2>
-        <span class="section-note" id="pre-match-note">—</span>
-      </div>
-
-      <div class="odds-grid" id="odds-grid"></div>
-      <div id="official-ah" hidden></div>
-
-      <div class="pred-card" id="pred-card"></div>
-
-      <div class="mk-block" id="mk-block" hidden></div>
-
-      <h3 class="subhead" id="form-head">近期状态</h3>
-      <div class="form-compare" id="form-compare"></div>
-
-      <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
-      <div class="lineup-compare" id="lineup-compare"></div>
-
-      <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
-    </section>
-
-    <section class="section" id="recent-form" hidden>
-      <div class="section-head">
-        <h2 class="section-title">双方近期战绩</h2>
-        <span class="section-note" id="form-note">最近 8 场已结束比赛 · 点行进入比赛页</span>
-      </div>
-      <div class="filters">
-        <div class="seg" id="form-side" role="group" aria-label="按主客场筛选近期战绩">
-          <button type="button" data-side="all" aria-pressed="true">全部</button>
-          <button type="button" data-side="home" aria-pressed="false">主场</button>
-          <button type="button" data-side="away" aria-pressed="false">客场</button>
-        </div>
-        <select class="st-select" id="form-n" aria-label="近期场次">
-          <option value="8" selected>近 8 场</option>
-          <option value="10">近 10 场</option>
-          <option value="20">近 20 场</option>
-        </select>
-        <label class="form-chk"><input type="checkbox" id="form-same"> 同赛事</label>
-        <span class="table-note" id="form-count"></span>
-      </div>
-      <div class="form-grid" id="form-panel"></div>
-    </section>
 
     <section class="section" id="match-h2h">
       <div class="section-head">
@@ -1910,6 +1895,65 @@ main:focus{outline:none}
       <div class="table-hint">历史交锋取自本站已收录的全部比赛，最多展示最近 10 场；收录不足 10 场时展示全部。点击任意一行可展开犯规、封堵、场地等详细数据。</div>
     </section>
 
+    <section class="section" id="recent-form" hidden>
+      <div class="section-head">
+        <h2 class="section-title">双方近期战绩</h2>
+        <span class="section-note" id="form-note">最近 10 场已结束比赛 · 盘口按本队视角 · 点行进入比赛页</span>
+      </div>
+      <div class="filters">
+        <div class="seg" id="form-side" role="group" aria-label="按主客场筛选近期战绩">
+          <button type="button" data-side="all" aria-pressed="true">全部</button>
+          <button type="button" data-side="home" aria-pressed="false">主场</button>
+          <button type="button" data-side="away" aria-pressed="false">客场</button>
+        </div>
+        <select class="st-select" id="form-n" aria-label="近期场次">
+          <option value="10" selected>近 10 场</option>
+          <option value="20">近 20 场</option>
+          <option value="30">近 30 场</option>
+        </select>
+        <label class="form-chk"><input type="checkbox" id="form-same"> 同赛事</label>
+        <span class="table-note" id="form-count"></span>
+      </div>
+      <div class="ft-cat" id="form-cat"></div>
+      <div class="ft-stack" id="form-panel"></div>
+    </section>
+
+    <section class="section insight" id="insight" hidden>
+      <div class="section-head">
+        <h2 class="section-title">智能分析</h2>
+        <span class="section-note">基于本站数据与模型自动生成</span>
+      </div>
+      <div class="verdict-grid" id="insight-verdict"></div>
+      <div class="insight-lead" id="insight-lead"></div>
+      <details class="insight-details">
+        <summary>展开详细分析</summary>
+        <ul class="insight-list" id="insight-list"></ul>
+        <div id="insight-more" hidden></div>
+      </details>
+      <div class="insight-note">分析由数据规则自动生成，不含主观判断；样本不足或跨联赛时结论可靠性下降。</div>
+    </section>
+
+    <section class="section pre-match" id="pre-match" hidden>
+      <div class="section-head">
+        <h2 class="section-title">赛前数据</h2>
+        <span class="section-note" id="pre-match-note">—</span>
+      </div>
+
+      <div class="odds-grid" id="odds-grid"></div>
+      <div id="official-ah" hidden></div>
+
+      <div class="pred-card" id="pred-card"></div>
+
+      <div class="mk-block" id="mk-block" hidden></div>
+
+      <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
+      <div class="lineup-compare" id="lineup-compare"></div>
+
+      <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+    </section>
+
+    <div id="match-timeline" hidden></div>
+    <div id="match-books"></div>
     <div id="match-squads" hidden></div>
   </section>
 
@@ -2486,8 +2530,9 @@ const state = {
   h2hSide: "all",
   mvSide: "all",
   formSide: "all",
-  formN: 8,
+  formN: 10,
   formSame: false,
+  formCat: "all",
   indexOpen: false,
   teamN: 30,
   h2hComp: "all",
@@ -4153,7 +4198,7 @@ $("#form-side")?.addEventListener("click", e => {
   if(m) renderRecentForm(m);
 });
 $("#form-n")?.addEventListener("change", e => {
-  state.formN = parseInt(e.target.value, 10) || 8;
+  state.formN = parseInt(e.target.value, 10) || 10;
   const m = MATCH_BY_ID.get(String(state.matchId));
   if(m) renderRecentForm(m);
 });
@@ -4161,6 +4206,26 @@ $("#form-same")?.addEventListener("change", e => {
   state.formSame = !!e.target.checked;
   const m = MATCH_BY_ID.get(String(state.matchId));
   if(m) renderRecentForm(m);
+});
+$("#form-cat")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-cat]");
+  if(!b) return;
+  state.formCat = b.dataset.cat;
+  const m = MATCH_BY_ID.get(String(state.matchId));
+  if(m) renderRecentForm(m);
+});
+/* 近期战绩：整行可点（行内有比分链接，键盘/新标签页仍走原生 <a>） */
+$("#form-panel")?.addEventListener("click", e => {
+  if(e.target.closest("a")) return;
+  const tr = e.target.closest("tr[data-href]");
+  if(tr && tr.dataset.href) location.hash = tr.dataset.href;
+});
+$("#form-panel")?.addEventListener("keydown", e => {
+  if(e.key !== "Enter" && e.key !== " ") return;
+  const tr = e.target.closest("tr[data-href]");
+  if(!tr || !tr.dataset.href) return;
+  e.preventDefault();
+  location.hash = tr.dataset.href;
 });
 
 $("#m-tabbar")?.addEventListener("click", e => {
@@ -5117,9 +5182,12 @@ function renderPreMatch(m){
     $("#pred-card").hidden = true;
   }
 
-  $("#form-head").hidden = !isUpcoming;
-  $("#form-compare").hidden = !isUpcoming;
-  if(isUpcoming) $("#form-compare").innerHTML = formBlock(m.home) + formBlock(m.away);
+  const _fh = $("#form-head"), _fc = $("#form-compare");
+  if(_fh) _fh.hidden = !isUpcoming;
+  if(_fc){
+    _fc.hidden = !isUpcoming;
+    if(isUpcoming) _fc.innerHTML = formBlock(m.home) + formBlock(m.away);
+  }
 
   const lu = isUpcoming ? lineupBlock(m.home) + lineupBlock(m.away) : "";
   $("#lineup-compare").innerHTML = lu;
@@ -5685,7 +5753,6 @@ function renderMatch(id){
 
   renderPreMatch(m);
   renderInsight(m);
-  renderDeep(m);
 
   renderRecentForm(m);
   renderMatchH2H(h, a, m);
@@ -5707,7 +5774,7 @@ function renderMatch(id){
   Promise.all([loadLineup(m.home), loadLineup(m.away),
                loadRoster(m.home), loadRoster(m.away)]).then(() => {
     if(String(state.matchId) === String(m.id)){
-      renderPreMatch(m); renderInsight(m); renderDeep(m); renderSquads(m); updateMatchNav();
+      renderPreMatch(m); renderInsight(m); renderSquads(m); updateMatchNav();
     }
   });
   updateMatchNav();
@@ -6093,6 +6160,266 @@ function ahSettle(hs, as, line){
   const sum = outcome(line - 0.25) + outcome(line + 0.25);
   return sum === 2 ? "赢" : (sum === 1 ? "半赢" : (sum === 0 ? "走" : (sum === -1 ? "半输" : "输")));
 }
+/* ---------- 双方近期战绩：密集对比表 ---------- */
+const FT_FAMILY_COLOR = {
+  friendly: "#3E6E9E", nations: "#C2761C", qualifier: "#8A2F45",
+  intl: "#1F6E63", continental: "#4B5AA8", cup: "#7A6A2F",
+  league: "#2F7D5A", other: "#6B7B72"
+};
+const FT_FAMILY_LABEL = {
+  friendly: "友谊赛", nations: "欧国联", qualifier: "预选赛", intl: "国际大赛",
+  continental: "欧战", cup: "杯赛", league: "联赛", other: "其他"
+};
+const FT_LEAGUE_SHORT = {
+  "国际友谊赛": "友谊", "国际友谊": "友谊", "世预赛欧洲区": "世预",
+  "世界杯预选赛": "世预", "欧洲杯预选赛": "欧预", "欧洲杯预选": "欧预",
+  "欧洲国家联赛": "欧国联", "欧冠资格赛": "欧冠资", "欧联杯资格赛": "欧联资",
+  "南美解放者杯": "解放者", "世界杯": "世界杯"
+};
+/* 赛事族：决定行首色带，一眼区分国家队 / 联赛 / 杯赛 */
+function ftFamily(lg){
+  const s = String(lg || "");
+  if(/友谊/.test(s)) return "friendly";
+  if(/欧国联|国家联赛/.test(s)) return "nations";
+  if(/欧冠|欧联|欧会|解放者|世俱|超级杯/.test(s)) return "continental";
+  if(/预选|预赛|资格赛/.test(s)) return "qualifier";
+  if(/世界杯|欧洲杯|亚洲杯|非洲杯|美洲杯/.test(s)) return "intl";
+  if(/杯/.test(s)) return "cup";
+  if(/甲|超|乙|冠|联赛|联盟|职|Liga|League|Serie|Division/i.test(s)) return "league";
+  return "other";
+}
+function ftShortLeague(lg){
+  const s = String(lg || "").trim();
+  if(!s) return "—";
+  if(FT_LEAGUE_SHORT[s]) return FT_LEAGUE_SHORT[s];
+  return s.length > 4 ? s.slice(0, 4) : s;
+}
+function ftTeamName(tid){
+  const t = TEAMS.get(String(tid));
+  return (t && (t.cn || t.name)) || "?";
+}
+function ftLineText(v){
+  if(v == null) return "—";
+  const n = Number(v);
+  if(!isFinite(n)) return "—";
+  if(Math.abs(n) < 1e-9) return "0";
+  return (n > 0 ? "+" : "") + String(Number(n.toFixed(2)));
+}
+function ftAhClass(r){
+  if(!r) return "mut";
+  if(r === "赢" || r === "半赢") return "res-w";
+  if(r === "输" || r === "半输") return "res-l";
+  if(r === "走") return "mut";
+  return "res-d";
+}
+function ftOuClass(r){
+  if(!r || r === "走") return "mut";
+  return "ou-v";
+}
+
+/* 单场折算：比分/半场/角球/盘口结算都按「球队视角」计算 */
+function ftRowOf(tid, x){
+  const id = String(tid);
+  const home = String(x.home) === id;
+  const hs = Number(x.hs), as = Number(x.as);
+  const gf = home ? hs : as, ga = home ? as : hs;
+  const st = x.stats || null;
+  const sh = st && st.home ? st.home : null;
+  const sa = st && st.away ? st.away : null;
+  const htRaw = (HT_MAP && HT_MAP[String(x.id)]) || null;
+  const ht = Array.isArray(htRaw) && htRaw[0] != null && htRaw[1] != null ? htRaw : null;
+  const mk = (MK && MK[String(x.id)]) || {};
+  const ahLine = mk.a == null ? null : Number(mk.a);
+  const teamLine = ahLine == null ? null : (home ? ahLine : -ahLine);
+  const ahRes = ahLine == null ? null : ahSettle(gf, ga, teamLine);
+  const ouLine = mk.o == null ? null : Number(mk.o);
+  const total = hs + as;
+  let ouRes = null;
+  if(ouLine != null){
+    const tv = total - ouLine;
+    ouRes = Math.abs(tv) < 1e-9 ? "走" : (tv > 0 ? "大" : "小");
+  }
+  const pre = x.pre && x.pre.ph != null && x.pre.pd != null && x.pre.pa != null ? x.pre : null;
+  return {
+    x, id: String(x.id), home, gf, ga, total,
+    res: gf > ga ? "W" : (gf < ga ? "L" : "D"),
+    ht, sh, sa, mk, ahLine, teamLine, ahRes, ouLine, ouRes, pre
+  };
+}
+
+/* 列方案：有什么数据就出什么列，避免整列破折号 */
+function ftColumnPlan(rows){
+  const need = Math.min(3, Math.max(1, rows.length));
+  const has = f => rows.filter(f).length >= need;
+  const plan = {
+    ah: has(r => r.ahLine != null),
+    ou: has(r => r.ouLine != null),
+    model: has(r => r.pre),
+    tech: has(r => r.sh)
+  };
+  const order = ["type", "date", "home", "score", "corner", "away"];
+  if(plan.ah) order.push("ahLine", "ahRes");
+  if(plan.ou) order.push("ouLine", "ouRes");
+  if(plan.model) order.push("mH", "mD", "mA");
+  if(plan.tech) order.push("shots", "sot", "poss", "fouls", "yellow");
+  order.push("res", "parity");
+  plan.order = order;
+  return plan;
+}
+
+function ftColgroup(order){
+  return `<colgroup>${order.map(k => `<col class="ftc-${k}">`).join("")}</colgroup>`;
+}
+const FT_COLDEF = {
+  type:   { label: "类型", cls: "th-c" },
+  date:   { label: "日期" },
+  home:   { label: "主队" },
+  score:  { label: "比分(半)" },
+  corner: { label: "角球" },
+  away:   { label: "客队", cls: "th-l" },
+  ahLine: { label: "盘口", group: "亚盘" },
+  ahRes:  { label: "结果", group: "亚盘" },
+  ouLine: { label: "盘口", group: "大小球" },
+  ouRes:  { label: "结果", group: "大小球" },
+  mH:     { label: "主胜", group: "赛前模型" },
+  mD:     { label: "平", group: "赛前模型" },
+  mA:     { label: "客胜", group: "赛前模型" },
+  shots:  { label: "射门", group: "技术" },
+  sot:    { label: "射正", group: "技术" },
+  poss:   { label: "控球", group: "技术" },
+  fouls:  { label: "犯规", group: "技术" },
+  yellow: { label: "黄牌", group: "技术" },
+  res:    { label: "胜负", group: "全场" },
+  parity: { label: "单双", group: "全场" }
+};
+function ftHeadHtml(order){
+  const top = [], sub = [];
+  for(let i = 0; i < order.length; ){
+    const def = FT_COLDEF[order[i]];
+    if(def.group){
+      const cells = [];
+      let j = i;
+      while(j < order.length && FT_COLDEF[order[j]].group === def.group){ cells.push(FT_COLDEF[order[j]].label); j++; }
+      top.push(`<th class="grp" colspan="${cells.length}">${def.group}</th>`);
+      cells.forEach(l => sub.push(`<th>${l}</th>`));
+      i = j;
+    } else {
+      top.push(`<th rowspan="2"${def.cls ? ` class="${def.cls}"` : ""}>${def.label}</th>`);
+      i++;
+    }
+  }
+  return `<thead><tr>${top.join("")}</tr>${sub.length ? `<tr class="sub">${sub.join("")}</tr>` : ""}</thead>`;
+}
+
+function ftTrHtml(r, plan){
+  const x = r.x;
+  const fam = ftFamily(x.league);
+  const htTxt = r.ht ? `<i>(${r.ht[0]}-${r.ht[1]})</i>` : "";
+  const hasCorner = r.sh && r.sa && r.sh.corners != null && r.sa.corners != null;
+  const cell = (cls, html) => `<td${cls ? ` class="${cls}"` : ""}>${html}</td>`;
+  const resCls = r.res === "W" ? "res-w" : (r.res === "L" ? "res-l" : "res-d");
+  let tds = `<td class="ft-type"><span style="--c:${FT_FAMILY_COLOR[fam]}">${esc(ftShortLeague(x.league))}</span></td>`
+    + cell("ft-date", esc(String(x.date).slice(2, 10).replace(/-/g, "/")))
+    + cell("team", `<b class="${r.home ? "us" : ""}">${esc(ftTeamName(x.home))}</b>`)
+    + cell("score", `<a href="#/match/${esc(r.id)}">${x.hs}-${x.as}</a>${htTxt}`)
+    + cell("", hasCorner ? `${r.sh.corners}-${r.sa.corners}` : `<span class="mut">—</span>`)
+    + cell("team aw", `<b class="${r.home ? "" : "us"}">${esc(ftTeamName(x.away))}</b>`);
+  if(plan.ah){
+    tds += cell("gsep" + (r.teamLine == null ? " mut" : ""), ftLineText(r.teamLine));
+    tds += cell(ftAhClass(r.ahRes), r.ahRes || "—");
+  }
+  if(plan.ou){
+    tds += cell("gsep" + (r.ouLine == null ? " mut" : ""), r.ouLine == null ? "—" : String(Number(r.ouLine.toFixed(2))));
+    tds += cell(ftOuClass(r.ouRes), r.ouRes || "—");
+  }
+  if(plan.model){
+    if(!r.pre){
+      tds += cell("gsep mut", "—") + cell("mut", "—") + cell("mut", "—");
+    } else {
+      const vals = [r.pre.ph, r.pre.pd, r.pre.pa];
+      const mx = Math.max(vals[0], vals[1], vals[2]);
+      tds += vals.map((v, i) => cell((i === 0 ? "gsep " : "") + (Math.abs(v - mx) < 1e-9 ? "strong" : "mut"), String(Math.round(v * 100)))).join("");
+    }
+  }
+  if(plan.tech){
+    if(!r.sh || !r.sa){
+      tds += cell("gsep mut", "—") + cell("mut", "—") + cell("mut", "—") + cell("mut", "—") + cell("mut", "—");
+    } else {
+      const ph = r.sh.possession == null ? null : Math.round(r.sh.possession);
+      const pair = (a, b) => (a == null ? `<span class="mut">—</span>` : a) + "-" + (b == null ? `<span class="mut">—</span>` : b);
+      tds += cell("gsep", pair(r.sh.shots, r.sa.shots))
+        + cell("", pair(r.sh.sot, r.sa.sot))
+        + cell("", ph == null ? `<span class="mut">—</span>` : `${ph}-${100 - ph}`)
+        + cell("", pair(r.sh.fouls, r.sa.fouls))
+        + cell("", pair(r.sh.yellow, r.sa.yellow));
+    }
+  }
+  tds += cell("gsep " + resCls, r.res === "W" ? "胜" : (r.res === "L" ? "负" : "平"));
+  tds += cell("", r.total % 2 ? "单" : "双");
+  return `<tr data-href="#/match/${esc(r.id)}" tabindex="0" role="link">${tds}</tr>`;
+}
+
+function ftSummaryOf(rows){
+  let w = 0, d = 0, l = 0, ftF = 0, ftA = 0, htLead = 0, btts = 0, o25 = 0, cor = 0;
+  let ahW = 0, ahN = 0, ouOver = 0, ouN = 0, odd = 0;
+  for(const r of rows){
+    if(r.res === "W") w++; else if(r.res === "L") l++; else d++;
+    ftF += r.gf; ftA += r.ga;
+    if(r.ht){
+      const hf = r.home ? r.ht[0] : r.ht[1], ha = r.home ? r.ht[1] : r.ht[0];
+      if(hf > ha) htLead++;
+    }
+    if(r.gf > 0 && r.ga > 0) btts++;
+    if(r.total > 2.5) o25++;
+    if(r.total % 2) odd++;
+    if(r.sh && r.sa && r.sh.corners != null && r.sa.corners != null && r.sh.corners + r.sa.corners > 10.5) cor++;
+    if(r.ahRes){ ahN++; if(r.ahRes === "赢") ahW += 1; else if(r.ahRes === "半赢") ahW += 0.5; }
+    if(r.ouRes && r.ouRes !== "走"){ ouN++; if(r.ouRes === "大") ouOver++; }
+  }
+  const n = rows.length;
+  return {
+    n, w, d, l, ftF, ftA, htLead, btts, o25, cor,
+    winPct: n ? Math.round(w / n * 100) : 0,
+    ahPct: ahN ? Math.round(ahW / ahN * 100) : null,
+    ouPct: ouN ? Math.round(ouOver / ouN * 100) : null,
+    oddPct: n ? Math.round(odd / n * 100) : null,
+    avgF: n ? (ftF / n).toFixed(1) : "0.0",
+    avgA: n ? (ftA / n).toFixed(1) : "0.0",
+    diff: ftF - ftA
+  };
+}
+
+function ftCardHtml(t, rows, plan, sideLabel){
+  const s = ftSummaryOf(rows);
+  const seq = rows.slice(0, 6).reverse()
+    .map(r => `<i class="ft-dot ${r.res}">${r.res === "W" ? "胜" : r.res === "L" ? "负" : "平"}</i>`).join("");
+  const logo = `<img class="ft-logo" src="logos/${encodeURIComponent(String(t.id))}.png" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'">`;
+  const head = `<div class="ft-top">
+    ${logo}
+    <span class="ft-name"><a href="#/team/${esc(t.id)}">${esc(t.cn || t.name)}</a></span>
+    <span class="ft-rec">${sideLabel} ${rows.length} 场 · ${s.w}胜${s.d}平${s.l}负</span>
+    ${seq ? `<span class="ft-seq">${seq}</span>` : ""}
+    <span class="ft-kpis">
+      <span class="ft-kpi">胜率 <b>${s.winPct}%</b></span>
+      ${s.ahPct != null ? `<span class="ft-kpi">赢盘 <b>${s.ahPct}%</b></span>` : ""}
+      ${s.ouPct != null ? `<span class="ft-kpi">大球 <b>${s.ouPct}%</b></span>` : `<span class="ft-kpi">大2.5 <b>${s.n ? Math.round(s.o25 / s.n * 100) : 0}%</b></span>`}
+      ${s.oddPct != null ? `<span class="ft-kpi">单率 <b>${s.oddPct}%</b></span>` : ""}
+    </span>
+  </div>`;
+  const body = rows.length
+    ? rows.map(r => ftTrHtml(r, plan)).join("")
+    : `<tr><td class="ft-empty" colspan="${plan.order.length}">${sideLabel}暂无已结束比赛</td></tr>`;
+  const htN = rows.filter(r => r.ht).length;
+  const foot = `<div class="ft-foot">
+    <span>场均进 <b>${s.avgF}</b> · 失 <b>${s.avgA}</b></span>
+    <span>净胜球 <b>${s.diff > 0 ? "+" : ""}${s.diff}</b></span>
+    ${htN >= rows.length * 0.5 ? `<span>半场领先 <b>${s.htLead}</b> 场</span>` : ""}
+    <span>两队均进球 <b>${s.btts}</b> 场</span>
+    <span>&gt;10.5 角球 <b>${s.cor}</b> 场</span>
+  </div>`;
+  return `<div class="ft-card">${head}<div class="ft-scroll"><table class="ft-tbl">${ftColgroup(plan.order)}${ftHeadHtml(plan.order)}<tbody>${body}</tbody></table></div>${foot}</div>`;
+}
+
 function renderRecentForm(m){
   const sec = $("#recent-form"), panel = $("#form-panel");
   if(!sec || !panel) return;
@@ -6100,118 +6427,43 @@ function renderRecentForm(m){
   if(!h || !a){ sec.hidden = true; return; }
   const side = state.formSide || "all";
   const sideLabel = side === "all" ? "全部" : (side === "home" ? "主场" : "客场");
-  const nLimit = state.formN || 8;
+  const nLimit = state.formN || 10;
   const sameLeague = !!state.formSame;
-  const rowsOf = (tid) => {
-    const id = String(tid);
-    let ms = (DATA.matches || []).filter(x => x.hs != null && x.as != null && x.date
-      && (String(x.home) === id || String(x.away) === id));
+  const cat = state.formCat || "all";
+  const collect = (t) => {
+    const id = String(t.id);
+    let ms = (BY_TEAM.get(id) || []).filter(x => x.hs != null && x.as != null && x.date);
     if(side === "home") ms = ms.filter(x => String(x.home) === id);
     else if(side === "away") ms = ms.filter(x => String(x.away) === id);
     if(sameLeague && m && m.league) ms = ms.filter(x => x.league === m.league);
-    ms.sort((p, q) => String(q.date).localeCompare(String(p.date)));
-    return ms.slice(0, nLimit);
+    return ms;
   };
-  const nameOf = (tid) => { const t = TEAMS.get(String(tid)); return (t && (t.cn || t.name)) || "?"; };
-  const col = (t, ms) => {
-    const rec = { w: 0, d: 0, l: 0 };
-    let ftF = 0, ftA = 0, htF = 0, htA = 0, htN = 0;
-    let btts = 0, over25 = 0, corOver = 0, leadHT = 0, ahW = 0, ahN = 0, ouN = 0;
-    let shF = 0, shA = 0;
-    for(const x of ms){
-      const home = String(x.home) === String(t.id);
-      const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
-      if(gf > ga) rec.w++; else if(gf < ga) rec.l++; else rec.d++;
-      ftF += gf; ftA += ga;
-      if(gf > 0 && ga > 0) btts++;
-      const htm = HT_MAP || {};
-      const ht = htm[String(x.id)];
-      if(ht && ht[0] != null && ht[1] != null){
-        const hf = home ? ht[0] : ht[1], ha = home ? ht[1] : ht[0];
-        htF += hf; htA += ha; htN++;
-        shF += gf - hf; shA += ga - ha;
-        if(hf > ha) leadHT++;
-      }
-      const stt = x.stats;
-      if(stt && stt.home && stt.away && stt.home.corners != null && stt.away.corners != null){
-        const tot = Number(stt.home.corners) + Number(stt.away.corners);
-        if(tot > 10.5) corOver++;
-      }
-      const mk = (MK && MK[String(x.id)]) || {};
-      if(mk.a != null){
-        const lineForTeam = home ? mk.a : -mk.a;
-        const ar = ahSettle(gf, ga, lineForTeam);
-        if(ar){ ahN++; if(ar === "赢") ahW += 1; else if(ar === "半赢") ahW += 0.5; }
-      }
-      if(mk.o != null){ ouN++; if(gf + ga > mk.o) over25++; }
-    }
-    const n = ms.length || 1;
-    const winPct = Math.round(rec.w / n * 100);
-    const ahPct = ahN ? Math.round(ahW / ahN * 100) : null;
-    const ouPct = ouN ? Math.round(over25 / ouN * 100) : null;
-    const halfTxt = htN ? `（上 ${htF} / 下 ${shF}）` : "";
-    const halfATxt = htN ? `（上 ${htA} / 下 ${shA}）` : "";
-    const tile = (label, val) => `<span class="form-tile"><span>${label}</span><b>${val}</b></span>`;
-    return `<div class="form-col">
-      <div class="form-head">
-        <div class="form-h"><a href="#/team/${esc(t.id)}">${esc(t.cn || t.name)}</a><span>${sideLabel} ${ms.length} 场 · ${rec.w}胜${rec.d}平${rec.l}负</span></div>
-        <div class="form-sub">胜率 ${winPct}%${ahPct != null ? ` · 赢盘率 ${ahPct}%` : ""}${ouPct != null ? ` · 大球率 ${ouPct}%` : ""}</div>
-        <div class="form-sub">进 ${ftF} 球${halfTxt} · 失 ${ftA} 球${halfATxt} · 场均 ${(ftF / n).toFixed(1)} / ${(ftA / n).toFixed(1)}</div>
-        <div class="form-tiles">
-          ${tile("半场领先", `${leadHT} 场`)}
-          ${tile("两队均进球", `${btts} 场`)}
-          ${tile(">2.5 球", `${over25} 场`)}
-          ${tile(">10.5 角球", `${corOver} 场`)}
-        </div>
-      </div>
-      ${ms.length ? ms.map(x => {
-        const home = String(x.home) === String(t.id);
-        const gf = home ? x.hs : x.as, ga = home ? x.as : x.hs;
-        const res = gf > ga ? "W" : (gf < ga ? "L" : "D");
-        const mk = (MK && MK[String(x.id)]) || {};
-        const metaBits = [];
-        const stt = x.stats;
-        if(stt && stt.home && stt.away && stt.home.corners != null && stt.away.corners != null){
-          metaBits.push(`角球 ${stt.home.corners}–${stt.away.corners}`);
-        }
-        if(mk.a != null){
-          const lineForTeam = home ? mk.a : -mk.a;
-          const ar = ahSettle(gf, ga, lineForTeam);
-          if(ar) metaBits.push(`让球 ${lineForTeam > 0 ? "+" : ""}${lineForTeam} ${ar}`);
-        }
-        if(mk.o != null){
-          const total = Number(x.hs) + Number(x.as);
-          metaBits.push(`总进球 ${total} · ${total > mk.o ? "大" : "小"} ${mk.o}`);
-        }
-        return `<a class="form-row" href="#/match/${esc(x.id)}">
-          <span class="fr-main">
-            <span class="fr-res ${res}">${res === "W" ? "胜" : res === "L" ? "负" : "平"}</span>
-            <span class="fr-date">${String(x.date).slice(5, 10).replace("-", "/")}</span>
-            <span class="fr-opp"><b class="${home ? "is-us" : ""}">${esc(nameOf(x.home))}</b><i>vs</i><b class="${!home ? "is-us" : ""}">${esc(nameOf(x.away))}</b></span>
-            <span class="fr-score">${x.hs}–${x.as}${(function(){
-                const htm = HT_MAP || {};
-                const ht = htm[String(x.id)];
-                return (ht && ht[0] != null && ht[1] != null) ? `<i class="fr-ht">(${ht[0]}–${ht[1]})</i>` : "";
-              })()}</span>
-            <span class="fr-lg">${esc(x.league || "")}</span>
-          </span>
-          ${metaBits.length ? `<span class="fr-meta">${metaBits.map(t => `<em>${esc(t)}</em>`).join("")}</span>` : ""}
-        </a>`;
-      }).join("") : `<div class="form-empty">${sideLabel}暂无已结束比赛</div>`}
-    </div>`;
-  };
-  $$("#form-side [data-side]").forEach(b => b.setAttribute("aria-pressed", b.dataset.side === side ? "true" : "false"));
-  const totalH = rowsOf(h.id).length, totalA = rowsOf(a.id).length;
-  $("#form-count").textContent = `${sideLabel}${sameLeague ? " · 同赛事" : ""} · 主队 ${totalH} 场 / 客队 ${totalA} 场（各取最近 ${nLimit} 场）`;
-  $("#form-note").textContent = `最近 ${nLimit} 场已结束比赛${sameLeague ? "（同赛事）" : ""} · 点行进入比赛页`;
-  panel.innerHTML = col(h, rowsOf(h.id)) + col(a, rowsOf(a.id));
+  const allH = collect(h), allA = collect(a);
+  const fams = [...new Set(allH.concat(allA).map(x => ftFamily(x.league)))];
+  const catBox = $("#form-cat");
+  if(catBox){
+    catBox.innerHTML = fams.length > 1 ? [
+      `<button type="button" class="ft-chip" data-cat="all" aria-pressed="${cat === "all"}" style="--c:var(--accent)"><i></i>全部赛事</button>`,
+      ...fams.map(f => `<button type="button" class="ft-chip" data-cat="${f}" aria-pressed="${cat === f}" style="--c:${FT_FAMILY_COLOR[f]}"><i></i>${FT_FAMILY_LABEL[f]}</button>`)
+    ].join("") : "";
+  }
+  const pick = arr => (cat === "all" ? arr : arr.filter(x => ftFamily(x.league) === cat)).slice(0, nLimit);
+  const rowsH = pick(allH).map(x => ftRowOf(h.id, x));
+  const rowsA = pick(allA).map(x => ftRowOf(a.id, x));
+  const plan = ftColumnPlan(rowsH.concat(rowsA));
+  panel.innerHTML = ftCardHtml(h, rowsH, plan, sideLabel) + ftCardHtml(a, rowsA, plan, sideLabel);
+  const note = $("#form-note");
+  if(note) note.textContent = `近 ${nLimit} 场 · ${sideLabel}${sameLeague ? " · 同赛事" : ""} · 盘口按本队视角 · 点行进入比赛页`;
+  const count = $("#form-count");
+  if(count) count.textContent = `主队 ${rowsH.length} 场 / 客队 ${rowsA.length} 场${cat !== "all" ? " · " + FT_FAMILY_LABEL[cat] : ""}`;
   sec.hidden = false;
-  // 半场比分 / 收盘盘口轻量懒加载，加载完成后再刷新一次
+  // 半场比分 / 盘口 / 历史比赛按需补载，加载完成后刷新一次
   const refresh = () => {
     if(String(state.matchId) === String(m.id) && !$("#recent-form").hidden) renderRecentForm(m);
   };
   if(!HT_MAP) loadHT().then(refresh);
   if(!MK) loadMarkets().then(refresh);
+  if(!HISTORY_LOADED) loadHistory().then(refresh);
 }
 
 function renderMatchH2H(h, a, m){
