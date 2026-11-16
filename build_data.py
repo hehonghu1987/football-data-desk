@@ -1319,8 +1319,12 @@ def attach_pinnacle(fixture_rows, teams, log=log):
                 continue
             th = teams_by_id.get(str(f.get("home"))) or {}
             ta = teams_by_id.get(str(f.get("away"))) or {}
-            score = min(_team_sim(hname, th.get("name") or ""), _team_sim(aname, ta.get("name") or ""))
-            if score >= 0.8 and (best is None or score > best[0]):
+            try:
+                import fdco as _fd
+                score = min(_fd._team_sim(hname, th), _fd._team_sim(aname, ta))
+            except Exception:
+                score = min(_team_sim(hname, th.get("name") or ""), _team_sim(aname, ta.get("name") or ""))
+            if score >= 0.72 and (best is None or score > best[0]):
                 best = (score, f)
         if best:
             matched[str(best[1].get("id"))] = (best[1], mu.get("id"), best[0])
