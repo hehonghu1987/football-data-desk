@@ -4167,6 +4167,13 @@ def main():
     except Exception as e:
         log(f"  ⚠ 竞彩官方盘口挂载失败：{str(e)[:80]}")
     try:
+        import fdco as _fdco
+        _up_hit = _fdco.build_upcoming(fixture_rows, team_rows)
+        if _up_hit:
+            log(f"  赛前盘口补充：{_up_hit} 场（football-data fixtures：Bet365 亚盘/大小球 + Pinnacle 欧赔）")
+    except Exception as e:
+        log(f"  ⚠ 赛前盘口补充失败：{str(e)[:80]}")
+    try:
         merge_books_persist(fixture_rows)
     except Exception as e:
         log(f"  ⚠ 机构报价持久化失败：{str(e)[:80]}")

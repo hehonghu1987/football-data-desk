@@ -135,6 +135,14 @@ def _fetch(season, div):
         return path if os.path.exists(path) else None
 
 
+def _snum(v):
+    """允许负数的数值解析（亚盘让球线 AHh 可能为负）。"""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _num(v):
     try:
         f = float(v)
@@ -209,7 +217,7 @@ def _indices(books):
 
 def _compact_side(row, kind):
     if kind == "ah":
-        line = _num(row.get("AHh"))
+        line = _snum(row.get("AHh"))
         h = _num(row.get("B365AHH")); a = _num(row.get("B365AHA"))
         if line is None or not h or not a:
             return None
@@ -236,13 +244,122 @@ def _closing_ou(row):
 
 
 def _closing_ah(row):
-    line = _num(row.get("AHCh"))
+    line = _snum(row.get("AHCh"))
     h = _num(row.get("B365CAHH")); a = _num(row.get("B365CAHA"))
     if line is None or not h or not a:
         return None
     av = [_num(row.get("AvgCAHH")), _num(row.get("AvgCAHA"))]
     return {"line": line, "b365": [round(h, 2), round(a, 2)],
             "avg": [round(x, 2) for x in av] if all(av) else None}
+
+
+FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv"
+
+
+def _fetch_fixtures(log=print):
+    """拉取 football-data 的赛程+赛前赔率（fixtures.csv，含亚盘/大小球列）。"""
+    try:
+        req = urllib.request.Request(FIXTURES_URL, headers={"User-Agent": "Mozilla/5.0"})
+        raw = urllib.request.urlopen(req, timeout=40).read()
+        txt = raw.decode("utf-8-sig", errors="replace")
+        return list(csv.DictReader(io.StringIO(txt)))
+    except Exception as e:
+        log(f"  赛前盘口：fixtures.csv 拉取失败 {str(e)[:70]}")
+        return []
+
+
+def build_upcoming(fixture_rows, teams, log=print):
+    """把 fixtures.csv 的赛前盘口（Bet365 欧赔/亚盘/大小球、Pinnacle 欧赔）挂到未开赛场次。
+
+    CSV 只有部分联赛（football-data 覆盖的英/苏/德/意/西/法/荷/葡/比/土/希），
+    但这些正好是赔率最常缺的联赛；返回补到的场次数。"""
+    rows = _fetch_fixtures(log)
+    if not rows:
+        return 0
+    rev = {v: k for k, v in DIVS.items()}
+    team_iter = teams.values() if isinstance(teams, dict) else (teams or [])
+    teams_by_id = {str(t.get("id")): t for t in team_iter}
+    by = {}
+    for f in fixture_rows:
+        if f.get("hs") is not None or f.get("as") is not None:
+            continue
+        day = (f.get("date") or "")[:10]
+        lg = f.get("league")
+        if day and lg:
+            by.setdefault((lg, day), []).append(f)
+    if not by:
+        return 0
+    from datetime import date as _date, timedelta as _td
+
+    hit = 0
+    for r in rows:
+        div = (r.get("Div") or "").strip()
+        league = rev.get(div)
+        if not league:
+            continue
+        try:
+            dd, mm, yy = (r.get("Date") or "").split("/")
+            y = int(yy)
+            if y < 100:
+                y += 2000
+            base = _date(y, int(mm), int(dd))
+        except (ValueError, TypeError):
+            continue
+        best = None
+        for off in (0, -1, 1):
+            day = (base + _td(days=off)).isoformat()
+            for f in by.get((league, day), []):
+                th = teams_by_id.get(str(f.get("home")))
+                ta = teams_by_id.get(str(f.get("away")))
+                score = min(_team_sim(r.get("HomeTeam") or "", th),
+                            _team_sim(r.get("AwayTeam") or "", ta))
+                if score >= 0.7 and (best is None or score > best[0]):
+                    best = (score, f)
+            if best and best[0] >= 0.88:
+                break
+        if not best or best[0] < 0.7:
+            continue
+        f = best[1]
+        books = f.setdefault("books", [])
+        existing = {b.get("book"): b for b in books}
+        added = 0
+        # Bet365：欧赔 + 亚盘 + 大小球（2.5）
+        b365_m = _odds3(r, "B365")
+        if not b365_m:
+            b365_m = _odds3(r, "B365C")
+        ah = None
+        ah_line = _snum(r.get("AHh"))
+        ah_h = _num(r.get("B365AHH")); ah_a = _num(r.get("B365AHA"))
+        if ah_line is not None and ah_h and ah_a:
+            ah = {"line": ah_line, "h": round(ah_h, 2), "a": round(ah_a, 2)}
+        ou = None
+        ov = _num(r.get("B365>2.5")); un = _num(r.get("B365<2.5"))
+        if ov and un:
+            ou = {"line": 2.5, "over": round(ov, 2), "under": round(un, 2)}
+        if b365_m or ah or ou:
+            cur = existing.get("Bet365")
+            if cur is None:
+                books.append({"book": "Bet365", "src": "fdco", "m": b365_m, "ah": ah, "ou": ou})
+                existing["Bet365"] = books[-1]
+                added += 1
+            else:
+                for k, v in (("m", b365_m), ("ah", ah), ("ou", ou)):
+                    if v and not cur.get(k):
+                        cur[k] = v
+                        added += 1
+        # Pinnacle：只要欧赔（CSV 无其亚盘/大小球列）
+        pin = _odds3(r, "Pinnacle") or _odds3(r, "PS")
+        if pin:
+            cur = existing.get("Pinnacle")
+            if cur is None:
+                books.append({"book": "Pinnacle", "src": "fdco", "m": pin})
+                added += 1
+            elif not cur.get("m"):
+                cur["m"] = pin
+                added += 1
+        if added:
+            hit += 1
+    return hit
 
 
 def build(match_rows, teams, log=print):
