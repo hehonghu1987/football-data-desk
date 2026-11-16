@@ -1235,6 +1235,177 @@ def load_oddsapi_snapshot(fixture_rows):
 BOOKS_PERSIST = os.path.join(ROOT, "odds_snapshots", "books_persist.json")
 
 
+PIN_API = "https://guest.api.arcadia.pinnacle.com/0.1"
+PIN_HEADERS = {
+    "User-Agent": UA,
+    "X-API-Key": "CmX2KcMrXuFmNg6YFbmTxE0y9Ci7HYqdhnOiHs71bqP8uS8iM4Wg",
+    "Referer": "https://www.pinnacle.com/",
+    "Accept": "application/json",
+}
+
+
+def _american_to_decimal(p):
+    try:
+        v = float(p)
+    except (TypeError, ValueError):
+        return None
+    if v > 0:
+        return round(1 + v / 100, 3)
+    return round(1 + 100 / abs(v), 3)
+
+
+def _pin_get(url, timeout=30):
+    req = urllib.request.Request(url, headers=PIN_HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def attach_pinnacle(fixture_rows, teams, log=log):
+    """补平博（Pinnacle）欧赔/亚盘/大小球：官方网页的公开访客接口，免费无 key 配额。
+    抓未来 4 天内的场次，每场比赛赔率缓存 20 分钟，单轮最多 80 场。"""
+    now = datetime.utcnow()
+    team_list = teams.values() if isinstance(teams, dict) else (teams or [])
+    teams_by_id = {str(t.get("id")): t for t in team_list}
+    targets = []
+    for f in fixture_rows:
+        if f.get("hs") is not None or f.get("as") is not None:
+            continue
+        try:
+            ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        if now - timedelta(hours=2) <= ft <= now + timedelta(hours=96):
+            targets.append((ft, f))
+    if not targets:
+        return 0, 0
+    # 赛程列表（缓存 30 分钟）
+    path = os.path.join(CACHE_DIR, "pin_matchups.json")
+    matchups = None
+    try:
+        if os.path.exists(path) and time.time() - os.path.getmtime(path) < 30 * 60:
+            with open(path, "r", encoding="utf-8") as fh:
+                matchups = json.load(fh)
+    except OSError:
+        matchups = None
+    if not matchups:
+        try:
+            matchups = _pin_get(f"{PIN_API}/sports/29/matchups", timeout=40)
+            os.makedirs(CACHE_DIR, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(matchups, fh, ensure_ascii=False)
+        except Exception as e:
+            log(f"  ⚠ 平博赛程拉取失败：{str(e)[:70]}")
+            return 0, 0
+    matched = {}
+    for mu in (matchups or []):
+        if mu.get("type") != "matchup":
+            continue
+        try:
+            mt = datetime.fromisoformat((mu.get("startTime") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        best = None
+        for ft, f in targets:
+            if abs((ft - mt).total_seconds()) > 3 * 3600:
+                continue
+            parts = (mu.get("parent") or {}).get("participants") or mu.get("participants") or []
+            hname = aname = ""
+            for pt in parts:
+                if pt.get("alignment") == "home":
+                    hname = pt.get("name") or ""
+                elif pt.get("alignment") == "away":
+                    aname = pt.get("name") or ""
+            if not hname or not aname:
+                continue
+            th = teams_by_id.get(str(f.get("home"))) or {}
+            ta = teams_by_id.get(str(f.get("away"))) or {}
+            score = min(_team_sim(hname, th.get("name") or ""), _team_sim(aname, ta.get("name") or ""))
+            if score >= 0.8 and (best is None or score > best[0]):
+                best = (score, f)
+        if best:
+            matched[str(best[1].get("id"))] = (best[1], mu.get("id"), best[0])
+    if not matched:
+        return 0, 0
+    # 按开赛时间优先，最多 80 场
+    ordered = sorted(matched.items(), key=lambda kv: kv[1][0].get("date") or "9999")[:80]
+    added = 0
+    fetched = 0
+    for fid, (f, mid, _score) in ordered:
+        cpath = os.path.join(CACHE_DIR, f"pin_mk_{mid}.json")
+        mk = None
+        try:
+            if os.path.exists(cpath) and time.time() - os.path.getmtime(cpath) < 20 * 60:
+                with open(cpath, "r", encoding="utf-8") as fh:
+                    mk = json.load(fh)
+        except OSError:
+            mk = None
+        if mk is None:
+            try:
+                mk = _pin_get(f"{PIN_API}/matchups/{mid}/markets/related/straight", timeout=20)
+                with open(cpath, "w", encoding="utf-8") as fh:
+                    json.dump(mk, fh, ensure_ascii=False)
+                fetched += 1
+                if fetched >= 80:
+                    break
+            except Exception:
+                continue
+        entry = {"book": "Pinnacle", "src": "pinnacle"}
+        for m in (mk or []):
+            if m.get("period") not in (0, None) or m.get("isAlternate") is True:
+                continue
+            mtype = m.get("type")
+            if mtype == "moneyline":
+                prices = {x.get("designation"): _american_to_decimal(x.get("price")) for x in (m.get("prices") or [])}
+                if prices.get("home") and prices.get("draw") and prices.get("away"):
+                    entry["m"] = [prices["home"], prices["draw"], prices["away"]]
+            elif mtype == "spread":
+                h = a = None
+                line = None
+                for x in (m.get("prices") or []):
+                    dec = _american_to_decimal(x.get("price"))
+                    if x.get("designation") == "home":
+                        h = dec; line = x.get("points")
+                    elif x.get("designation") == "away":
+                        a = dec
+                if h and a and line is not None:
+                    entry["ah"] = {"line": float(line), "h": h, "a": a}
+            elif mtype in ("totals", "total"):
+                # 总进球与角球都叫 total，用盘口线区分：进球线一般 ≤6.5，取最接近 2.5 的主盘
+                cands = []
+                over = under = None
+                line = None
+                for x in (m.get("prices") or []):
+                    dec = _american_to_decimal(x.get("price"))
+                    if x.get("designation") == "over":
+                        over = dec; line = x.get("points")
+                    elif x.get("designation") == "under":
+                        under = dec
+                if over and under and line is not None:
+                    try:
+                        lv = float(line)
+                    except (TypeError, ValueError):
+                        lv = None
+                    if lv is not None and 0.5 <= lv <= 6.5:
+                        cands.append((abs(lv - 2.5), {"line": lv, "over": over, "under": under}))
+                    if cands:
+                        best = min(cands, key=lambda c: c[0])[1]
+                        entry["ou"] = best
+        if not (entry.get("m") or entry.get("ah") or entry.get("ou")):
+            continue
+        books = f.setdefault("books", [])
+        cur = next((b for b in books if b.get("book") == "Pinnacle"), None)
+        if cur is None:
+            books.append({"book": "Pinnacle", **{k: v for k, v in entry.items() if k != "book"}})
+            books[-1]["book"] = "Pinnacle"
+            added += 1
+        else:
+            for k in ("m", "ah", "ou"):
+                if entry.get(k) and not cur.get(k):
+                    cur[k] = entry[k]
+                    added += 1
+    return added, len(ordered)
+
+
 def merge_books_persist(fixture_rows, ttl_hours=36):
     """合并「所有来源」的机构报价：同一场比赛一旦抓到过某机构，后续构建即使该轮没返回，
     在 TTL 内仍保留（数值可能略旧），避免机构一下有一下没有。"""
@@ -4205,6 +4376,12 @@ def main():
             log(f"  赛前盘口补充：{_up_hit} 场（football-data fixtures：Bet365 亚盘/大小球 + Pinnacle 欧赔）")
     except Exception as e:
         log(f"  ⚠ 赛前盘口补充失败：{str(e)[:80]}")
+    try:
+        _pin_add, _pin_n = attach_pinnacle(fixture_rows, teams)
+        if _pin_n:
+            log(f"  平博盘口补充：{_pin_add} 条（{_pin_n} 场，欧赔/亚盘/大小球）")
+    except Exception as e:
+        log(f"  ⚠ 平博盘口补充失败：{str(e)[:80]}")
     try:
         merge_books_persist(fixture_rows)
     except Exception as e:
