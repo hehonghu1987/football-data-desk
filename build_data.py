@@ -1899,14 +1899,18 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
     def _earliest(item):
         rows = item[1]
         return min((x.get("date") or "9999") for x in rows)
-    _cap = 4 if (remaining is None or remaining > 150) else 3
+    # 中午时段额度充足时，额外联赛也抓亚盘/大小球（3 credits/联赛，每天一次）
+    _now_local = datetime.utcnow() + timedelta(hours=8)
+    full = ((12 <= _now_local.hour <= 13) or force) and (remaining is None or remaining > 150)
+    _cap = 2 if full else (4 if (remaining is None or remaining > 150) else 3)
     picked = sorted(by_league.items(), key=_earliest)[:_cap]
     total = 0
     for lab, rows in picked:
         sport = ODDSAPI_EXTRA_LEAGUES[lab]
+        markets_q = "h2h,spreads,totals" if full else "h2h"
         url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
                f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS}"
-               f"&markets=h2h&oddsFormat=decimal&dateFormat=iso")
+               f"&markets={markets_q}&oddsFormat=decimal&dateFormat=iso")
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=40) as resp:
@@ -1961,9 +1965,36 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
                         prices["a"] = pr
                 if not all(k in prices for k in ("h", "d", "a")):
                     continue
+                entry = {"book": canon, "src": "oddsapi", "m": [prices["h"], prices["d"], prices["a"]]}
+                tot = mkts.get("totals")
+                if tot:
+                    over = under = oline = None
+                    for o in (tot.get("outcomes") or []):
+                        pr, ln = o.get("price"), o.get("point")
+                        if pr is None or ln is None:
+                            continue
+                        if (o.get("name") or "").strip().lower() == "over":
+                            over, oline = pr, ln
+                        else:
+                            under = pr
+                    if over is not None and under is not None and oline is not None:
+                        entry["ou"] = {"line": oline, "over": over, "under": under}
+                spr = mkts.get("spreads")
+                if spr:
+                    ph = pa = hline = None
+                    for o in (spr.get("outcomes") or []):
+                        pr, ln = o.get("price"), o.get("point")
+                        if pr is None or ln is None:
+                            continue
+                        if _team_sim((o.get("name") or ""), home_n) >= _team_sim((o.get("name") or ""), away_n):
+                            ph, hline = pr, ln
+                        else:
+                            pa = pr
+                    if ph is not None and pa is not None and hline is not None:
+                        entry["ah"] = {"line": hline, "h": ph, "a": pa}
                 books = best.setdefault("books", [])
                 books[:] = [x for x in books if x.get("book") != canon]
-                books.append({"book": canon, "src": "oddsapi", "m": [prices["h"], prices["d"], prices["a"]]})
+                books.append(entry)
                 total += 1
     if total:
         try:
@@ -1973,7 +2004,8 @@ def fetch_oddsapi_extra(fixture_rows, teams, remaining):
         except OSError:
             pass
         _write_oddsapi_snapshot(fixture_rows)
-    log(f"  Odds API 额外联赛：{len(by_league)} 个联赛，写入 {total} 条欧赔，剩余额度 {remaining}")
+    log(f"  Odds API 额外联赛：{len(by_league)} 个联赛，写入 {total} 条报价"
+        f"（{'欧赔+亚盘+大小球' if full else '仅欧赔'}），剩余额度 {remaining}")
 
 
 def fetch_event_odds(league_code, event_id):
