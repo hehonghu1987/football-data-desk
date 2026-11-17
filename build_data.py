@@ -1746,6 +1746,7 @@ def attach_af_squads(fixture_rows, teams, log=log):
     all_rosters = {}
     written = 0
     _miss = []
+    _fail = []
     for tid in sorted(team_ids)[:220]:
         api_id = amap.get(tid)
         if not api_id:
@@ -1778,11 +1779,14 @@ def attach_af_squads(fixture_rows, teams, log=log):
                     "pos": p.get("position") or "",
                 })
         if not players:
+            _fail.append((tid, (by_id.get(tid) or {}).get("name") or "", api_id))
             continue
         all_rosters[tid] = players
         written += 1
     if _miss:
         log("  API-Football 名单：无映射示例 " + "；".join(f"{a}/{b}" for a, b in _miss[:6]))
+    if _fail:
+        log("  API-Football 名单：拉取失败示例 " + "；".join(f"{a}/{b}->api{c}" for a, b, c in _fail[:6]))
     if all_rosters:
         try:
             with open(os.path.join(DATA_DIR, "af_rosters.json"), "w", encoding="utf-8") as fh:
