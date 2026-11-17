@@ -1711,7 +1711,7 @@ def attach_af_squads(fixture_rows, teams, log=log):
             continue
         for k in ("home", "away"):
             tid = str(f.get(k) or "")
-            if tid and amap.get(tid):
+            if tid:
                 team_ids.add(tid)
     if not team_ids:
         return 0
@@ -1745,7 +1745,7 @@ def attach_af_squads(fixture_rows, teams, log=log):
         pass
     all_rosters = {}
     written = 0
-    for tid in sorted(team_ids)[:120]:
+    for tid in sorted(team_ids)[:220]:
         api_id = amap.get(tid)
         if not api_id:
             continue
