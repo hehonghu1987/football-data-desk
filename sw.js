@@ -1,7 +1,7 @@
 /* 绿茵数据台：上次访问优先（stale-while-revalidate），弱网也能秒开。
    页面是每日更新的数据台，页面内自带「数据截止」时间戳，
    因此导航直接返回缓存、后台再拉新版本，下一次访问即为最新。 */
-const VERSION = "gyd-v5";
+const VERSION = "gyd-v6";
 const HTML_CACHE = VERSION + "-html";
 const STATIC_CACHE = VERSION + "-static";
 const CACHE_MAX_AGE = 2 * 60 * 1000; // HTML 缓存最长 2 分钟，超时改走网络优先（避免刷新后仍是旧数据）
@@ -38,35 +38,24 @@ self.addEventListener("fetch", event => {
 async function htmlStrategy(req) {
   const cache = await caches.open(HTML_CACHE);
   const cached = await cache.match(req, { ignoreSearch: true });
-  // 后台更新：不阻塞当前返回
-  const refresh = fetch(req).then(res => {
+  // 页面导航始终网络优先：静态站点每天多次构建，先用缓存会让用户看到旧数据。
+  // 只有网络失败/离线时才回退缓存，保证刷新一次就能拿到最新版本。
+  try {
+    const res = await fetch(req, { cache: "no-cache" });
     if (res && res.ok) {
       const changed = cached && isChanged(cached, res);
       cache.put(req, res.clone());
-      // 用户正开着旧页面时提示有新数据（30 分钟一轮构建，避免一直看旧版本）
       if (changed) notifyFresh();
+      return res;
     }
-    return res;
-  }).catch(() => null);
-  if (cached) {
-    // 站点每 30 分钟更新一轮：缓存超过 10 分钟就不再「先给旧页面」，
-    // 优先走网络（最多等 8 秒），拿不到才回退缓存，避免用户刷新后仍是旧数据。
-    const when = Date.parse(cached.headers.get("date") || "") || 0;
-    const stale = !when || (Date.now() - when) > CACHE_MAX_AGE;
-    if (!stale) {
-      refresh.catch(() => {});
-      return cached;
-    }
-    // 弱网下不再「8 秒后回退旧页面」：宁可多等几秒，也要拿到最新构建，
-    // 避免用户刷新后仍看到几小时前、缺数据的旧版本。只有完全离线才用缓存。
-    if(typeof navigator !== "undefined" && navigator.onLine === false) return cached;
-    return refresh.then(res => res || cached).catch(() => cached);
+    return cached || res;
+  } catch (e) {
+    if (cached) return cached;
+    return new Response("网络暂不可用，请稍后重试。", {
+      status: 503,
+      headers: { "Content-Type": "text/plain; charset=utf-8" }
+    });
   }
-  const res = await refresh;
-  return res || new Response("网络暂不可用，请稍后重试。", {
-    status: 503,
-    headers: { "Content-Type": "text/plain; charset=utf-8" }
-  });
 }
 
 function isChanged(oldRes, newRes) {

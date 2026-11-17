@@ -1583,6 +1583,9 @@ td.gsep{border-left:1px solid var(--line)}
 
     <div class="topbar-meta">
       <span class="update-chip" id="update-chip"><span class="dot"></span><span class="txt">更新</span><span id="update-time">—</span><span id="update-age" class="uage"></span></span>
+      <button class="icon-btn" id="hard-reload" type="button" aria-label="强制刷新" title="强制刷新：清除缓存并加载最新数据">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"></path><path d="M21 3v6h-6"></path></svg>
+      </button>
       <button class="icon-btn" id="share-btn" type="button" aria-label="分享本页" title="分享本页">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 15V3"></path><path d="M8 7l4-4 4 4"></path></svg>
       </button>
@@ -6870,6 +6873,13 @@ if("requestIdleCallback" in window){
       });
     }, 90000);
     document.getElementById("fresh-reload")?.addEventListener("click", () => location.reload());
+    document.getElementById("hard-reload")?.addEventListener("click", async () => {
+      try{
+        if("caches" in window){ const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
+        if("serviceWorker" in navigator){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); }
+      }catch(e){}
+      location.replace(location.pathname + "?r=" + Date.now());
+    });
   }catch(e){}
 })();
 
