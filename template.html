@@ -1196,6 +1196,9 @@ main:focus{outline:none}
 
 .book-scope{margin:0 0 8px}
 .book-scope .seg{font-size:11px}
+.book-pick{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:11px;color:var(--muted)}
+.book-pick label{display:flex;align-items:center;gap:4px;cursor:pointer}
+.book-pick input{accent-color:var(--accent);width:13px;height:13px}
 
 /* 数据覆盖说明 */
 .cov-panel{padding:0;overflow:hidden}
@@ -4237,6 +4240,20 @@ $("#pre-match")?.addEventListener("click", e => {
   const m = MATCH_BY_ID.get(String(state.matchId));
   if(m) renderPreMatch(m);
 });
+$("#pre-match")?.addEventListener("change", e => {
+  const cb = e.target.closest(".book-pick input[data-book]");
+  if(!cb) return;
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem("lg-custom-books") || "[]"); } catch(err) { arr = []; }
+  if(!Array.isArray(arr)) arr = [];
+  const name = cb.dataset.book;
+  const set = new Set(arr);
+  if(cb.checked) set.add(name); else set.delete(name);
+  localStorage.setItem("lg-custom-books", JSON.stringify([...set]));
+  state.bookScope = "custom";
+  const m = MATCH_BY_ID.get(String(state.matchId));
+  if(m) renderPreMatch(m);
+});
 
 $("#form-side")?.addEventListener("click", e => {
   const b = e.target.closest("[data-side]");
@@ -5030,7 +5047,17 @@ function renderPreMatch(m){
       const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
       const MAINSTREAM = new Set(["Bet365","Pinnacle","William Hill","Ladbrokes","Unibet","Tipico","Winamax","DraftKings","Marathon Bet","1xBet","竞彩官方","竞彩总进球","北单"]);
       const scope = state.bookScope || "all";
-      const scoped = scope === "main" ? books.filter(b => MAINSTREAM.has(b.book)) : books;
+      const CUSTOM = (() => {
+        try {
+          const raw = localStorage.getItem("lg-custom-books");
+          const arr = raw ? JSON.parse(raw) : null;
+          if (Array.isArray(arr) && arr.length) return new Set(arr);
+        } catch(e){}
+        return new Set(MAINSTREAM);
+      })();
+      const scoped = scope === "main" ? books.filter(b => MAINSTREAM.has(b.book))
+        : (scope === "custom" ? books.filter(b => CUSTOM.has(b.book)) : books);
+      const pickHtml = scope === "custom" ? `<div class="book-pick">${[...new Set(scoped.concat(books).map(b => b.book))].sort((x, y) => (MAINSTREAM.has(y) ? 1 : 0) - (MAINSTREAM.has(x) ? 1 : 0)).map(name => `<label><input type="checkbox" data-book="${esc(name)}" ${CUSTOM.has(name) ? "checked" : ""}>${esc(name)}</label>`).join("")}</div>` : "";
       const byName = new Map(scoped.map(b => [b.book, b]));
       // 只显示有数据的机构（没有数据的机构不再占行）
       const ordered = BOOK_ORDER.filter(n => byName.has(n)).map(n => byName.get(n));
@@ -5064,12 +5091,14 @@ function renderPreMatch(m){
           <div class="seg" id="book-scope" role="group" aria-label="机构范围">
             <button type="button" data-scope="all" aria-pressed="${scope === "all"}">全部机构（${books.length}）</button>
             <button type="button" data-scope="main" aria-pressed="${scope === "main"}">主流机构（${books.filter(b => MAINSTREAM.has(b.book)).length}）</button>
+            <button type="button" data-scope="custom" aria-pressed="${scope === "custom"}">自定义（${books.filter(b => CUSTOM.has(b.book)).length}）</button>
           </div>
+          ${pickHtml}
         </div>
         <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>即时 vs 初赔 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
         <table class="books">
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
       </div>`);
     } else if(odds){
