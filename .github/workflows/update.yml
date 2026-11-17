@@ -159,6 +159,16 @@ jobs:
           if [ -f 404.html ]; then
             cp 404.html dist/404.html
           fi
+          # 缓存逃生通道：/app/ 是独立 URL，旧 Service Worker 缓存里没有它，
+          # 用户打开这个地址必定拿到最新版本（用于旧缓存卡住的情况）
+          mkdir -p dist/app
+          cp football_database.html dist/app/index.html
+          for item in data logos icons teams seo daily fonts; do
+            if [ -d "dist/$item" ]; then cp -R "dist/$item" "dist/app/$item"; fi
+          done
+          if [ -f dist/404.html ]; then cp dist/404.html dist/app/404.html; fi
+          sed -i 's|<link rel="canonical"[^>]*>||' dist/app/index.html || true
+          echo "app mirror: $(du -sh dist/app | cut -f1)"
           du -sh dist
 
       - name: 部署到 Cloudflare Pages（可选镜像，配置密钥后自动启用）

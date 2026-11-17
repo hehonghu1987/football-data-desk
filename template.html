@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <script>document.documentElement.classList.add("js-boot");setTimeout(function(){document.documentElement.classList.remove("js-boot")},15000);</script>
 <title>绿茵数据台 · 足球赛程比分与模型预测</title>
 <meta name="description" content="每 30 分钟刷新数据的足球数据台：五大联赛、欧冠、英冠、巴西甲的赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，含进球线、亚盘让球与角球盘口概率。">
@@ -6887,17 +6890,23 @@ if("requestIdleCallback" in window){
   }catch(e){}
 })();
 
-if("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")){
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
-  });
-  // 不再弹「数据已更新」浮条：顶栏已显示更新时间，新版本由 SW 在下次进入时接管
-  navigator.serviceWorker.addEventListener("message", ev => {
-    if(ev.data && ev.data.type === "fresh"){
-      navigator.serviceWorker.controller?.postMessage({ type: "fresh-ack" });
+// 停用 Service Worker：静态站每 30 分钟构建，缓存只会让用户看到旧数据。
+// 这里主动注销旧 SW 并清空缓存；刷新页面即直达最新版本。
+(function killSW(){
+  try{
+    if("serviceWorker" in navigator){
+      navigator.serviceWorker.getRegistrations()
+        .then(rs => Promise.all(rs.map(r => r.unregister()))).catch(() => {});
+      navigator.serviceWorker.addEventListener("message", ev => {
+        if(ev.data && ev.data.type === "force-reload"){ location.reload(); }
+      });
     }
-  });
-}
+    if("caches" in window && !sessionStorage.getItem("lg-cache-cleared")){
+      caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+        .then(() => sessionStorage.setItem("lg-cache-cleared", "1")).catch(() => {});
+    }
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
