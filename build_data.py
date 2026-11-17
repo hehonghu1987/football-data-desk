@@ -1517,7 +1517,8 @@ def attach_apifootball(fixture_rows, teams, log=log):
             soon = (f.get("hs") is None and f.get("as") is None) and ft <= now + timedelta(hours=60)
         except ValueError:
             soon = False
-        data = {"odds": None, "inj": None, "pred": None}
+        data = {"odds": None, "inj": None, "pred": None, "lineups": None}
+        _finished = f.get("hs") is not None or f.get("as") is not None
         try:
             data["odds"] = _af_get("/odds", key, {"fixture": afid}, ttl=10800)
         except Exception:
@@ -1529,6 +1530,11 @@ def attach_apifootball(fixture_rows, teams, log=log):
                 pass
             try:
                 data["pred"] = _af_get("/predictions", key, {"fixture": afid}, ttl=43200)
+            except Exception:
+                pass
+        if not _finished:
+            try:
+                data["lineups"] = _af_get("/fixtures/lineups", key, {"fixture": afid}, ttl=3600)
             except Exception:
                 pass
         return item, data
@@ -1573,6 +1579,45 @@ def attach_apifootball(fixture_rows, teams, log=log):
             adv = ((pr["response"][0].get("predictions") or {}).get("advice") or "")[:60]
             if h_ is not None and d_ is not None and a_ is not None:
                 f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": adv}
+        # 官方/预计首发（API-Football 一般赛前 1 小时内给出）
+        lu = data.get("lineups") or {}
+        if lu.get("response"):
+            api_teams = ((api_fixtures.get(afid) or {}).get("teams") or {})
+            home_api = str(((api_teams.get("home") or {}).get("id")) or "")
+            try:
+                af_map_path = os.path.join(CACHE_DIR, "af_team_map.json")
+                with open(af_map_path, "r", encoding="utf-8") as mf:
+                    amap = json.load(mf)
+            except (OSError, ValueError):
+                amap = {}
+            amap[str(f.get("home"))] = home_api
+            amap[str(f.get("away"))] = str(((api_teams.get("away") or {}).get("id")) or "")
+            try:
+                os.makedirs(CACHE_DIR, exist_ok=True)
+                with open(af_map_path, "w", encoding="utf-8") as mf:
+                    json.dump(amap, mf, ensure_ascii=False)
+            except OSError:
+                pass
+            out = {}
+            for team_block in lu["response"]:
+                tid_api = str(((team_block.get("team") or {}).get("id")) or "")
+                side = "h" if tid_api == home_api else "a"
+                players = team_block.get("startXI") or []
+                subs = team_block.get("substitutes") or []
+                xi = []
+                for p in players:
+                    pl = p.get("player") or {}
+                    if pl.get("name"):
+                        xi.append({"n": pl.get("name"), "j": pl.get("number"), "p": pl.get("pos") or ""})
+                bench = []
+                for p in subs:
+                    pl = p.get("player") or {}
+                    if pl.get("name"):
+                        bench.append({"n": pl.get("name"), "j": pl.get("number"), "p": pl.get("pos") or ""})
+                if xi:
+                    out[side] = {"f": team_block.get("formation") or "", "xi": xi, "sub": bench}
+            if out:
+                f["afL"] = out
         # 赔率
         od = data.get("odds") or {}
         resp = od.get("response") or []
@@ -1616,6 +1661,83 @@ def attach_apifootball(fixture_rows, teams, log=log):
                         cur[k] = entry[k]
                         added += 1
     return added, len(ordered)
+
+
+def attach_af_squads(fixture_rows, teams, log=log):
+    """用 API-Football 的球队名单（/players/squads）生成 data/af_rosters/<队ID>.json。
+    主要解决国家队/小联赛球队在 ESPN 侧没有球员名单的问题。"""
+    key = os.environ.get("API_FOOTBALL_KEY", "").strip()
+    if not key:
+        return 0
+    try:
+        with open(os.path.join(CACHE_DIR, "af_team_map.json"), "r", encoding="utf-8") as f:
+            amap = json.load(f)
+    except (OSError, ValueError):
+        return 0
+    if not amap:
+        return 0
+    now = datetime.utcnow()
+    team_ids = set()
+    for f in fixture_rows:
+        if f.get("hs") is not None or f.get("as") is not None:
+            continue
+        try:
+            ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        if not (now - timedelta(hours=2) <= ft <= now + timedelta(days=7)):
+            continue
+        for k in ("home", "away"):
+            tid = str(f.get(k) or "")
+            if tid and amap.get(tid):
+                team_ids.add(tid)
+    if not team_ids:
+        return 0
+    out_dir = os.path.join(DATA_DIR, "af_rosters")
+    try:
+        os.makedirs(out_dir, exist_ok=True)
+    except OSError:
+        return 0
+    written = 0
+    for tid in sorted(team_ids)[:120]:
+        api_id = amap.get(tid)
+        if not api_id:
+            continue
+        cache_path = os.path.join(CACHE_DIR, f"af_squad_{api_id}.json")
+        data = None
+        try:
+            if os.path.exists(cache_path) and time.time() - os.path.getmtime(cache_path) < 7 * 86400:
+                with open(cache_path, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+        except OSError:
+            data = None
+        if data is None:
+            try:
+                data = _af_get("/players/squads", key, {"team": api_id}, ttl=7 * 86400)
+                with open(cache_path, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh, ensure_ascii=False)
+            except Exception:
+                continue
+        players = []
+        for blk in (data.get("response") or []):
+            for p in (blk.get("players") or []):
+                if not p.get("name"):
+                    continue
+                players.append({
+                    "n": p.get("name"),
+                    "j": p.get("number"),
+                    "age": p.get("age"),
+                    "pos": p.get("position") or "",
+                })
+        if not players:
+            continue
+        try:
+            with open(os.path.join(out_dir, f"{tid}.json"), "w", encoding="utf-8") as fh:
+                json.dump({"src": "apifootball", "players": players}, fh, ensure_ascii=False, separators=(",", ":"))
+            written += 1
+        except OSError:
+            continue
+    return written
 
 
 def attach_pinnacle(fixture_rows, teams, log=log):
@@ -4758,6 +4880,12 @@ def main():
             log(f"  API-Football 补充：{_af_add} 条（{_af_n} 场，多机构欧赔/亚盘/大小球）")
     except Exception as e:
         log(f"  ⚠ API-Football 补充失败：{str(e)[:80]}")
+    try:
+        _squad_n = attach_af_squads(fixture_rows, teams)
+        if _squad_n:
+            log(f"  API-Football 球队名单：生成 {_squad_n} 支球队（data/af_rosters）")
+    except Exception as e:
+        log(f"  ⚠ API-Football 球队名单失败：{str(e)[:80]}")
     try:
         _pin_add, _pin_n = attach_pinnacle(fixture_rows, teams)
         if _pin_n:
