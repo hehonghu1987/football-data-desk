@@ -131,10 +131,10 @@ jobs:
           if [ -d fonts ]; then
             cp -R fonts dist/fonts
           fi
+          if [ -f data/af_rosters.json ]; then mkdir -p dist/data; cp data/af_rosters.json dist/data/af_rosters.json; echo "af_rosters.json: $(stat -c%s data/af_rosters.json) bytes"; fi
           if [ -d data/af_rosters ]; then
             mkdir -p dist/data/af_rosters
             cp -R data/af_rosters/. dist/data/af_rosters/
-            echo "af_rosters files: $(ls dist/data/af_rosters | wc -l)"
           fi
           if [ -f data/ht.json ]; then mkdir -p dist/data; cp data/ht.json dist/data/ht.json; fi
           if [ -f data/markets.json ]; then mkdir -p dist/data; cp data/markets.json dist/data/markets.json; fi

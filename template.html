@@ -2305,13 +2305,23 @@ function loadLineup(tid){
 function lineupOf(tid){ return LINEUP_CACHE.get(String(tid)) || null; }
 
 const ROSTER_CACHE = new Map(), ROSTER_PENDING = new Map();
+let AF_ROSTERS = null, AF_ROSTERS_P = null;
+function loadAfRosters(){
+  if(AF_ROSTERS) return Promise.resolve(AF_ROSTERS);
+  if(!AF_ROSTERS_P){
+    AF_ROSTERS_P = fetch("data/af_rosters.json")
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null)
+      .then(m => { AF_ROSTERS = m || {}; return AF_ROSTERS; });
+  }
+  return AF_ROSTERS_P;
+}
 function loadRoster(tid){
   const id = String(tid);
   if(ROSTER_CACHE.has(id)) return Promise.resolve(ROSTER_CACHE.get(id));
   if(ROSTER_PENDING.has(id)) return ROSTER_PENDING.get(id);
-  const p = fetch(`data/af_rosters/${id}.json`)
-    .then(r => r.ok ? r.json() : null)
-    .catch(() => null)
+  const p = loadAfRosters()
+    .then(m => (m && (m[id] || []).length) ? { players: m[id] } : null)
     .then(h => {
       if(h && (h.players || []).length) return h;
       return fetch(`data/rosters/${id}.json`).then(r => r.ok ? r.json() : null).catch(() => null);

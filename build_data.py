@@ -1715,11 +1715,7 @@ def attach_af_squads(fixture_rows, teams, log=log):
                 team_ids.add(tid)
     if not team_ids:
         return 0
-    out_dir = os.path.join(DATA_DIR, "af_rosters")
-    try:
-        os.makedirs(out_dir, exist_ok=True)
-    except OSError:
-        return 0
+    all_rosters = {}
     written = 0
     for tid in sorted(team_ids)[:120]:
         api_id = amap.get(tid)
@@ -1753,12 +1749,14 @@ def attach_af_squads(fixture_rows, teams, log=log):
                 })
         if not players:
             continue
+        all_rosters[tid] = players
+        written += 1
+    if all_rosters:
         try:
-            with open(os.path.join(out_dir, f"{tid}.json"), "w", encoding="utf-8") as fh:
-                json.dump({"src": "apifootball", "players": players}, fh, ensure_ascii=False, separators=(",", ":"))
-            written += 1
+            with open(os.path.join(DATA_DIR, "af_rosters.json"), "w", encoding="utf-8") as fh:
+                json.dump(all_rosters, fh, ensure_ascii=False, separators=(",", ":"))
         except OSError:
-            continue
+            pass
     return written
 
 
