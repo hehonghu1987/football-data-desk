@@ -4739,7 +4739,21 @@ def main():
     except Exception as e:
         log(f"  ⚠ 赛前盘口补充失败：{str(e)[:80]}")
     try:
-        _af_add, _af_n = attach_apifootball(fixture_rows, teams)
+        _recent_matches = []
+        try:
+            _cut = datetime.utcnow() - timedelta(hours=72)
+            for _m in (match_rows or []):
+                if _m.get("hs") is None and _m.get("as") is None:
+                    continue
+                try:
+                    _mt = datetime.fromisoformat((_m.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+                except ValueError:
+                    continue
+                if _mt >= _cut:
+                    _recent_matches.append(_m)
+        except Exception:
+            _recent_matches = []
+        _af_add, _af_n = attach_apifootball(fixture_rows + _recent_matches, teams)
         if _af_n:
             log(f"  API-Football 补充：{_af_add} 条（{_af_n} 场，多机构欧赔/亚盘/大小球）")
     except Exception as e:
