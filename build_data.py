@@ -1546,7 +1546,23 @@ def attach_apifootball(fixture_rows, teams, log=log):
         log(f"  ⚠ API-Football 并发抓取失败：{str(e)[:60]}")
         return 0, 0
     added = 0
+    # 队名映射（我们的队ID → API 队ID），供球队名单使用
+    try:
+        with open(os.path.join(CACHE_DIR, "af_team_map.json"), "r", encoding="utf-8") as mf:
+            amap = json.load(mf)
+    except (OSError, ValueError):
+        amap = {}
     for (_score, f, afid), data in fetched:
+        try:
+            _t = ((api_fixtures.get(afid) or {}).get("teams") or {})
+            _h = str(((_t.get("home") or {}).get("id")) or "")
+            _a = str(((_t.get("away") or {}).get("id")) or "")
+            if _h:
+                amap[str(f.get("home"))] = _h
+            if _a:
+                amap[str(f.get("away"))] = _a
+        except Exception:
+            pass
         # 伤停
         inj = data.get("inj") or {}
         if inj.get("response"):
@@ -1660,6 +1676,12 @@ def attach_apifootball(fixture_rows, teams, log=log):
                     if entry.get(k):
                         cur[k] = entry[k]
                         added += 1
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(os.path.join(CACHE_DIR, "af_team_map.json"), "w", encoding="utf-8") as mf:
+            json.dump(amap, mf, ensure_ascii=False)
+    except OSError:
+        pass
     return added, len(ordered)
 
 
