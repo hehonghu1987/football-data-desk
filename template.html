@@ -5150,6 +5150,7 @@ function renderPreMatch(m){
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
+        <div class="odds-src" style="padding:6px 2px 2px">「—」表示该机构未开此盘口或数据源未提供；不同机构覆盖范围不同属正常（Bet365/平博/DraftKings/1xBet 通常最全）。</div>
       </div>`);
     } else if(odds){
       cells.push(`<div class="odds-cell">

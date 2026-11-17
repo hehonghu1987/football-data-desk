@@ -1291,28 +1291,25 @@ def _af_get(path, key, params=None, ttl=1800):
 
 def _pick_ah(values):
     """从 API-Football 的 Asian Handicap 多线里挑最均衡的主盘。
-    API 的 value 为 "Home -1.25" / "Away -1.25"，同一数字的主客组合成一对，
-    行号按主队视角（Home -1.25 → line = -1.25）。"""
-    homes, aways = {}, {}
+    不同机构的写法不一样（有的只给负数线，有的正负都给），所以直接在所有
+    Home/Away 组合里选赔率最接近 1.9/1.9 的一对，行号取 Home 侧的数字。"""
+    homes, aways = [], []
     for v in values or []:
         val = (v.get("value") or "").strip()
         try:
             odd = float(v.get("odd"))
+            line = float(val.split()[-1])
         except (TypeError, ValueError):
             continue
         low = val.lower()
-        try:
-            if low.startswith("home "):
-                homes[round(float(val[5:]), 2)] = odd
-            elif low.startswith("away "):
-                aways[round(float(val[5:]), 2)] = odd
-        except ValueError:
-            continue
+        if low.startswith("home "):
+            homes.append((line, odd))
+        elif low.startswith("away "):
+            aways.append((line, odd))
     cands = []
-    for line, ho in homes.items():
-        ao = aways.get(line)
-        if ao:
-            cands.append((abs(ho - ao), line, ho, ao))
+    for hl, ho in homes:
+        for al, ao in aways:
+            cands.append((abs(ho - ao), hl, ho, ao))
     if not cands:
         return None
     best = min(cands, key=lambda c: c[0])
