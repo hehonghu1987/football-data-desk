@@ -1444,11 +1444,16 @@ def attach_apifootball(fixture_rows, teams, log=log):
     teams_by_id = {str(t.get("id")): t for t in team_list}
     targets, dates = [], set()
     for f in fixture_rows:
-        if f.get("hs") is not None or f.get("as") is not None:
-            continue
         try:
             ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
         except ValueError:
+            continue
+        finished = f.get("hs") is not None or f.get("as") is not None
+        if finished:
+            # 已结束 72 小时内的比赛：补收盘赔率（用于赛后复盘）
+            if now - timedelta(hours=72) <= ft <= now:
+                targets.append((ft, f))
+                dates.add(ft.date().isoformat())
             continue
         if now - timedelta(hours=2) <= ft <= now + timedelta(days=7):
             targets.append((ft, f))
@@ -1509,7 +1514,7 @@ def attach_apifootball(fixture_rows, teams, log=log):
         soon = False
         try:
             ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
-            soon = ft <= now + timedelta(hours=60)
+            soon = (f.get("hs") is None and f.get("as") is None) and ft <= now + timedelta(hours=60)
         except ValueError:
             soon = False
         data = {"odds": None, "inj": None, "pred": None}

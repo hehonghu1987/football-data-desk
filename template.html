@@ -4962,6 +4962,17 @@ function lineupBlock(tid){
   </div>`;
 }
 
+function consensusBooks(books){
+  const ms = (books || []).filter(b => b.m && b.m.length === 3).map(b => b.m);
+  if(!ms.length) return null;
+  const avg = [0, 0, 0];
+  for(const m of ms){ for(let i = 0; i < 3; i++) avg[i] += Number(m[i]) || 0; }
+  for(let i = 0; i < 3; i++) avg[i] /= ms.length;
+  const inv = avg.map(o => o > 0 ? 1 / o : 0);
+  const s = inv[0] + inv[1] + inv[2];
+  return s > 0 ? inv.map(x => x / s) : null;
+}
+
 function renderPreMatch(m){
   const sec = $("#pre-match");
   const isUpcoming = m.hs == null && m.as == null;
@@ -4970,7 +4981,7 @@ function renderPreMatch(m){
   const pre = isUpcoming ? null : m.pre;
   const isNational = NATIONAL_LEAGUES.has(m.league);
   const hasLineup = isUpcoming && !isNational && !!(lineupOf(m.home) || lineupOf(m.away));
-  const hasBooks = isUpcoming && !!(m.books && m.books.length);
+  const hasBooks = !!(m.books && m.books.length);
   const hasMarket = isUpcoming ? !!odds : !!m.mkt;
   const mkBox = $("#mk-block");
   if(mkBox){ mkBox.hidden = true; mkBox.innerHTML = ""; }
@@ -4986,9 +4997,9 @@ function renderPreMatch(m){
     const books = (m.books || []).filter(b => b.m || b.ah || b.ou);
     const mbooks = books.filter(b => b.m);
     if(books.length){
-      const ipc = marketProbs(m) || ip;
-      cells.push(`<div class="odds-cell">
-        <div class="l">欧赔 · 共识（${mbooks.length} 家）</div>
+      const ipc = marketProbs(m) || ip || consensusBooks(mbooks);
+      if(ipc) cells.push(`<div class="odds-cell">
+        <div class="l">欧赔 · ${isUpcoming ? "共识" : "收盘共识"}（${mbooks.length} 家）</div>
         <div class="odds-three">
           <div><div class="k">主胜</div><div class="o">${(1 / ipc[0]).toFixed(2)}</div><div class="p">${pct(ipc[0])}</div></div>
           <div><div class="k">平</div><div class="o">${(1 / ipc[1]).toFixed(2)}</div><div class="p">${pct(ipc[1])}</div></div>
@@ -4999,8 +5010,8 @@ function renderPreMatch(m){
         ${(m.bj && m.bj.h != null) ? `<div class="odds-src sp-line">北单：${[m.bj.h, m.bj.d, m.bj.a].map(v => Number(v).toFixed(2)).join(" / ")}${m.bj.line != null ? ` · 让球 ${m.bj.line > 0 ? "主受让" : "主让"}${Math.abs(m.bj.line)} 球` : ""}</div>` : ""}
       </div>`);
       const ahc = consensusLine(m, "ah");
-      cells.push(ahc ? `<div class="odds-cell">
-        <div class="l">亚盘 · 共识（${ahc.n} 家同线）</div>
+      if(ipc) cells.push(ahc ? `<div class="odds-cell">
+        <div class="l">亚盘 · ${isUpcoming ? "共识" : "收盘共识"}（${ahc.n} 家同线）</div>
         <div class="odds-line"><b>${ahText(ahc.line)}</b></div>
         <div class="odds-two">
           <div><div class="k">主队</div><div class="o">${ahc.h ? ahc.h.toFixed(2) : "—"}</div></div>
@@ -5013,8 +5024,8 @@ function renderPreMatch(m){
         <div class="odds-src">该场暂无亚盘数据${(m.sp || m.bj) ? "（可参考下方官方让球盘）" : "（机构未提供让球盘）"}</div>
       </div>`);
       const ouc = consensusLine(m, "ou");
-      cells.push(ouc ? `<div class="odds-cell">
-        <div class="l">大小球 · 共识（${ouc.n} 家同线）</div>
+      if(ipc) cells.push(ouc ? `<div class="odds-cell">
+        <div class="l">大小球 · ${isUpcoming ? "共识" : "收盘共识"}（${ouc.n} 家同线）</div>
         <div class="odds-line"><b>${Number(ouc.line).toFixed(1)} 球</b></div>
         <div class="odds-two">
           <div><div class="k">大球</div><div class="o">${ouc.over ? ouc.over.toFixed(2) : "—"}</div></div>
@@ -5082,9 +5093,9 @@ function renderPreMatch(m){
         </tr>`;
         };
         if(op){
-          return mk("初赔", om, oah, oou, "row-open", true) + mk("即时", mm, ahb, oub, "", false, op);
+          return mk("初赔", om, oah, oou, "row-open", true) + mk(isUpcoming ? "即时" : "收盘", mm, ahb, oub, "", false, op);
         }
-        return mk("即时", mm, ahb, oub, "", true);
+        return mk(isUpcoming ? "即时" : "收盘", mm, ahb, oub, "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
         <div class="book-scope">
@@ -5139,6 +5150,53 @@ function renderPreMatch(m){
           <div class="odds-src">盘口线 ${odds.ou.line}</div>
         </div>`);
       }
+    }
+  }
+  // 已结束比赛：用 football-data 的收盘盘口补「赛前数据」，而不是只显示模型
+  if(!isUpcoming && !cells.length){
+    const fdcl = (typeof FDCO !== "undefined" && FDCO) ? FDCO[String(m.id)] : null;
+    if(fdcl && (fdcl.bo || fdcl.closeAh || fdcl.closeOu)){
+      const bo = fdcl.bo || {};
+      const o = bo.Avg || bo.B365 || null;
+      if(o && o.length === 3){
+        cells.push(`<div class="odds-cell">
+          <div class="l">收盘欧赔 · 平均</div>
+          <div class="odds-three">
+            <div><div class="k">主胜</div><div class="o">${Number(o[0]).toFixed(2)}</div></div>
+            <div><div class="k">平</div><div class="o">${Number(o[1]).toFixed(2)}</div></div>
+            <div><div class="k">客胜</div><div class="o">${Number(o[2]).toFixed(2)}</div></div>
+          </div>
+          <div class="odds-src">football-data 收盘均值</div>
+        </div>`);
+      }
+      const cah = fdcl.closeAh || fdcl.ah;
+      if(cah && cah.line != null && cah.b365){
+        cells.push(`<div class="odds-cell">
+          <div class="l">收盘亚盘</div>
+          <div class="odds-line"><b>${ahText(Number(cah.line))}</b></div>
+          <div class="odds-two">
+            <div><div class="k">主队</div><div class="o">${Number(cah.b365[0]).toFixed(2)}</div></div>
+            <div><div class="k">客队</div><div class="o">${Number(cah.b365[1]).toFixed(2)}</div></div>
+          </div>
+          <div class="odds-src">收盘盘口 · Bet365</div>
+        </div>`);
+      }
+      const cou = fdcl.closeOu || fdcl.ou;
+      if(cou && cou.b365){
+        cells.push(`<div class="odds-cell">
+          <div class="l">收盘大小球</div>
+          <div class="odds-line"><b>2.5 球</b></div>
+          <div class="odds-two">
+            <div><div class="k">大球</div><div class="o">${Number(cou.b365[0]).toFixed(2)}</div></div>
+            <div><div class="k">小球</div><div class="o">${Number(cou.b365[1]).toFixed(2)}</div></div>
+          </div>
+          <div class="odds-src">收盘盘口 · Bet365</div>
+        </div>`);
+      }
+    } else if(typeof FDCO === "undefined" || !FDCO){
+      loadFdco().then(() => {
+        if(String(state.matchId) === String(m.id)) renderPreMatch(m);
+      });
     }
   }
   // 没有任何机构赔率时，用模型公平赔率兜底，避免整块空白
