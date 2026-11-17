@@ -1414,6 +1414,44 @@ def attach_apifootball(fixture_rows, teams, log=log):
     added = 0
     for _score, f, afid in ordered:
         f["af"] = afid
+        # 伤停名单（每场一次，缓存 3 小时）
+        try:
+            inj = _af_get("/injuries", key, {"fixture": afid}, ttl=10800)
+            if inj.get("response"):
+                api_teams = ((api_fixtures.get(afid) or {}).get("teams") or {})
+                home_api = str(((api_teams.get("home") or {}).get("id")) or "")
+                hh, aa = [], []
+                for it in inj["response"]:
+                    pl = it.get("player") or {}
+                    team = it.get("team") or {}
+                    nm = pl.get("name") or ""
+                    if not nm:
+                        continue
+                    rec = {"n": nm, "r": (pl.get("reason") or "")[:24], "t": (pl.get("type") or "")[:10]}
+                    if str(team.get("id")) == home_api:
+                        hh.append(rec)
+                    else:
+                        aa.append(rec)
+                if hh or aa:
+                    f["inj"] = {"h": hh[:12], "a": aa[:12]}
+        except Exception:
+            pass
+        # 外部模型预测（缓存 6 小时）
+        try:
+            pr = _af_get("/predictions", key, {"fixture": afid}, ttl=21600)
+            if pr.get("response"):
+                pct = ((pr["response"][0].get("predictions") or {}).get("percent") or {})
+                def _p(v):
+                    try:
+                        return round(float(str(v).replace("%", "")) / 100, 3)
+                    except (TypeError, ValueError):
+                        return None
+                h_, d_, a_ = _p(pct.get("home")), _p(pct.get("draw")), _p(pct.get("away"))
+                adv = ((pr["response"][0].get("predictions") or {}).get("advice") or "")[:60]
+                if h_ is not None and d_ is not None and a_ is not None:
+                    f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": adv}
+        except Exception:
+            pass
         try:
             od = _af_get("/odds", key, {"fixture": afid}, ttl=7200)
         except Exception:

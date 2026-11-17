@@ -1176,6 +1176,27 @@ main:focus{outline:none}
 .books .row-open td{background:var(--surface-2)}
 .books .row-open td{color:var(--muted)}
 
+/* 外部模型参考 */
+.af-pred{margin-top:10px;font-size:11.5px;color:var(--muted);background:var(--surface-2);border:1px dashed var(--line);border-radius:8px;padding:6px 10px}
+
+/* 伤停名单 */
+.inj-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.inj-col{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.inj-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:600;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.inj-h a{color:inherit;text-decoration:none}
+.inj-h a:hover{color:var(--accent)}
+.inj-h span{font-size:11px;color:var(--muted);font-weight:400}
+.inj-col ul{list-style:none;margin:0;padding:0}
+.inj-col li{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.inj-col li:last-child{border-bottom:0}
+.inj-name{font-weight:500}
+.inj-reason{color:var(--muted);font-size:11px}
+.inj-empty{color:var(--muted);font-size:12px}
+@media(max-width:760px){.inj-grid{grid-template-columns:1fr}}
+
+.book-scope{margin:0 0 8px}
+.book-scope .seg{font-size:11px}
+
 /* 数据覆盖说明 */
 .cov-panel{padding:0;overflow:hidden}
 .cov-table{width:100%;border-collapse:collapse;font-size:12px}
@@ -1859,6 +1880,7 @@ td.gsep{border-left:1px solid var(--line)}
       <button type="button" data-nav="recent-form">近期战绩</button>
       <button type="button" data-nav="insight">分析</button>
       <button type="button" data-nav="pre-match">赛前数据</button>
+      <button type="button" data-nav="af-inj">伤停</button>
       <button type="button" data-nav="match-timeline">比赛事件</button>
       <button type="button" data-nav="match-books">多机构盘口</button>
       <button type="button" data-nav="match-squads">双方阵容</button>
@@ -1959,6 +1981,14 @@ td.gsep{border-left:1px solid var(--line)}
       <div class="lineup-compare" id="lineup-compare"></div>
 
       <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+    </section>
+
+    <section class="section" id="af-inj" hidden>
+      <div class="section-head">
+        <h2 class="section-title">伤停名单</h2>
+        <span class="section-note" id="af-inj-note">API-Football · 赛前更新</span>
+      </div>
+      <div class="inj-grid" id="af-inj-panel"></div>
     </section>
 
     <div id="match-timeline" hidden></div>
@@ -2538,6 +2568,7 @@ const state = {
   h2hOpp: null,
   h2hSide: "all",
   mvSide: "all",
+  bookScope: "all",
   formSide: "all",
   formN: 10,
   formSame: false,
@@ -4199,6 +4230,14 @@ $("#team-view").addEventListener("click", e => {
   }
 });
 
+$("#pre-match")?.addEventListener("click", e => {
+  const b = e.target.closest("#book-scope [data-scope]");
+  if(!b) return;
+  state.bookScope = b.dataset.scope;
+  const m = MATCH_BY_ID.get(String(state.matchId));
+  if(m) renderPreMatch(m);
+});
+
 $("#form-side")?.addEventListener("click", e => {
   const b = e.target.closest("[data-side]");
   if(!b) return;
@@ -4989,10 +5028,13 @@ function renderPreMatch(m){
         return `<span class="${d < 0 ? "mv-up" : "mv-down"}" title="${d < 0 ? "升盘" : "降盘"}">${c}<i>${d < 0 ? "▲" : "▼"}</i></span>`;
       };
       const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
-      const byName = new Map(books.map(b => [b.book, b]));
+      const MAINSTREAM = new Set(["Bet365","Pinnacle","William Hill","Ladbrokes","Unibet","Tipico","Winamax","DraftKings","Marathon Bet","1xBet","竞彩官方","竞彩总进球","北单"]);
+      const scope = state.bookScope || "all";
+      const scoped = scope === "main" ? books.filter(b => MAINSTREAM.has(b.book)) : books;
+      const byName = new Map(scoped.map(b => [b.book, b]));
       // 只显示有数据的机构（没有数据的机构不再占行）
       const ordered = BOOK_ORDER.filter(n => byName.has(n)).map(n => byName.get(n));
-      for(const b of books) if(!BOOK_ORDER.includes(b.book)) ordered.push(b);
+      for(const b of scoped) if(!BOOK_ORDER.includes(b.book)) ordered.push(b);
       const rows = ordered.map(b => {
         const mm = b.m || [null, null, null];
         const ahb = b.ah || {}, oub = b.ou || {};
@@ -5018,6 +5060,12 @@ function renderPreMatch(m){
         return mk("即时", mm, ahb, oub, "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
+        <div class="book-scope">
+          <div class="seg" id="book-scope" role="group" aria-label="机构范围">
+            <button type="button" data-scope="all" aria-pressed="${scope === "all"}">全部机构（${books.length}）</button>
+            <button type="button" data-scope="main" aria-pressed="${scope === "main"}">主流机构（${books.filter(b => MAINSTREAM.has(b.book)).length}）</button>
+          </div>
+        </div>
         <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>即时 vs 初赔 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
         <table class="books">
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
@@ -5574,6 +5622,11 @@ function renderInsight(m){
   }
 
   $("#insight-lead").textContent = lead;
+  // 外部模型（API-Football）参考，独立于本站模型
+  const _af = m.afp;
+  if(_af && _af.h != null){
+    $("#insight-lead").insertAdjacentHTML("beforeend", `<div class="af-pred">外部模型（API-Football）：主胜 ${pct(_af.h)} · 平 ${pct(_af.d)} · 客胜 ${pct(_af.a)}${_af.adv ? ` · 建议：${esc(_af.adv)}` : ""}</div>`);
+  }
 
   // 结论卡：把「胜负 / 进球 / 让球」三个最关键结论提到最上面
   try {
@@ -5787,6 +5840,7 @@ function renderMatch(id){
   renderInsight(m);
 
   renderRecentForm(m);
+  renderInjuries(m);
   renderMatchH2H(h, a, m);
   if(!HISTORY_LOADED){
     loadHistory().then(() => {
@@ -6496,6 +6550,21 @@ function renderRecentForm(m){
   if(!HT_MAP) loadHT().then(refresh);
   if(!MK) loadMarkets().then(refresh);
   if(!HISTORY_LOADED) loadHistory().then(refresh);
+}
+
+function renderInjuries(m){
+  const sec = $("#af-inj");
+  if(!sec) return;
+  const inj = m && m.inj;
+  if(!inj || (!((inj.h||[]).length) && !((inj.a||[]).length))){ sec.hidden = true; return; }
+  const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
+  const list = (items) => items.length
+    ? items.map(x => `<li><span class="inj-name">${esc(x.n)}</span><span class="inj-reason">${esc(x.r || x.t || "缺阵")}</span></li>`).join("")
+    : `<li class="inj-empty">暂无</li>`;
+  $("#af-inj-panel").innerHTML = `
+    <div class="inj-col"><div class="inj-h"><a href="#/team/${esc(m.home)}">${esc((h&&(h.cn||h.name))||"主队")}</a><span>${(inj.h||[]).length} 人</span></div><ul>${list(inj.h||[])}</ul></div>
+    <div class="inj-col"><div class="inj-h"><a href="#/team/${esc(m.away)}">${esc((a&&(a.cn||a.name))||"客队")}</a><span>${(inj.a||[]).length} 人</span></div><ul>${list(inj.a||[])}</ul></div>`;
+  sec.hidden = false;
 }
 
 function renderMatchH2H(h, a, m){
