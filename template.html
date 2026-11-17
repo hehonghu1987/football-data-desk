@@ -2311,6 +2311,17 @@ function loadLineup(tid){
 function lineupOf(tid){ return LINEUP_CACHE.get(String(tid)) || null; }
 
 const ROSTER_CACHE = new Map(), ROSTER_PENDING = new Map();
+let AF_ROSTERS = null, AF_ROSTERS_P = null;
+function loadAfRosters(){
+  if(AF_ROSTERS) return Promise.resolve(AF_ROSTERS);
+  if(!AF_ROSTERS_P){
+    AF_ROSTERS_P = fetch("data/af_rosters.json")
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null)
+      .then(m => { AF_ROSTERS = m || {}; return AF_ROSTERS; });
+  }
+  return AF_ROSTERS_P;
+}
 function loadRoster(tid){
   const id = String(tid);
   if(ROSTER_CACHE.has(id)) return Promise.resolve(ROSTER_CACHE.get(id));
@@ -2319,6 +2330,11 @@ function loadRoster(tid){
     .then(r => r.ok ? r.json() : null)
     .catch(() => null)
     .then(h => (h && h.players) || [])
+    .then(pl => {
+      if(pl.length) return pl;
+      // ESPN 没名单的球队（国家队/小联赛），用 API-Football 名单兜底
+      return loadAfRosters().then(m => (m && m[id]) || []);
+    })
     .then(pl => { ROSTER_CACHE.set(id, pl); ROSTER_PENDING.delete(id); return pl; });
   ROSTER_PENDING.set(id, p);
   return p;
@@ -2392,13 +2408,17 @@ async function renderSquads(m){
   const [hp, ap] = await Promise.all([loadRoster(m.home), loadRoster(m.away)]);
   if(!hp.length && !ap.length){ box.hidden = true; return; }
   box.hidden = false;
-  const col = (t, pl) => {
-    const xi = predictedXI(t.id);
+  const col = (t, pl, side) => {
+    const afSide = (m.afL && m.afL[side]) || null;
+    const xi = (afSide && afSide.xi && afSide.xi.length)
+      ? { f: afSide.f || "", starters: afSide.xi.map(p => ({ n: p.n, j: p.j, p: p.p })), from: "api" }
+      : predictedXI(t.id);
     const names = new Set(xi.starters.map(p => p.n));
-    const bench = (pl || []).filter(p => !names.has(p.n)).slice(0, 14);
+    const benchLimit = xi.starters.length ? 14 : 30;
+    const bench = (pl || []).filter(p => !names.has(p.n)).slice(0, benchLimit);
     const xiHtml = xi.starters.length
       ? `<div class="squad-list starters">${xi.starters.map(p => xiCard(p, pl)).join("")}</div>`
-      : `<div class="squad-note">暂无预计首发（最近比赛未提供首发名单）</div>`;
+      : `<div class="squad-note">暂无官方首发${(pl || []).length ? "，以下为球队球员名单" : "（数据源未提供名单）"}</div>`;
     const benchHtml = bench.length
       ? `<div class="squad-sub-h">替补 / 其他（${bench.length} 人）</div>
          <div class="squad-list bench">${bench.map(playerCard).join("")}</div>`
@@ -2416,7 +2436,7 @@ async function renderSquads(m){
     </div>
     <details class="squad-details">
       <summary>双方球员名单（${hp.length + ap.length} 人）<span class="hint">点击展开 · 预计首发 + 替补</span></summary>
-      <div class="squad-cols">${col(h, hp)}${col(a, ap)}</div>
+      <div class="squad-cols">${col(h, hp, "h")}${col(a, ap, "a")}</div>
     </details>
   </section>`;
   }catch(e){ console.error("renderSquads failed", e); }
