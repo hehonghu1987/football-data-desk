@@ -1351,6 +1351,59 @@ def _pick_ou(values):
     return best[1] if best else None
 
 
+_AF_STOP = {"fc", "cf", "sc", "afc", "ac", "cd", "club", "clube", "calcio", "de", "the", "if", "bk", "ff", "sk", "fk", "nk", "kf", "cs", "as", "us", "ss", "sv", "vfl", "vfb", "tsg", "fsv", "spvgg", "1.", "ii", "b", "u19", "u21", "u23"}
+
+
+def _af_norm_tokens(name):
+    import re as _re
+    s = (name or "").lower()
+    s = _re.sub(r"[^a-z0-9 ]", " ", s)
+    toks = [t for t in s.split() if t and t not in _AF_STOP]
+    return toks
+
+
+def _af_acronym_match(a, b):
+    """QPR vs Queens Park Rangers 这类缩写匹配。"""
+    ta, tb = _af_norm_tokens(a), _af_norm_tokens(b)
+    if len(ta) == 1 and len(tb) >= 2:
+        if ta[0] == "".join(x[0] for x in tb):
+            return True
+    if len(tb) == 1 and len(ta) >= 2:
+        if tb[0] == "".join(x[0] for x in ta):
+            return True
+    return False
+
+
+def _af_team_sim(name, team):
+    """更宽松的队名匹配：序列相似度 + 词集 Jaccard + 缩写匹配。"""
+    import difflib
+    if not team:
+        return 0.0
+    cands = [team.get("name") or "", team.get("short") or ""]
+    for alias in (team.get("aliases") or []):
+        cands.append(alias)
+    best = 0.0
+    na_t = _af_norm_tokens(name)
+    na = " ".join(na_t)
+    for cand in cands:
+        if not cand:
+            continue
+        nb_t = _af_norm_tokens(cand)
+        nb = " ".join(nb_t)
+        if not na or not nb:
+            continue
+        seq = difflib.SequenceMatcher(None, na, nb).ratio()
+        sa, sb = set(na_t), set(nb_t)
+        jac = len(sa & sb) / len(sa | sb) if (sa and sb) else 0.0
+        score = max(seq, jac * 0.95)
+        if sa and sa == sb:
+            score = 1.0
+        elif _af_acronym_match(name, cand):
+            score = max(score, 0.9)
+        best = max(best, score)
+    return best
+
+
 def attach_apifootball(fixture_rows, teams, log=log):
     """用 API-Football（Pro）补多机构欧赔/亚盘/大小球。只补未来 7 天场次，
     赛程与赔率都缓存 30 分钟，单轮最多 260 场；不写 key 进代码。"""
@@ -1373,11 +1426,7 @@ def attach_apifootball(fixture_rows, teams, log=log):
             dates.add(ft.date().isoformat())
     if not targets:
         return 0, 0
-    try:
-        import fdco as _fd
-        sim = _fd._team_sim
-    except Exception:
-        sim = lambda a, b: _team_sim(a, (b or {}).get("name") or "")
+    sim = _af_team_sim
     api_fixtures = {}
     for day in sorted(dates):
         try:
@@ -1402,7 +1451,7 @@ def attach_apifootball(fixture_rows, teams, log=log):
             th = teams_by_id.get(str(f.get("home"))) or {}
             ta = teams_by_id.get(str(f.get("away"))) or {}
             score = min(sim(home_n, th), sim(away_n, ta))
-            if score >= 0.8 and (best is None or score > best[0]):
+            if score >= 0.62 and (best is None or score > best[0]):
                 best = (score, f)
         if best:
             cur = matched.get(str(best[1].get("id")))
