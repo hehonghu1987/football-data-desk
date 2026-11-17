@@ -1410,52 +1410,76 @@ def attach_apifootball(fixture_rows, teams, log=log):
                 matched[str(best[1].get("id"))] = (best[0], best[1], afid)
     if not matched:
         return 0, 0
-    ordered = sorted(matched.values(), key=lambda x: x[1].get("date") or "9999")[:260]
-    added = 0
-    for _score, f, afid in ordered:
+    ordered = sorted(matched.values(), key=lambda x: x[1].get("date") or "9999")
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _prefetch(item):
+        _score, f, afid = item
         f["af"] = afid
-        # 伤停名单（每场一次，缓存 3 小时）
+        soon = False
         try:
-            inj = _af_get("/injuries", key, {"fixture": afid}, ttl=10800)
-            if inj.get("response"):
-                api_teams = ((api_fixtures.get(afid) or {}).get("teams") or {})
-                home_api = str(((api_teams.get("home") or {}).get("id")) or "")
-                hh, aa = [], []
-                for it in inj["response"]:
-                    pl = it.get("player") or {}
-                    team = it.get("team") or {}
-                    nm = pl.get("name") or ""
-                    if not nm:
-                        continue
-                    rec = {"n": nm, "r": (pl.get("reason") or "")[:24], "t": (pl.get("type") or "")[:10]}
-                    if str(team.get("id")) == home_api:
-                        hh.append(rec)
-                    else:
-                        aa.append(rec)
-                if hh or aa:
-                    f["inj"] = {"h": hh[:12], "a": aa[:12]}
+            ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+            soon = ft <= now + timedelta(hours=60)
+        except ValueError:
+            soon = False
+        data = {"odds": None, "inj": None, "pred": None}
+        try:
+            data["odds"] = _af_get("/odds", key, {"fixture": afid}, ttl=10800)
         except Exception:
             pass
-        # 外部模型预测（缓存 6 小时）
-        try:
-            pr = _af_get("/predictions", key, {"fixture": afid}, ttl=21600)
-            if pr.get("response"):
-                pct = ((pr["response"][0].get("predictions") or {}).get("percent") or {})
-                def _p(v):
-                    try:
-                        return round(float(str(v).replace("%", "")) / 100, 3)
-                    except (TypeError, ValueError):
-                        return None
-                h_, d_, a_ = _p(pct.get("home")), _p(pct.get("draw")), _p(pct.get("away"))
-                adv = ((pr["response"][0].get("predictions") or {}).get("advice") or "")[:60]
-                if h_ is not None and d_ is not None and a_ is not None:
-                    f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": adv}
-        except Exception:
-            pass
-        try:
-            od = _af_get("/odds", key, {"fixture": afid}, ttl=7200)
-        except Exception:
-            continue
+        if soon:
+            try:
+                data["inj"] = _af_get("/injuries", key, {"fixture": afid}, ttl=14400)
+            except Exception:
+                pass
+            try:
+                data["pred"] = _af_get("/predictions", key, {"fixture": afid}, ttl=43200)
+            except Exception:
+                pass
+        return item, data
+
+    try:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            fetched = list(ex.map(_prefetch, ordered))
+    except Exception as e:
+        log(f"  ⚠ API-Football 并发抓取失败：{str(e)[:60]}")
+        return 0, 0
+    added = 0
+    for (_score, f, afid), data in fetched:
+        # 伤停
+        inj = data.get("inj") or {}
+        if inj.get("response"):
+            api_teams = ((api_fixtures.get(afid) or {}).get("teams") or {})
+            home_api = str(((api_teams.get("home") or {}).get("id")) or "")
+            hh, aa = [], []
+            for it in inj["response"]:
+                pl = it.get("player") or {}
+                team = it.get("team") or {}
+                nm = pl.get("name") or ""
+                if not nm:
+                    continue
+                rec = {"n": nm, "r": (pl.get("reason") or "")[:24], "t": (pl.get("type") or "")[:10]}
+                if str(team.get("id")) == home_api:
+                    hh.append(rec)
+                else:
+                    aa.append(rec)
+            if hh or aa:
+                f["inj"] = {"h": hh[:12], "a": aa[:12]}
+        # 预测
+        pr = data.get("pred") or {}
+        if pr.get("response"):
+            pct = ((pr["response"][0].get("predictions") or {}).get("percent") or {})
+            def _p(v):
+                try:
+                    return round(float(str(v).replace("%", "")) / 100, 3)
+                except (TypeError, ValueError):
+                    return None
+            h_, d_, a_ = _p(pct.get("home")), _p(pct.get("draw")), _p(pct.get("away"))
+            adv = ((pr["response"][0].get("predictions") or {}).get("advice") or "")[:60]
+            if h_ is not None and d_ is not None and a_ is not None:
+                f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": adv}
+        # 赔率
+        od = data.get("odds") or {}
         resp = od.get("response") or []
         if not resp:
             continue
@@ -1492,7 +1516,6 @@ def attach_apifootball(fixture_rows, teams, log=log):
                 books.append(entry)
                 added += 1
             else:
-                # 有初赔的保留 open，数值用 API-Football 的最新价
                 for k in ("m", "ah", "ou"):
                     if entry.get(k):
                         cur[k] = entry[k]
