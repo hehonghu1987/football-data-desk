@@ -1546,6 +1546,19 @@ def attach_apifootball(fixture_rows, teams, log=log):
         log(f"  ⚠ API-Football 并发抓取失败：{str(e)[:60]}")
         return 0, 0
     added = 0
+    # 用 API-Football 的赛果补比分（ESPN 偶尔缺漏，尤其友谊赛）
+    for (_score, f, afid), _data in fetched:
+        it = api_fixtures.get(afid) or {}
+        status = ((it.get("fixture") or {}).get("status") or {}).get("short") or ""
+        goals = it.get("goals") or {}
+        if status in ("FT", "AET", "PEN") and goals.get("home") is not None and goals.get("away") is not None:
+            try:
+                if f.get("hs") is None or f.get("as") is None:
+                    f["hs"] = int(goals["home"])
+                    f["as"] = int(goals["away"])
+                f["state"] = "post"
+            except (TypeError, ValueError):
+                pass
     # 队名映射（我们的队ID → API 队ID），供球队名单使用
     try:
         with open(os.path.join(CACHE_DIR, "af_team_map.json"), "r", encoding="utf-8") as mf:
@@ -4942,6 +4955,26 @@ def main():
             log(f"  API-Football 球队名单：生成 {_squad_n} 支球队（data/af_rosters）")
     except Exception as e:
         log(f"  ⚠ API-Football 球队名单失败：{str(e)[:80]}")
+    # 开赛超过 3 小时仍无比分的场次：不再挂在赛程里（避免出现「已开赛但没比分」）
+    try:
+        _cut3 = datetime.utcnow() - timedelta(hours=3)
+        _kept = []
+        for _f in fixture_rows:
+            if _f.get("hs") is not None:
+                _kept.append(_f)
+                continue
+            try:
+                _ft3 = datetime.fromisoformat((_f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+            except ValueError:
+                _kept.append(_f)
+                continue
+            if _ft3 > _cut3:
+                _kept.append(_f)
+        if len(_kept) != len(fixture_rows):
+            log(f"  赛程清理：移除 {len(fixture_rows) - len(_kept)} 场已开赛但无数据的场次")
+        fixture_rows[:] = _kept
+    except Exception as e:
+        log(f"  ⚠ 赛程清理失败：{str(e)[:60]}")
     try:
         _pin_add, _pin_n = attach_pinnacle(fixture_rows, teams)
         if _pin_n:
