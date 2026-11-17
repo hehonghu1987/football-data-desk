@@ -1400,6 +1400,15 @@ def _af_team_sim(name, team):
             score = 1.0
         elif _af_acronym_match(name, cand):
             score = max(score, 0.9)
+        # 一方是另一方的前缀子集（Derby / Derby County、Norwich / Norwich City）
+        if sa and sb and (sa <= sb or sb <= sa):
+            score = max(score, 0.9)
+        # 词首前缀匹配（Wolves / Wolverhampton、Sheff / Sheffield）
+        if score < 0.9:
+            for x in sa:
+                if len(x) >= 4 and any(y.startswith(x) for y in sb):
+                    score = max(score, 0.86)
+                    break
         best = max(best, score)
     return best
 
@@ -1459,6 +1468,18 @@ def attach_apifootball(fixture_rows, teams, log=log):
                 matched[str(best[1].get("id"))] = (best[0], best[1], afid)
     if not matched:
         return 0, 0
+    # 诊断：列出前几场没匹配上的（便于发现队名/时间问题）
+    try:
+        _un = [f for _ft, f in targets if str(f.get("id")) not in matched][:5]
+        if _un:
+            _names = []
+            for f in _un:
+                th = teams_by_id.get(str(f.get("home"))) or {}
+                ta = teams_by_id.get(str(f.get("away"))) or {}
+                _names.append(f"{f.get('league')} {th.get('cn') or th.get('name')} vs {ta.get('cn') or ta.get('name')} @{(f.get('date') or '')[:16]}")
+            log("  API-Football 未匹配示例：" + "；".join(_names))
+    except Exception:
+        pass
     ordered = sorted(matched.values(), key=lambda x: x[1].get("date") or "9999")
     from concurrent.futures import ThreadPoolExecutor
 
