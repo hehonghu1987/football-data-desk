@@ -1290,26 +1290,32 @@ def _af_get(path, key, params=None, ttl=1800):
 
 
 def _pick_ah(values):
-    """从 API-Football 的 Asian Handicap 多线里挑最均衡的主盘。
-    不同机构的写法不一样（有的只给负数线，有的正负都给），所以直接在所有
-    Home/Away 组合里选赔率最接近 1.9/1.9 的一对，行号取 Home 侧的数字。"""
-    homes, aways = [], []
+    """从 API-Football 的 Asian Handicap 多线里挑主盘。
+    API 的 value 写法是 "Home X"/"Away X"（同数字即互补方向），按同数字配对，
+    选赔率最均衡的一对；赔率明显不合理（比如 5.5/1.13）的机构直接跳过，
+    避免显示错误的盘口/水位。"""
+    homes, aways = {}, {}
     for v in values or []:
         val = (v.get("value") or "").strip()
         try:
             odd = float(v.get("odd"))
-            line = float(val.split()[-1])
         except (TypeError, ValueError):
             continue
         low = val.lower()
+        try:
+            key = round(float(val.split()[-1]), 2)
+        except (TypeError, ValueError, IndexError):
+            continue
         if low.startswith("home "):
-            homes.append((line, odd))
+            homes[key] = odd
         elif low.startswith("away "):
-            aways.append((line, odd))
+            aways[key] = odd
     cands = []
-    for hl, ho in homes:
-        for al, ao in aways:
-            cands.append((abs(ho - ao), hl, ho, ao))
+    for line, ho in homes.items():
+        ao = aways.get(line)
+        if ao:
+            cands.append((abs(ho - ao), line, ho, ao))
+    cands = [c for c in cands if 1.4 <= c[2] <= 5.0 and 1.4 <= c[3] <= 5.0 and c[0] <= 1.5]
     if not cands:
         return None
     best = min(cands, key=lambda c: c[0])
