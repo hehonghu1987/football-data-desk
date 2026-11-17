@@ -2563,8 +2563,10 @@ function avgText(v){
     const stale = mins >= 45;
     if(chip){
       chip.classList.toggle("stale", stale);
+      chip.style.cursor = stale ? "pointer" : "";
+      chip.onclick = stale ? (() => { if(window.__hardReload) window.__hardReload(); }) : null;
       chip.title = stale
-        ? `数据已 ${mins} 分钟未更新（正常每 30 分钟更新一次；05:00–12:00 只停刷新机构赔率，页面数据仍会更新）`
+        ? `数据已 ${mins} 分钟未更新，点击此处强制刷新（正常每 30 分钟更新一次）`
         : "数据每 30 分钟左右自动更新";
     }
   };
@@ -6872,14 +6874,16 @@ if("requestIdleCallback" in window){
         }
       });
     }, 90000);
-    document.getElementById("fresh-reload")?.addEventListener("click", () => location.reload());
-    document.getElementById("hard-reload")?.addEventListener("click", async () => {
+    const hardReload = async () => {
       try{
         if("caches" in window){ const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
         if("serviceWorker" in navigator){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); }
       }catch(e){}
       location.replace(location.pathname + "?r=" + Date.now());
-    });
+    };
+    window.__hardReload = hardReload;
+    document.getElementById("fresh-reload")?.addEventListener("click", hardReload);
+    document.getElementById("hard-reload")?.addEventListener("click", hardReload);
   }catch(e){}
 })();
 
