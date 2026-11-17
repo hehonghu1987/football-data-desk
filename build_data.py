@@ -4955,9 +4955,9 @@ def main():
             log(f"  API-Football 球队名单：生成 {_squad_n} 支球队（data/af_rosters）")
     except Exception as e:
         log(f"  ⚠ API-Football 球队名单失败：{str(e)[:80]}")
-    # 开赛超过 3 小时仍无比分的场次：不再挂在赛程里（避免出现「已开赛但没比分」）
+    # 开赛超过 2.5 小时仍无比分的场次：不再挂在赛程里（避免出现「已开赛但没比分」）
     try:
-        _cut3 = datetime.utcnow() - timedelta(hours=3)
+        _cut3 = datetime.utcnow() - timedelta(minutes=150)
         _kept = []
         for _f in fixture_rows:
             if _f.get("hs") is not None:
