@@ -131,7 +131,11 @@ jobs:
           if [ -d fonts ]; then
             cp -R fonts dist/fonts
           fi
-          if [ -d data/af_rosters ]; then mkdir -p dist/data; cp -R data/af_rosters dist/data/af_rosters; fi
+          if [ -d data/af_rosters ]; then
+            mkdir -p dist/data/af_rosters
+            cp -R data/af_rosters/. dist/data/af_rosters/
+            echo "af_rosters files: $(ls dist/data/af_rosters | wc -l)"
+          fi
           if [ -f data/ht.json ]; then mkdir -p dist/data; cp data/ht.json dist/data/ht.json; fi
           if [ -f data/markets.json ]; then mkdir -p dist/data; cp data/markets.json dist/data/markets.json; fi
           if [ -f data/fdco.json ]; then
@@ -179,6 +183,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # 赛前盘口快照必须入库：CI 每次全新 checkout，缓存里只有采集缓存。
           if [ -d odds_snapshots ]; then git add odds_snapshots; fi
+          if [ -d data/af_rosters ]; then git add data/af_rosters; fi
           # 简报归档：只在新一期出现时提交（当天期在部署包里实时更新，
           # 次日首跑会把最终版本提交），避免每 30 分钟产生一条归档提交。
           BJ_TODAY=$(TZ=Asia/Shanghai date +%F)
