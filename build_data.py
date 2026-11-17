@@ -1354,11 +1354,31 @@ def _pick_ou(values):
 _AF_STOP = {"fc", "cf", "sc", "afc", "ac", "cd", "club", "clube", "calcio", "de", "the", "if", "bk", "ff", "sk", "fk", "nk", "kf", "cs", "as", "us", "ss", "sv", "vfl", "vfb", "tsg", "fsv", "spvgg", "1.", "ii", "b", "u19", "u21", "u23"}
 
 
+_AF_TRANSLIT = {
+    "munchen": "munich", "koln": "cologne", "nurnberg": "nuremberg",
+    "monchengladbach": "gladbach", "wien": "vienna", "milano": "milan",
+    "torino": "turin", "napoli": "naples", "genova": "genoa",
+    "lisboa": "lisbon", "bruxelles": "brussels", "bruges": "bruges",
+    "gent": "ghent", "kobenhavn": "copenhagen", "goteborg": "gothenburg",
+    "beograd": "belgrade", "warszawa": "warsaw", "praha": "prague",
+    "kiev": "kyiv", "bucuresti": "bucharest", "thessaloniki": "thessaloniki",
+    "fenerbahce": "fenerbahce", "besiktas": "besiktas", "galatasaray": "galatasaray",
+    "anderlecht": "anderlecht", "brondby": "brondby", "malmo": "malmo",
+}
+
+
 def _af_norm_tokens(name):
     import re as _re
+    import unicodedata as _ud
     s = (name or "").lower()
+    s = _ud.normalize("NFKD", s)
+    s = "".join(c for c in s if not _ud.combining(c))
     s = _re.sub(r"[^a-z0-9 ]", " ", s)
-    toks = [t for t in s.split() if t and t not in _AF_STOP]
+    toks = []
+    for t in s.split():
+        if not t or t in _AF_STOP or t.isdigit():
+            continue
+        toks.append(_AF_TRANSLIT.get(t, t))
     return toks
 
 
