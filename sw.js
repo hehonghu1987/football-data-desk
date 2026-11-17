@@ -1,7 +1,7 @@
 /* 绿茵数据台：上次访问优先（stale-while-revalidate），弱网也能秒开。
    页面是每日更新的数据台，页面内自带「数据截止」时间戳，
    因此导航直接返回缓存、后台再拉新版本，下一次访问即为最新。 */
-const VERSION = "gyd-v4";
+const VERSION = "gyd-v5";
 const HTML_CACHE = VERSION + "-html";
 const STATIC_CACHE = VERSION + "-static";
 const CACHE_MAX_AGE = 2 * 60 * 1000; // HTML 缓存最长 2 分钟，超时改走网络优先（避免刷新后仍是旧数据）
@@ -57,8 +57,10 @@ async function htmlStrategy(req) {
       refresh.catch(() => {});
       return cached;
     }
-    const fallback = new Promise(resolve => setTimeout(() => resolve(cached), 8000));
-    return Promise.race([refresh.then(res => res || cached), fallback]);
+    // 弱网下不再「8 秒后回退旧页面」：宁可多等几秒，也要拿到最新构建，
+    // 避免用户刷新后仍看到几小时前、缺数据的旧版本。只有完全离线才用缓存。
+    if(typeof navigator !== "undefined" && navigator.onLine === false) return cached;
+    return refresh.then(res => res || cached).catch(() => cached);
   }
   const res = await refresh;
   return res || new Response("网络暂不可用，请稍后重试。", {
