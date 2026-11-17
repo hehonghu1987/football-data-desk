@@ -1715,6 +1715,34 @@ def attach_af_squads(fixture_rows, teams, log=log):
                 team_ids.add(tid)
     if not team_ids:
         return 0
+    team_objs = teams.values() if isinstance(teams, dict) else (teams or [])
+    by_id = {str(t.get("id")): t for t in team_objs}
+    # 补齐缺失的 API 队ID：用队名搜索（结果长期缓存）
+    for tid in list(team_ids):
+        if amap.get(tid):
+            continue
+        t = by_id.get(tid) or {}
+        nm = t.get("name") or ""
+        if not nm:
+            continue
+        try:
+            res = _af_get("/teams", key, {"search": nm}, ttl=30 * 86400)
+        except Exception:
+            continue
+        best = None
+        for it in (res.get("response") or []):
+            team = it.get("team") or {}
+            sc = _af_team_sim(nm, {"name": team.get("name") or "", "short": team.get("code") or ""})
+            if sc >= 0.8 and (best is None or sc > best[0]):
+                best = (sc, str(team.get("id")))
+        if best:
+            amap[tid] = best[1]
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(os.path.join(CACHE_DIR, "af_team_map.json"), "w", encoding="utf-8") as mf:
+            json.dump(amap, mf, ensure_ascii=False)
+    except OSError:
+        pass
     all_rosters = {}
     written = 0
     for tid in sorted(team_ids)[:120]:
