@@ -74,6 +74,7 @@ jobs:
       - name: 采集数据并生成页面
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
           ODDSAPI_FORCE: ${{ (github.event.inputs.force_odds == 'true') && '1' || '' }}
         run: python3 build_data.py --workers 6 --rate 0.1
 

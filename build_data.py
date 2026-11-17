@@ -1260,6 +1260,208 @@ def _pin_get(url, timeout=30):
         return json.loads(resp.read().decode("utf-8"))
 
 
+AF_BASE = "https://v3.football.api-sports.io"
+
+
+def _af_get(path, key, params=None, ttl=1800):
+    """API-Football 请求 + 本地缓存（避免重复消耗每日 7500 次额度）。"""
+    import hashlib
+    params = params or {}
+    tag = hashlib.md5((path + json.dumps(params, sort_keys=True)).encode()).hexdigest()[:12]
+    cpath = os.path.join(CACHE_DIR, f"af_{tag}.json")
+    try:
+        if os.path.exists(cpath) and time.time() - os.path.getmtime(cpath) < ttl:
+            with open(cpath, "r", encoding="utf-8") as fh:
+                return json.load(fh)
+    except OSError:
+        pass
+    qs = urllib.parse.urlencode(params) if params else ""
+    url = AF_BASE + path + ("?" + qs if qs else "")
+    req = urllib.request.Request(url, headers={"x-apisports-key": key})
+    with urllib.request.urlopen(req, timeout=40) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(cpath, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False)
+    except OSError:
+        pass
+    return data
+
+
+def _pick_ah(values):
+    """从 API-Football 的 Asian Handicap 多线里挑最均衡的主盘。
+    API 的 value 为 "Home -1.25" / "Away -1.25"，同一数字的主客组合成一对，
+    行号按主队视角（Home -1.25 → line = -1.25）。"""
+    homes, aways = {}, {}
+    for v in values or []:
+        val = (v.get("value") or "").strip()
+        try:
+            odd = float(v.get("odd"))
+        except (TypeError, ValueError):
+            continue
+        low = val.lower()
+        try:
+            if low.startswith("home "):
+                homes[round(float(val[5:]), 2)] = odd
+            elif low.startswith("away "):
+                aways[round(float(val[5:]), 2)] = odd
+        except ValueError:
+            continue
+    cands = []
+    for line, ho in homes.items():
+        ao = aways.get(line)
+        if ao:
+            cands.append((abs(ho - ao), line, ho, ao))
+    if not cands:
+        return None
+    best = min(cands, key=lambda c: c[0])
+    return {"line": best[1], "h": best[2], "a": best[3]}
+
+
+def _pick_ou(values):
+    """从 Goals Over/Under 多线里挑最接近 2.5 的主盘。"""
+    pairs = {}
+    for v in values or []:
+        val = (v.get("value") or "").strip().lower()
+        try:
+            odd = float(v.get("odd"))
+        except (TypeError, ValueError):
+            continue
+        if val.startswith("over "):
+            try:
+                line = float(val[5:])
+            except ValueError:
+                continue
+            pairs.setdefault(round(line, 2), {})["over"] = odd
+            pairs[round(line, 2)]["line"] = line
+        elif val.startswith("under "):
+            try:
+                line = float(val[6:])
+            except ValueError:
+                continue
+            pairs.setdefault(round(line, 2), {})["under"] = odd
+            pairs[round(line, 2)].setdefault("line", line)
+    best = None
+    for item in pairs.values():
+        if item.get("over") and item.get("under") and item.get("line"):
+            d = abs(item["line"] - 2.5)
+            if best is None or d < best[0]:
+                best = (d, item)
+    return best[1] if best else None
+
+
+def attach_apifootball(fixture_rows, teams, log=log):
+    """用 API-Football（Pro）补多机构欧赔/亚盘/大小球。只补未来 7 天场次，
+    赛程与赔率都缓存 30 分钟，单轮最多 260 场；不写 key 进代码。"""
+    key = os.environ.get("API_FOOTBALL_KEY", "").strip()
+    if not key:
+        return 0, 0
+    now = datetime.utcnow()
+    team_list = teams.values() if isinstance(teams, dict) else (teams or [])
+    teams_by_id = {str(t.get("id")): t for t in team_list}
+    targets, dates = [], set()
+    for f in fixture_rows:
+        if f.get("hs") is not None or f.get("as") is not None:
+            continue
+        try:
+            ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        if now - timedelta(hours=2) <= ft <= now + timedelta(days=7):
+            targets.append((ft, f))
+            dates.add(ft.date().isoformat())
+    if not targets:
+        return 0, 0
+    try:
+        import fdco as _fd
+        sim = _fd._team_sim
+    except Exception:
+        sim = lambda a, b: _team_sim(a, (b or {}).get("name") or "")
+    api_fixtures = {}
+    for day in sorted(dates):
+        try:
+            d = _af_get("/fixtures", key, {"date": day, "timezone": "UTC"}, ttl=1800)
+        except Exception as e:
+            log(f"  ⚠ API-Football 赛程拉取失败 {day}: {str(e)[:60]}")
+            continue
+        for it in (d.get("response") or []):
+            api_fixtures[str(it.get("fixture", {}).get("id"))] = it
+    matched = {}
+    for afid, it in api_fixtures.items():
+        try:
+            mt = datetime.fromisoformat((it.get("fixture", {}).get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        home_n = ((it.get("teams") or {}).get("home") or {}).get("name") or ""
+        away_n = ((it.get("teams") or {}).get("away") or {}).get("name") or ""
+        best = None
+        for ft, f in targets:
+            if abs((ft - mt).total_seconds()) > 3 * 3600:
+                continue
+            th = teams_by_id.get(str(f.get("home"))) or {}
+            ta = teams_by_id.get(str(f.get("away"))) or {}
+            score = min(sim(home_n, th), sim(away_n, ta))
+            if score >= 0.8 and (best is None or score > best[0]):
+                best = (score, f)
+        if best:
+            cur = matched.get(str(best[1].get("id")))
+            if cur is None or best[0] > cur[0]:
+                matched[str(best[1].get("id"))] = (best[0], best[1], afid)
+    if not matched:
+        return 0, 0
+    ordered = sorted(matched.values(), key=lambda x: x[1].get("date") or "9999")[:260]
+    added = 0
+    for _score, f, afid in ordered:
+        f["af"] = afid
+        try:
+            od = _af_get("/odds", key, {"fixture": afid}, ttl=7200)
+        except Exception:
+            continue
+        resp = od.get("response") or []
+        if not resp:
+            continue
+        for bm in (resp[0].get("bookmakers") or []):
+            canon = _canon_book(bm.get("name") or "")
+            if not canon:
+                continue
+            entry = {"book": canon, "src": "apifootball"}
+            for bet in (bm.get("bets") or []):
+                bid = bet.get("id")
+                name = (bet.get("name") or "")
+                if bid == 1 or "match winner" == name.lower():
+                    vals = {v.get("value"): v.get("odd") for v in (bet.get("values") or [])}
+                    try:
+                        h = float(vals.get("Home"))
+                        d = float(vals.get("Draw"))
+                        a = float(vals.get("Away"))
+                    except (TypeError, ValueError):
+                        continue
+                    entry["m"] = [round(h, 2), round(d, 2), round(a, 2)]
+                elif bid == 4:
+                    ah = _pick_ah(bet.get("values"))
+                    if ah:
+                        entry["ah"] = {"line": ah["line"], "h": round(ah["h"], 2), "a": round(ah["a"], 2)}
+                elif bid == 5:
+                    ou = _pick_ou(bet.get("values"))
+                    if ou:
+                        entry["ou"] = {"line": ou["line"], "over": round(ou["over"], 2), "under": round(ou["under"], 2)}
+            if not (entry.get("m") or entry.get("ah") or entry.get("ou")):
+                continue
+            books = f.setdefault("books", [])
+            cur = next((b for b in books if b.get("book") == canon), None)
+            if cur is None:
+                books.append(entry)
+                added += 1
+            else:
+                # 有初赔的保留 open，数值用 API-Football 的最新价
+                for k in ("m", "ah", "ou"):
+                    if entry.get(k):
+                        cur[k] = entry[k]
+                        added += 1
+    return added, len(ordered)
+
+
 def attach_pinnacle(fixture_rows, teams, log=log):
     """补平博（Pinnacle）欧赔/亚盘/大小球：官方网页的公开访客接口，免费无 key 配额。
     抓未来 4 天内的场次，每场比赛赔率缓存 20 分钟，单轮最多 80 场。"""
@@ -4380,6 +4582,12 @@ def main():
             log(f"  赛前盘口补充：{_up_hit} 场（football-data fixtures：Bet365 亚盘/大小球 + Pinnacle 欧赔）")
     except Exception as e:
         log(f"  ⚠ 赛前盘口补充失败：{str(e)[:80]}")
+    try:
+        _af_add, _af_n = attach_apifootball(fixture_rows, teams)
+        if _af_n:
+            log(f"  API-Football 补充：{_af_add} 条（{_af_n} 场，多机构欧赔/亚盘/大小球）")
+    except Exception as e:
+        log(f"  ⚠ API-Football 补充失败：{str(e)[:80]}")
     try:
         _pin_add, _pin_n = attach_pinnacle(fixture_rows, teams)
         if _pin_n:
