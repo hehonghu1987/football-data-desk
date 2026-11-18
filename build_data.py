@@ -1076,6 +1076,12 @@ ODDS_BOOK_WHITELIST = {
     "sbobet": "SBOBET", "188bet": "188BET", "12bet": "12BET",
     "crown": "Crown", "macauslot": "Macau Slot", "dafabet": "Dafabet",
     "oddset": "ODDSET", "snai": "SNAI", "codere": "Codere",
+    "sbo": "SBOBET", "betvictor": "BetVictor", "betano": "Betano",
+    "10bet": "10Bet", "bwin": "Bwin", "betfred": "BetFred",
+    "interwetten": "Interwetten", "5dimes": "5Dimes", "intertops": "Intertops",
+    "bovada": "Bovada", "betcris": "Betcris", "sportingbet": "Sportingbet",
+    "betway": "Betway", "expekt": "Expekt", "comeon": "ComeOn",
+    "netbet": "Netbet", "fonbet": "Fonbet", "superbet": "Superbet",
 }
 ODDSAPI_BOOKMAKERS = "pinnacle,williamhill,ladbrokes_uk,unibet_fr,unibet_nl,unibet_se,tipico_de,winamax_de,winamax_fr"
 ODDSAPI_BOOKMAKERS_EXTRA = ("onexbet,marathonbet,betsson,nordicbet,pmu_fr,leovegas_se,"
@@ -1102,6 +1108,8 @@ def filter_whitelist_books(fixture_rows):
             for k in ("m", "ou", "ah"):
                 if b.get(k) and not cur.get(k):
                     cur[k] = b[k]
+            if b.get("open") and not cur.get("open"):
+                cur["open"] = b["open"]
             if b.get("src") == "oddsapi":
                 cur["src"] = "oddsapi"
         if merged:
@@ -1272,14 +1280,18 @@ def _af_get(path, key, params=None, ttl=1800):
     try:
         if os.path.exists(cpath) and time.time() - os.path.getmtime(cpath) < ttl:
             with open(cpath, "r", encoding="utf-8") as fh:
-                return json.load(fh)
-    except OSError:
+                cached = json.load(fh)
+            if not cached.get("errors"):
+                return cached
+    except (OSError, ValueError):
         pass
     qs = urllib.parse.urlencode(params) if params else ""
     url = AF_BASE + path + ("?" + qs if qs else "")
     req = urllib.request.Request(url, headers={"x-apisports-key": key})
     with urllib.request.urlopen(req, timeout=40) as resp:
         data = json.loads(resp.read().decode("utf-8"))
+    if data.get("errors"):
+        raise RuntimeError("API-Football: " + str(data["errors"])[:240])
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
         with open(cpath, "w", encoding="utf-8") as fh:
@@ -1289,32 +1301,32 @@ def _af_get(path, key, params=None, ttl=1800):
     return data
 
 
+def _paired_lines(values, first, second):
+    """保留 API 的所有完整两边盘口，按盘口数字配对。"""
+    pairs = {}
+    for value in values or []:
+        label = str(value.get("value") or "").strip()
+        parts = label.split()
+        if len(parts) != 2 or parts[0].lower() not in (first, second):
+            continue
+        try:
+            line, odd = round(float(parts[1]), 2), float(value.get("odd"))
+        except (TypeError, ValueError):
+            continue
+        if not (math.isfinite(line) and math.isfinite(odd) and odd > 1):
+            continue
+        pairs.setdefault(line, {})[parts[0].lower()] = round(odd, 3)
+    return [[line, p[first], p[second]] for line, p in sorted(pairs.items())
+            if first in p and second in p]
+
+
 def _pick_ah(values):
     """从 API-Football 的 Asian Handicap 多线里挑主盘。
     API 的 value 写法是 "Home X"/"Away X"（同数字即互补方向），按同数字配对，
     选赔率最均衡的一对；赔率明显不合理（比如 5.5/1.13）的机构直接跳过，
     避免显示错误的盘口/水位。"""
-    homes, aways = {}, {}
-    for v in values or []:
-        val = (v.get("value") or "").strip()
-        try:
-            odd = float(v.get("odd"))
-        except (TypeError, ValueError):
-            continue
-        low = val.lower()
-        try:
-            key = round(float(val.split()[-1]), 2)
-        except (TypeError, ValueError, IndexError):
-            continue
-        if low.startswith("home "):
-            homes[key] = odd
-        elif low.startswith("away "):
-            aways[key] = odd
-    cands = []
-    for line, ho in homes.items():
-        ao = aways.get(line)
-        if ao:
-            cands.append((abs(ho - ao), line, ho, ao))
+    cands = [(abs(ho - ao), line, ho, ao) for line, ho, ao in
+             _paired_lines(values, "home", "away")]
     cands = [c for c in cands if 1.4 <= c[2] <= 5.0 and 1.4 <= c[3] <= 5.0 and c[0] <= 1.5]
     if not cands:
         return None
@@ -1347,7 +1359,7 @@ def _pick_ou(values):
             pairs[round(line, 2)].setdefault("line", line)
     best = None
     for item in pairs.values():
-        if item.get("over") and item.get("under") and item.get("line"):
+        if item.get("over") and item.get("under") and item.get("line") is not None:
             d = abs(item["line"] - 2.5)
             if best is None or d < best[0]:
                 best = (d, item)
@@ -1523,7 +1535,7 @@ def attach_apifootball(fixture_rows, teams, log=log):
         data = {"odds": None, "inj": None, "pred": None, "lineups": None}
         _finished = f.get("hs") is not None or f.get("as") is not None
         try:
-            data["odds"] = _af_get("/odds", key, {"fixture": afid}, ttl=10800)
+            data["odds"] = _af_get("/odds", key, {"fixture": afid}, ttl=3600)
         except Exception:
             pass
         if soon:
@@ -1660,6 +1672,8 @@ def attach_apifootball(fixture_rows, teams, log=log):
             if not canon:
                 continue
             entry = {"book": canon, "src": "apifootball"}
+            source_at = resp[0].get("update")
+            markets_at = {}
             for bet in (bm.get("bets") or []):
                 bid = bet.get("id")
                 name = (bet.get("name") or "")
@@ -1672,15 +1686,33 @@ def attach_apifootball(fixture_rows, teams, log=log):
                     except (TypeError, ValueError):
                         continue
                     entry["m"] = [round(h, 2), round(d, 2), round(a, 2)]
+                    markets_at["m"] = source_at
                 elif bid == 4:
+                    lines = _paired_lines(bet.get("values"), "home", "away")
+                    if lines:
+                        entry["ahLines"] = lines
+                        markets_at["ahLines"] = source_at
                     ah = _pick_ah(bet.get("values"))
                     if ah:
                         entry["ah"] = {"line": ah["line"], "h": round(ah["h"], 2), "a": round(ah["a"], 2)}
+                        markets_at["ah"] = source_at
                 elif bid == 5:
+                    lines = _paired_lines(bet.get("values"), "over", "under")
+                    if lines:
+                        entry["ouLines"] = lines
+                        markets_at["ouLines"] = source_at
                     ou = _pick_ou(bet.get("values"))
                     if ou:
                         entry["ou"] = {"line": ou["line"], "over": round(ou["over"], 2), "under": round(ou["under"], 2)}
-            if not (entry.get("m") or entry.get("ah") or entry.get("ou")):
+                        markets_at["ou"] = source_at
+                elif bid == 50:
+                    lines = _paired_lines(bet.get("values"), "over", "under")
+                    if lines:
+                        entry["goalLines"] = lines
+                        markets_at["goalLines"] = source_at
+            if markets_at:
+                entry["marketAt"] = markets_at
+            if not any(entry.get(k) for k in ("m", "ah", "ou", "ahLines", "ouLines", "goalLines")):
                 continue
             books = f.setdefault("books", [])
             cur = next((b for b in books if b.get("book") == canon), None)
@@ -1688,10 +1720,12 @@ def attach_apifootball(fixture_rows, teams, log=log):
                 books.append(entry)
                 added += 1
             else:
-                for k in ("m", "ah", "ou"):
+                for k in ("m", "ah", "ou", "ahLines", "ouLines", "goalLines"):
                     if entry.get(k):
                         cur[k] = entry[k]
                         added += 1
+                if markets_at:
+                    cur.setdefault("marketAt", {}).update(markets_at)
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
         with open(os.path.join(CACHE_DIR, "af_team_map.json"), "w", encoding="utf-8") as mf:
@@ -1984,12 +2018,15 @@ def merge_books_persist(fixture_rows, ttl_hours=36):
         if ft is not None and not (now - 2 * 3600 <= ft <= now + 10 * 86400):
             continue
         cur = {}
+        carried = {}
         for b in (f.get("books") or []):
             name = b.get("book")
             if name:
                 cur[name] = b
         old = (persist.get(fid) or {}).get("books") or {}
         for name, rec in old.items():
+            if name == "北单" or (rec.get("b") or {}).get("src") == "beidan":
+                continue
             if name in cur:
                 continue
             if now - (rec.get("t") or 0) > ttl_hours * 3600:
@@ -1998,9 +2035,10 @@ def merge_books_persist(fixture_rows, ttl_hours=36):
             if b:
                 f.setdefault("books", []).append(b)
                 cur[name] = b
+                carried[name] = rec.get("t")
                 filled += 1
         if cur:
-            kept[fid] = {"date": date, "books": {name: {"b": b, "t": now} for name, b in cur.items()}}
+            kept[fid] = {"date": date, "books": {name: {"b": b, "t": carried.get(name, now)} for name, b in cur.items()}}
     # 写入（保留未在当前窗口但仍在 TTL 内的旧场次）
     for fid, rec in persist.items():
         if fid in kept:
@@ -2271,13 +2309,17 @@ def _bd_float(x):
         return None
 
 
+def _bd_line(text):
+    return _bd_float(str(text or "").strip().strip("()（） "))
+
+
 def fetch_beidan():
     """北单（北京单场）在售场次 + 让球胜平负 SP 赔率。
     来源：澳客北单列表页（服务端渲染 HTML，非 /Remoting 接口）。
     缓存 10 分钟；CI 被拦时回退仓库快照。"""
     cache_path = os.path.join(CACHE_DIR, "beidan.json")
     raw = read_cache("beidan.json")
-    if raw and cache_age(raw, cache_path) < 600 and raw.get("matches"):
+    if raw and raw.get("parserVersion") == 2 and cache_age(raw, cache_path) < 600 and raw.get("matches"):
         return raw["matches"]
     out = []
     try:
@@ -2303,7 +2345,7 @@ def fetch_beidan():
                 continue
             lg = re.search(r'class="ls"[^>]*title="([^"]+)"', row)
             hc = re.search(r'class="handicapobj[^"]*"[^>]*>\s*([^<]*)</span>', row)
-            line = _bd_float((hc.group(1) or "").replace("+", "") if hc else None)
+            line = _bd_line(hc.group(1)) if hc else None
             # 主胜赔率：sbg 区块内 pltxt；平：pbg 的 em；客胜：fbg 里的 pltxt
             sbg = re.search(r'class="sbg".*?</a>', row, re.S)
             fbg = re.search(r'class="fbg".*?</a>', row, re.S)
@@ -2331,7 +2373,7 @@ def fetch_beidan():
             out = []
         return out
     if out:
-        write_cache("beidan.json", {"_t": time.time(), "matches": out})
+        write_cache("beidan.json", {"_t": time.time(), "parserVersion": 2, "matches": out})
         try:
             os.makedirs(os.path.join(ROOT, "odds_snapshots"), exist_ok=True)
             with open(os.path.join(ROOT, "odds_snapshots", "beidan.json"), "w", encoding="utf-8") as f:
@@ -2375,8 +2417,6 @@ def attach_beidan(fixture_rows, teams, bj_matches):
                 continue
             if _name_match_loose(hn, m["home"]) and _name_match_loose(an, m["away"]):
                 f["bj"] = {"num": m["num"], "line": m["line"], "h": m["h"], "d": m["d"], "a": m["a"]}
-                if m.get("h") and m.get("d") and m.get("a"):
-                    f.setdefault("books", []).append({"book": "北单", "m": [m["h"], m["d"], m["a"]], "src": "beidan"})
                 hit += 1
                 break
     return hit
@@ -4910,7 +4950,6 @@ def main():
     except Exception as e:
         log(f"  ⚠ Odds API 抓取失败：{e}")
     filter_whitelist_books(fixture_rows)
-    apply_odds_open(fixture_rows)
     # 中国体彩竞彩官方赔率（公开接口）：补国家队赛事的胜平负 + 让球盘
     try:
         _sp = fetch_sporttery()
@@ -4988,6 +5027,8 @@ def main():
         merge_books_persist(fixture_rows)
     except Exception as e:
         log(f"  ⚠ 机构报价持久化失败：{str(e)[:80]}")
+    # 同时为后续补进来的 API 机构保留首次观察记录。
+    apply_odds_open(fixture_rows)
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()

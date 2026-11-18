@@ -2406,7 +2406,7 @@ async function renderSquads(m){
   if(!box) return;
   const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
   const [hp, ap] = await Promise.all([loadRoster(m.home), loadRoster(m.away)]);
-  if(!hp.length && !ap.length){ box.hidden = true; return; }
+  if(!hp.length && !ap.length && !(m.afL && (m.afL.h || m.afL.a))){ box.hidden = true; return; }
   box.hidden = false;
   const col = (t, pl, side) => {
     const afSide = (m.afL && m.afL[side]) || null;
@@ -2424,7 +2424,7 @@ async function renderSquads(m){
          <div class="squad-list bench">${bench.map(playerCard).join("")}</div>`
       : "";
     return `<div class="squad-team">
-      <h3 class="squad-h">${badge(t, "sm")}${esc((t && (t.cn || t.name)) || "")}${xi.f ? `<span class="squad-f">${esc(xi.f)}</span>` : ""}${xi.starters.length ? `<span class="squad-xi-n">预计首发 ${xi.starters.length} 人</span>` : ""}</h3>
+      <h3 class="squad-h">${badge(t, "sm")}${esc((t && (t.cn || t.name)) || "")}${xi.f ? `<span class="squad-f">${esc(xi.f)}</span>` : ""}${xi.starters.length ? `<span class="squad-xi-n">${xi.from === "api" ? "官方首发" : "预计首发"} ${xi.starters.length} 人</span>` : ""}</h3>
       ${xiHtml}
       ${benchHtml}
     </div>`;
@@ -2432,7 +2432,7 @@ async function renderSquads(m){
   box.innerHTML = `<section class="section">
     <div class="section-head">
       <h2 class="section-title">双方阵容</h2>
-      <span class="section-note">预计首发（按最近比赛首发推算，非官方）· 位置 · 年龄 · 国籍 · 本赛季数据</span>
+      <span class="section-note">官方首发以数据源为准；预计首发按近期比赛推算</span>
     </div>
     <details class="squad-details">
       <summary>双方球员名单（${hp.length + ap.length} 人）<span class="hint">点击展开 · 预计首发 + 替补</span></summary>
@@ -3271,6 +3271,7 @@ function marketProbs(m){
   const books = (m && m.books) || [];
   let sum = null, n = 0;
   for(const b of books){
+    if(b.book === "北单" || b.src === "beidan") continue;
     if(!b.m || b.m.length < 3) continue;
     const inv = b.m.map(x => 1 / x);
     const tot = inv[0] + inv[1] + inv[2];
@@ -3554,6 +3555,7 @@ function valuePicks(){
     // 欧赔：以「各机构隐含概率的中位数」作为公平基准，找高于基准的最优价
     const impl = [[], [], []], best = [0, 0, 0], bestBook = ["", "", ""];
     for(const b of books){
+      if(b.book === "北单" || b.src === "beidan") continue;
       if(!b.m || b.m.length < 3) continue;
       const inv = b.m.map(x => 1 / x), tot = inv[0] + inv[1] + inv[2];
       if(!tot) continue;
@@ -5033,7 +5035,7 @@ function renderPreMatch(m){
   const ip = (odds || hasBooks) ? marketProbs(m) : (!isUpcoming ? (m.mkt || null) : null);
   const cells = [];
   if(odds || hasBooks){
-    const books = (m.books || []).filter(b => b.m || b.ah || b.ou);
+    const books = (m.books || []).filter(b => b.book !== "北单" && b.src !== "beidan" && (b.m || b.ah || b.ou || b.ahLines || b.ouLines || b.goalLines));
     const mbooks = books.filter(b => b.m);
     if(books.length){
       const ipc = marketProbs(m) || ip || consensusBooks(mbooks);
@@ -5046,7 +5048,7 @@ function renderPreMatch(m){
         </div>
         <div class="odds-src">多家机构去水共识 · 小数赔率${books.length < 3 ? ` · 免费数据源本场仅 ${books.length} 家机构` : ""}</div>
         ${(m.sp && m.sp.had) ? `<div class="odds-src sp-line">竞彩官方：${m.sp.had.map(v => Number(v).toFixed(2)).join(" / ")}${(m.sp.hhad && m.sp.hhad.line != null) ? ` · 让球 ${m.sp.hhad.line > 0 ? "主受让" : (m.sp.hhad.line < 0 ? "主让" : "平手")}${Math.abs(m.sp.hhad.line)} 球 ${m.sp.hhad.h} / ${m.sp.hhad.d} / ${m.sp.hhad.a}` : ""}</div>` : ""}
-        ${(m.bj && m.bj.h != null) ? `<div class="odds-src sp-line">北单：${[m.bj.h, m.bj.d, m.bj.a].map(v => Number(v).toFixed(2)).join(" / ")}${m.bj.line != null ? ` · 让球 ${m.bj.line > 0 ? "主受让" : "主让"}${Math.abs(m.bj.line)} 球` : ""}</div>` : ""}
+        ${(m.bj && m.bj.h != null) ? `<div class="odds-src sp-line">北单让球胜平负：${[m.bj.h, m.bj.d, m.bj.a].map(v => v == null ? "—" : Number(v).toFixed(2)).join(" / ")}${m.bj.line != null ? ` · ${m.bj.line > 0 ? "主受让" : m.bj.line < 0 ? "主让" : "平手"}${Math.abs(m.bj.line)} 球` : " · 让球数未提供"}</div>` : ""}
       </div>`);
       const ahc = consensusLine(m, "ah");
       if(ipc) cells.push(ahc ? `<div class="odds-cell">
@@ -5077,7 +5079,7 @@ function renderPreMatch(m){
         <div class="odds-src">该场暂无大小球数据（机构未提供）</div>
       </div>`);
       const qv = v => (v == null ? "—" : Number(v).toFixed(2));
-      const ql = v => (v == null ? "—" : Number(v).toFixed(1));
+      const ql = v => (v == null ? "—" : String(Number(v)));
       // 涨跌着色：红=涨、绿=降（无变化/无初赔则灰色）
       const mvCell = (cur, prev, fmt) => {
         const c = (fmt || qv)(cur), p = (fmt || qv)(prev);
@@ -5118,6 +5120,9 @@ function renderPreMatch(m){
         const op = b.open || null;
         const om = (op && op.m) || [null, null, null];
         const oah = (op && op.ah) || {}, oou = (op && op.ou) || {};
+        const lineGroups = [["亚盘让球", "ahLines"], ["总进球大小球", "ouLines"], ["Goal Line（亚洲进球线）", "goalLines"]]
+          .filter(([, key]) => Array.isArray(b[key]) && b[key].length);
+        const moreLines = lineGroups.length ? `<tr><td colspan="11" style="text-align:left"><details><summary>更多盘口 · API-Football</summary>${lineGroups.map(([label, key]) => `<div class="odds-src" style="padding:6px 0"><b>${esc(label)}</b>${b.marketAt && b.marketAt[key] ? ` · 更新 ${esc(fullTime(b.marketAt[key]))}` : ""}<br>${b[key].map(v => `${key === "ahLines" ? esc(ahText(v[0])) : esc(ql(v[0])) + " 球"}：${key === "ahLines" ? "主 / 客" : "大 / 小"} ${qv(v[1])} / ${qv(v[2])}`).join("　 ·　 ")}</div>`).join("")}</details></td></tr>` : "";
         const mk = (label, mArr, ahObj, ouObj, cls, showName, prev) => {
           const pm = (prev && prev.m) || [null, null, null];
           const pah = (prev && prev.ah) || {};
@@ -5132,9 +5137,9 @@ function renderPreMatch(m){
         </tr>`;
         };
         if(op){
-          return mk("初赔", om, oah, oou, "row-open", true) + mk(isUpcoming ? "即时" : "收盘", mm, ahb, oub, "", false, op);
+          return mk("初始参考", om, oah, oou, "row-open", true) + mk(isUpcoming ? "当前记录" : "赛前记录", mm, ahb, oub, "", false, op) + moreLines;
         }
-        return mk(isUpcoming ? "即时" : "收盘", mm, ahb, oub, "", true);
+        return mk(isUpcoming ? "当前记录" : "赛前记录", mm, ahb, oub, "", true) + moreLines;
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
         <div class="book-scope">
@@ -5145,12 +5150,12 @@ function renderPreMatch(m){
           </div>
           ${pickHtml}
         </div>
-        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>即时 vs 初赔 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
+        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>当前记录 vs 初始参考 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
         <table class="books">
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
-        <div class="odds-src" style="padding:6px 2px 2px">「—」表示该机构未开此盘口或数据源未提供；不同机构覆盖范围不同属正常（Bet365/平博/DraftKings/1xBet 通常最全）。</div>
+        <div class="odds-src" style="padding:6px 2px 2px">初始参考可能是本站首次记录，并非机构开盘价。当前记录可能来自缓存；「—」表示暂无该项数据。更多盘口显示 API-Football 返回的其他盘口线。</div>
       </div>`);
     } else if(odds){
       cells.push(`<div class="odds-cell">
