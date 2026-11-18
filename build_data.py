@@ -1269,6 +1269,18 @@ def _pin_get(url, timeout=30):
 
 
 AF_BASE = "https://v3.football.api-sports.io"
+_AF_RATE_LOCK = threading.Lock()
+_AF_NEXT_REQUEST = 0.0
+_AF_REQUEST_INTERVAL = 0.30  # 约 200 次/分钟，为同账号的其他请求保留余量
+
+
+def _af_wait_for_slot():
+    global _AF_NEXT_REQUEST
+    with _AF_RATE_LOCK:
+        now = time.monotonic()
+        if now < _AF_NEXT_REQUEST:
+            time.sleep(_AF_NEXT_REQUEST - now)
+        _AF_NEXT_REQUEST = time.monotonic() + _AF_REQUEST_INTERVAL
 
 
 def _af_get(path, key, params=None, ttl=1800):
@@ -1290,10 +1302,23 @@ def _af_get(path, key, params=None, ttl=1800):
     qs = urllib.parse.urlencode(params) if params else ""
     url = AF_BASE + path + ("?" + qs if qs else "")
     req = urllib.request.Request(url, headers={"x-apisports-key": key})
-    with urllib.request.urlopen(req, timeout=40) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    if data.get("errors"):
-        raise RuntimeError("API-Football: " + str(data["errors"])[:240])
+    for attempt in range(3):
+        _af_wait_for_slot()
+        try:
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code != 429 or attempt == 2:
+                raise
+            time.sleep(20)
+            continue
+        if not data.get("errors"):
+            break
+        error_text = str(data["errors"]).lower()
+        if attempt < 2 and ("rate limit" in error_text or "ratelimit" in error_text or "too many requests" in error_text):
+            time.sleep(20)
+            continue
+        raise RuntimeError("API-Football request failed")
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
         with open(cpath, "w", encoding="utf-8") as fh:
@@ -1534,6 +1559,7 @@ def attach_apifootball(fixture_rows, teams, log=log):
         pass
     ordered = sorted(matched.values(), key=lambda x: x[1].get("date") or "9999")
     from concurrent.futures import ThreadPoolExecutor
+    failures = []
 
     def _prefetch(item):
         _score, f, afid = item
@@ -1548,22 +1574,22 @@ def attach_apifootball(fixture_rows, teams, log=log):
         _finished = f.get("hs") is not None or f.get("as") is not None
         try:
             data["odds"] = _af_get("/odds", key, {"fixture": afid}, ttl=3600)
-        except Exception:
-            pass
+        except Exception as e:
+            failures.append(("赔率", type(e).__name__))
         if soon:
             try:
                 data["inj"] = _af_get("/injuries", key, {"fixture": afid}, ttl=14400)
-            except Exception:
-                pass
+            except Exception as e:
+                failures.append(("伤停", type(e).__name__))
             try:
                 data["pred"] = _af_get("/predictions", key, {"fixture": afid}, ttl=43200)
-            except Exception:
-                pass
+            except Exception as e:
+                failures.append(("预测", type(e).__name__))
         if not _finished:
             try:
                 data["lineups"] = _af_get("/fixtures/lineups", key, {"fixture": afid}, ttl=3600)
-            except Exception:
-                pass
+            except Exception as e:
+                failures.append(("阵容", type(e).__name__))
         return item, data
 
     try:
@@ -1572,6 +1598,12 @@ def attach_apifootball(fixture_rows, teams, log=log):
     except Exception as e:
         log(f"  ⚠ API-Football 并发抓取失败：{str(e)[:60]}")
         return 0, 0
+    if failures:
+        counts = defaultdict(int)
+        for kind, error_type in failures:
+            counts[(kind, error_type)] += 1
+        log("  ⚠ API-Football 部分请求失败：" + "，".join(
+            f"{kind} {error_type} {count} 次" for (kind, error_type), count in sorted(counts.items())))
     added = 0
     # 用 API-Football 的赛果补比分（ESPN 偶尔缺漏，尤其友谊赛）
     for (_score, f, afid), _data in fetched:
