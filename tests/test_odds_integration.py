@@ -9,6 +9,30 @@ import build_data as app
 
 
 class OddsIntegrationTests(unittest.TestCase):
+    def test_api_cache_is_isolated_by_key_and_errors_are_not_cached(self):
+        from contextlib import contextmanager
+        import io
+        calls = []
+
+        @contextmanager
+        def fake_open(request, timeout=0):
+            calls.append(request.get_header('X-apisports-key'))
+            yield io.BytesIO(json.dumps({'response': [len(calls)], 'errors': []}).encode())
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(app, 'CACHE_DIR', tmp), patch.object(app.urllib.request, 'urlopen', side_effect=fake_open):
+            first = app._af_get('/fixtures', 'key-one')
+            self.assertEqual(app._af_get('/fixtures', 'key-one'), first)
+            second = app._af_get('/fixtures', 'key-two')
+            self.assertNotEqual(first, second)
+            self.assertEqual(len(calls), 2)
+            @contextmanager
+            def failed_open(request, timeout=0):
+                yield io.BytesIO(b'{"errors":{"requests":"limit"},"response":[]}')
+            with patch.object(app.urllib.request, 'urlopen', side_effect=failed_open):
+                with self.assertRaises(RuntimeError):
+                    app._af_get('/injuries', 'key-one')
+            self.assertEqual(app._af_get('/injuries', 'key-one')['response'], [3])
+
     def test_confirmed_team_aliases_match_without_equating_other_teams(self):
         pairs = [('Ham-Kam', 'Hamarkameratene'), ('WSG Wattens', 'WSG Swarovski Tirol'),
                  ('Stade Brestois 29', 'Brest')]

@@ -1275,7 +1275,9 @@ def _af_get(path, key, params=None, ttl=1800):
     """API-Football 请求 + 本地缓存（避免重复消耗每日 7500 次额度）。"""
     import hashlib
     params = params or {}
-    tag = hashlib.md5((path + json.dumps(params, sort_keys=True)).encode()).hexdigest()[:12]
+    # 不同密钥的套餐权限和配额可能不同；更换账号时不能复用旧账号缓存。
+    account = hashlib.sha256(key.encode()).hexdigest()[:16]
+    tag = hashlib.md5((account + path + json.dumps(params, sort_keys=True)).encode()).hexdigest()[:12]
     cpath = os.path.join(CACHE_DIR, f"af_{tag}.json")
     try:
         if os.path.exists(cpath) and time.time() - os.path.getmtime(cpath) < ttl:
