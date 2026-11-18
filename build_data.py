@@ -1108,6 +1108,9 @@ def filter_whitelist_books(fixture_rows):
             for k in ("m", "ou", "ah"):
                 if b.get(k) and not cur.get(k):
                     cur[k] = b[k]
+                    stamp = (b.get("marketAt") or {}).get(k)
+                    if stamp:
+                        cur.setdefault("marketAt", {})[k] = stamp
             if b.get("open") and not cur.get("open"):
                 cur["open"] = b["open"]
             if b.get("src") == "oddsapi":
@@ -1212,10 +1215,12 @@ def load_oddsapi_snapshot(fixture_rows):
             if isinstance(entry, dict):
                 title, m = entry.get("book"), entry.get("m")
                 ou, ah = entry.get("ou"), entry.get("ah")
+                market_at = entry.get("marketAt")
             elif entry and len(entry) >= 2:
                 title, m = entry[0], entry[1]
                 ou = entry[2] if len(entry) > 2 else None
                 ah = entry[3] if len(entry) > 3 else None
+                market_at = None
             else:
                 continue
             canon = _canon_book(title)
@@ -1231,6 +1236,8 @@ def load_oddsapi_snapshot(fixture_rows):
                 book["ou"] = ou
             if isinstance(ah, dict):
                 book["ah"] = ah
+            if isinstance(market_at, dict):
+                book["marketAt"] = market_at
             if not (book.get("m") or book.get("ou") or book.get("ah")):
                 continue
             books.append(book)
@@ -2219,6 +2226,8 @@ def _write_oddsapi_snapshot(fixture_rows):
             for k in ("m", "ou", "ah"):
                 if b.get(k):
                     item[k] = b.get(k)
+            if b.get("marketAt"):
+                item["marketAt"] = b["marketAt"]
             items.append(item)
         data[str(f.get("id"))] = {"items": items, "date": f.get("date"), "t": now}
     # 清理 21 天前的旧场次（兼容老格式：纯 list 视为已过期）
@@ -2762,6 +2771,149 @@ def fetch_oddsapi_books(fixture_rows, teams):
         pass
     _write_oddsapi_snapshot(fixture_rows)
     log(f"  Odds API：{len(targets)} 个联赛，写入 {total_books} 条机构报价，剩余额度 {remaining}")
+
+
+def fill_oddsapi_market_gaps(fixture_rows, teams):
+    """每日最多补查一个近期联赛的亚盘和大小球，不覆盖已有报价。"""
+    key = os.environ.get("ODDS_API_KEY", "").strip()
+    if not key:
+        return 0
+    try:
+        with open(ODDSAPI_STATE, encoding="utf-8") as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        return 0
+    remaining = state.get("remaining")
+    if not isinstance(remaining, (int, float)) or remaining <= 100:
+        log("  Odds API 缺失盘口：剩余额度不足或未知，跳过")
+        return 0
+    today = (datetime.utcnow() + timedelta(hours=8)).date().isoformat()
+    state_name = "oddsapi_market_gaps.json"
+    prior = read_cache(state_name) or {}
+    durable_path = os.path.join(ROOT, "odds_snapshots", state_name)
+    try:
+        with open(durable_path, encoding="utf-8") as f:
+            durable = json.load(f)
+    except (OSError, ValueError):
+        durable = {}
+    if prior.get("day") == today or durable.get("day") == today:
+        return 0
+
+    now = datetime.utcnow()
+    leagues = {}
+    for fixture in fixture_rows:
+        league = fixture.get("league")
+        if fixture.get("hide") or league not in ODDSAPI_EXTRA_LEAGUES:
+            continue
+        try:
+            ft = datetime.fromisoformat((fixture.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        if not (now <= ft <= now + timedelta(hours=14)):
+            continue
+        gaps = sum(1 for b in fixture.get("books") or []
+                   if b.get("src") == "oddsapi" and b.get("m") and (not b.get("ah") or not b.get("ou")))
+        if gaps:
+            leagues.setdefault(league, []).append((fixture, gaps))
+    if not leagues:
+        return 0
+    league, candidates = max(leagues.items(), key=lambda p: (sum(n for _, n in p[1]), -len(p[1])))
+    sport = ODDSAPI_EXTRA_LEAGUES[league]
+    url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
+           f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS}"
+           "&markets=spreads,totals&oddsFormat=decimal&dateFormat=iso")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=40) as resp:
+            events = json.loads(resp.read().decode("utf-8"))
+            rem = resp.headers.get("x-requests-remaining")
+            if rem is not None:
+                state["remaining"] = int(rem)
+    except (OSError, ValueError) as e:
+        log(f"  ⚠ Odds API 缺失盘口查询失败：{type(e).__name__}")
+        return 0
+    if not isinstance(events, list):
+        log("  ⚠ Odds API 缺失盘口返回格式异常")
+        return 0
+
+    count = 0
+    for event in events:
+        try:
+            event_time = datetime.fromisoformat((event.get("commence_time") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        home_name, away_name = event.get("home_team") or "", event.get("away_team") or ""
+        matches = []
+        for fixture, _ in candidates:
+            try:
+                ft = datetime.fromisoformat((fixture.get("date") or "").replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if abs((ft - event_time).total_seconds()) > 3 * 3600:
+                continue
+            home = teams.get(str(fixture.get("home"))) or {}
+            away = teams.get(str(fixture.get("away"))) or {}
+            hs = _team_sim(home_name, home.get("name") or "")
+            a_s = _team_sim(away_name, away.get("name") or "")
+            if hs >= 0.8 and a_s >= 0.8:
+                matches.append((hs + a_s, fixture))
+        if not matches:
+            continue
+        matches.sort(key=lambda x: x[0], reverse=True)
+        if len(matches) > 1 and matches[0][0] == matches[1][0]:
+            continue
+        fixture = matches[0][1]
+        for raw_book in event.get("bookmakers") or []:
+            name = _canon_book(raw_book.get("title") or "")
+            if not name:
+                continue
+            current = next((b for b in fixture.get("books") or [] if b.get("book") == name), None)
+            if not current:
+                continue
+            for market in raw_book.get("markets") or []:
+                kind = market.get("key")
+                outcomes = market.get("outcomes") or []
+                quote = None
+                if kind == "totals" and not current.get("ou"):
+                    pairs = {}
+                    for o in outcomes:
+                        side = str(o.get("name") or "").lower()
+                        point, price = o.get("point"), o.get("price")
+                        if side in ("over", "under") and isinstance(point, (int, float)) and isinstance(price, (int, float)) and price > 1:
+                            pairs.setdefault(point, {})[side] = price
+                    valid = [(abs(line - 2.5), line, p) for line, p in pairs.items() if "over" in p and "under" in p]
+                    if valid:
+                        _, line, pair = min(valid, key=lambda x: x[0])
+                        quote = ("ou", {"line": line, "over": pair["over"], "under": pair["under"]})
+                elif kind == "spreads" and not current.get("ah"):
+                    sides = {}
+                    for o in outcomes:
+                        name_o, point, price = o.get("name") or "", o.get("point"), o.get("price")
+                        if not isinstance(point, (int, float)) or not isinstance(price, (int, float)) or price <= 1:
+                            continue
+                        if _team_sim(name_o, home_name) >= 0.8:
+                            sides["home"] = (point, price)
+                        elif _team_sim(name_o, away_name) >= 0.8:
+                            sides["away"] = (point, price)
+                    if "home" in sides and "away" in sides and abs(sides["home"][0] + sides["away"][0]) < 1e-6:
+                        quote = ("ah", {"line": sides["home"][0], "h": sides["home"][1], "a": sides["away"][1]})
+                if quote:
+                    field, value = quote
+                    current[field] = value
+                    current.setdefault("marketAt", {})[field] = market.get("last_update") or raw_book.get("last_update")
+                    count += 1
+    saved = {"day": today, "league": league, "count": count, "_t": time.time()}
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    write_cache(state_name, saved)
+    os.makedirs(os.path.dirname(durable_path), exist_ok=True)
+    with open(durable_path, "w", encoding="utf-8") as f:
+        json.dump(saved, f, ensure_ascii=False)
+    with open(ODDSAPI_STATE, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False)
+    if count:
+        _write_oddsapi_snapshot(fixture_rows)
+    log(f"  Odds API 缺失盘口：{league} 补充 {count} 项，剩余额度 {state.get('remaining')}")
+    return count
 
 
 def fetch_oddsapi_extra(fixture_rows, teams, remaining):
@@ -5170,6 +5322,10 @@ def main():
             log(f"  平博盘口补充：{_pin_add} 条（{_pin_n} 场，欧赔/亚盘/大小球）")
     except Exception as e:
         log(f"  ⚠ 平博盘口补充失败：{str(e)[:80]}")
+    try:
+        fill_oddsapi_market_gaps(fixture_rows, teams)
+    except Exception as e:
+        log(f"  ⚠ 其他机构盘口补充失败：{type(e).__name__}")
     try:
         merge_books_persist(fixture_rows)
     except Exception as e:

@@ -9,6 +9,51 @@ import build_data as app
 
 
 class OddsIntegrationTests(unittest.TestCase):
+    def test_oddsapi_gap_fill_only_uses_returned_markets_and_preserves_existing(self):
+        import io
+        from contextlib import contextmanager
+        when = datetime.now(timezone.utc) + timedelta(hours=2)
+        original = {'line': -0.5, 'h': 1.9, 'a': 1.9}
+        fixture = {'id': 'upcoming', 'date': when.isoformat(), 'league': '巴西甲', 'home': '1', 'away': '2',
+                   'books': [{'book': 'Ladbrokes', 'src': 'oddsapi', 'm': [1.8, 3.6, 4.2]},
+                             {'book': 'William Hill', 'src': 'oddsapi', 'm': [1.8, 3.5, 4.0], 'ah': original}]}
+        teams = {'1': {'name': 'Corinthians'}, '2': {'name': 'Botafogo'}}
+        response = [{'commence_time': when.isoformat(), 'home_team': 'Corinthians', 'away_team': 'Botafogo', 'bookmakers': [
+            {'title': 'Ladbrokes', 'markets': [
+                {'key': 'spreads', 'last_update': '2026-11-18T12:00:00Z', 'outcomes': [{'name': 'Corinthians', 'point': -0.5, 'price': 1.9}, {'name': 'Botafogo', 'point': 0.5, 'price': 2.0}]},
+                {'key': 'totals', 'outcomes': [{'name': 'Over', 'point': 2.5, 'price': 1.8}, {'name': 'Under', 'point': 2.5, 'price': 2.0}]},
+            ]},
+            {'title': 'William Hill', 'markets': [{'key': 'spreads', 'outcomes': [{'name': 'Corinthians', 'point': -1, 'price': 2}, {'name': 'Botafogo', 'point': 1, 'price': 1.8}]}]},
+        ]}]
+        calls = []
+        @contextmanager
+        def fake_open(req, timeout=0):
+            calls.append(req.full_url)
+            stream = io.BytesIO(json.dumps(response).encode())
+            stream.headers = {'x-requests-remaining': '151'}
+            yield stream
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = os.path.join(tmp, 'cache')
+            os.makedirs(cache)
+            state = os.path.join(tmp, 'odds-state.json')
+            with open(state, 'w') as f:
+                json.dump({'remaining': 153, 'last': 100}, f)
+            with patch.object(app, 'ROOT', tmp), patch.object(app, 'CACHE_DIR', cache), patch.object(app, 'ODDSAPI_STATE', state), patch.object(app, 'ODDSAPI_BOOKS', os.path.join(tmp, 'odds-books.json')), patch.object(app.urllib.request, 'urlopen', side_effect=fake_open), patch.dict(os.environ, {'ODDS_API_KEY': 'test-only'}):
+                self.assertEqual(app.fill_oddsapi_market_gaps([fixture], teams), 2)
+                lad = fixture['books'][0]
+                self.assertEqual(lad['ah'], {'line': -0.5, 'h': 1.9, 'a': 2.0})
+                self.assertEqual(lad['ou'], {'line': 2.5, 'over': 1.8, 'under': 2.0})
+                restored = {'id': 'upcoming', 'date': when.isoformat()}
+                app.load_oddsapi_snapshot([restored])
+                app.filter_whitelist_books([restored])
+                copied = next(b for b in restored['books'] if b['book'] == 'Ladbrokes')
+                self.assertEqual(copied['ah'], lad['ah'])
+                self.assertEqual(copied['marketAt']['ah'], '2026-11-18T12:00:00Z')
+                self.assertEqual(fixture['books'][1]['ah'], original)
+                self.assertIsNone(fixture['books'][1].get('ou'))
+                self.assertEqual(app.fill_oddsapi_market_gaps([fixture], teams), 0)
+                self.assertEqual(len(calls), 1)
+
     def test_api_cache_is_isolated_by_key_and_errors_are_not_cached(self):
         from contextlib import contextmanager
         import io
