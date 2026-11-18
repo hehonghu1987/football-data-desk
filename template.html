@@ -3287,7 +3287,7 @@ function marketProbs(m){
   return null;
 }
 function consensusLine(m, key){
-  const books = ((m && m.books) || []).filter(b => b[key] && b[key].line != null);
+  const books = ((m && m.books) || []).filter(b => b[key] && b[key].line != null && !(key === "ah" && b[key].alternate));
   if(!books.length) return null;
   const cnt = new Map();
   for(const b of books){
@@ -3582,7 +3582,7 @@ function valuePicks(){
     // 亚盘/大小球只在「模型与市场同线概率接近」时才提示，避免模型极端值造成的假 EV
     if(p && p.ah){
       for(const b of books){
-        if(!b.ah || b.ah.h == null || b.ah.a == null) continue;
+        if(!b.ah || b.ah.alternate || b.ah.h == null || b.ah.a == null) continue;
         const pH = p.ah[String(b.ah.line)];
         const pM = deVig2(b.ah.h, b.ah.a);
         if(pH == null || pM == null || Math.abs(pH - pM) > 0.10) continue;
@@ -5098,7 +5098,7 @@ function renderPreMatch(m){
         if(!isFinite(d) || Math.abs(d) < 1e-9) return c;
         return `<span class="${d < 0 ? "mv-up" : "mv-down"}" title="${d < 0 ? "升盘" : "降盘"}">${c}<i>${d < 0 ? "▲" : "▼"}</i></span>`;
       };
-      const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
+      const ahq = ah => (ah && ah.line != null ? ahText(ah.line) + (ah.alternate ? ' <small title="仅有其他盘口线，不参与主盘共识">备选</small>' : "") : "—");
       const MAINSTREAM = new Set(["Bet365","Pinnacle","William Hill","Ladbrokes","Unibet","Tipico","Winamax","DraftKings","Marathon Bet","1xBet","竞彩官方","竞彩总进球","北单"]);
       const scope = state.bookScope || "all";
       const CUSTOM = (() => {
@@ -5126,13 +5126,15 @@ function renderPreMatch(m){
           const pm = (prev && prev.m) || [null, null, null];
           const pah = (prev && prev.ah) || {};
           const pou = (prev && prev.ou) || {};
+          const comparableAh = prev && ahObj.line != null && pah.line != null && Number(ahObj.line) === Number(pah.line) && !ahObj.alternate && !pah.alternate;
+          const comparableOu = prev && ouObj.line != null && pou.line != null && Number(ouObj.line) === Number(pou.line);
           return `<tr class="${cls}">
           <td class="bk" title="${esc(b.book)}">${showName ? bookLabel(b.book) : ""}</td>
           <td class="mq">${label}</td>
           <td>${mvCell(mArr[0], pm[0])}</td><td>${mvCell(mArr[1], pm[1])}</td><td>${mvCell(mArr[2], pm[2])}</td>
-          <td>${prev ? lineCell(ahObj.line, pah.line) : ahq(ahObj)}</td>
-          <td>${mvCell(ahObj.h, pah.h)}</td><td>${mvCell(ahObj.a, pah.a)}</td>
-          <td>${mvCell(ouObj.line, pou.line, ql)}</td><td>${mvCell(ouObj.over, pou.over)}</td><td>${mvCell(ouObj.under, pou.under)}</td>
+          <td>${prev && !ahObj.alternate && !pah.alternate ? lineCell(ahObj.line, pah.line) : ahq(ahObj)}</td>
+          <td>${mvCell(ahObj.h, comparableAh ? pah.h : null)}</td><td>${mvCell(ahObj.a, comparableAh ? pah.a : null)}</td>
+          <td>${mvCell(ouObj.line, pou.line, ql)}</td><td>${mvCell(ouObj.over, comparableOu ? pou.over : null)}</td><td>${mvCell(ouObj.under, comparableOu ? pou.under : null)}</td>
         </tr>`;
         };
         if(op){
@@ -5154,7 +5156,7 @@ function renderPreMatch(m){
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
-        <div class="odds-src" style="padding:6px 2px 2px">初始参考可能是本站首次记录，并非机构开盘价。当前记录可能来自缓存；「—」表示暂无该项数据。</div>
+        <div class="odds-src" style="padding:6px 2px 2px">初始参考可能是本站首次记录，并非机构开盘价。当前记录可能来自缓存；「备选」不参与主盘共识，「—」表示暂无该项数据。</div>
       </div>`);
     } else if(odds){
       cells.push(`<div class="odds-cell">

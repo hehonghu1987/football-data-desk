@@ -15,7 +15,8 @@ class OddsIntegrationTests(unittest.TestCase):
         when = datetime.now(timezone.utc) + timedelta(hours=2)
         original = {'line': -0.5, 'h': 1.9, 'a': 1.9}
         fixture = {'id': 'upcoming', 'date': when.isoformat(), 'league': '巴西甲', 'home': '1', 'away': '2',
-                   'books': [{'book': 'Ladbrokes', 'src': 'oddsapi', 'm': [1.8, 3.6, 4.2]},
+                   'books': [{'book': 'Ladbrokes', 'src': 'oddsapi', 'm': [1.8, 3.6, 4.2],
+                              'ah': {'line': -1.5, 'h': 3.25, 'a': 1.29, 'alternate': True}},
                              {'book': 'William Hill', 'src': 'oddsapi', 'm': [1.8, 3.5, 4.0], 'ah': original}]}
         teams = {'1': {'name': 'Corinthians'}, '2': {'name': 'Botafogo'}}
         response = [{'commence_time': when.isoformat(), 'home_team': 'Corinthians', 'away_team': 'Botafogo', 'bookmakers': [
@@ -53,6 +54,12 @@ class OddsIntegrationTests(unittest.TestCase):
                 self.assertIsNone(fixture['books'][1].get('ou'))
                 self.assertEqual(app.fill_oddsapi_market_gaps([fixture], teams), 0)
                 self.assertEqual(len(calls), 1)
+                second_fixture = {'id': 'second', 'date': when.isoformat(), 'league': '英超', 'home': '1', 'away': '2',
+                                  'books': [{'book': 'Ladbrokes', 'src': 'oddsapi', 'm': [1.8, 3.6, 4.2]}]}
+                self.assertEqual(app.fill_oddsapi_market_gaps([second_fixture], teams), 2)
+                self.assertIn('betfair', calls[1])
+                self.assertEqual(app.fill_oddsapi_market_gaps([fixture, second_fixture], teams), 0)
+                self.assertEqual(len(calls), 2)
 
     def test_api_cache_is_isolated_by_key_and_errors_are_not_cached(self):
         from contextlib import contextmanager
@@ -115,6 +122,21 @@ class OddsIntegrationTests(unittest.TestCase):
         self.assertEqual(app._canon_book('BetVictor'), 'BetVictor')
         self.assertEqual(app._canon_book('Betano'), 'Betano')
 
+    def test_available_alternate_handicap_is_marked_and_not_discarded(self):
+        values = [{'value': 'Home -1.5', 'odd': '3.25'}, {'value': 'Away -1.5', 'odd': '1.29'},
+                  {'value': 'Home +1.5', 'odd': '1.04'}, {'value': 'Away +1.5', 'odd': '9.50'}]
+        self.assertEqual(app._pick_ah(values), {'line': -1.5, 'h': 3.25, 'a': 1.29, 'alternate': True})
+
+    def test_coverage_does_not_count_alternate_as_main_line(self):
+        fixture = {'date': (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+                   'league': '巴西甲', 'hs': None, 'as': None,
+                   'books': [{'book': 'Betfair', 'm': [2, 3, 4],
+                              'ah': {'line': -1.5, 'h': 3.25, 'a': 1.29, 'alternate': True}}]}
+        logs = []
+        app.log_odds_coverage([fixture], log=logs.append)
+        self.assertTrue(any('覆盖 巴西甲' in line and '亚盘主线 0' in line for line in logs))
+        self.assertTrue(any('机构覆盖 Betfair' in line and '备选 1' in line for line in logs))
+
     def test_beidan_handicap_is_not_added_to_ordinary_odds(self):
         self.assertEqual(app._bd_line('(-2)'), -2)
         self.assertEqual(app._bd_line('（+1）'), 1)
@@ -159,7 +181,7 @@ class OddsIntegrationTests(unittest.TestCase):
             {"id": 50, "values": [{"value": "Over 2.25", "odd": "1.3"}, {"value": "Under 2.25", "odd": "3.2"}]},
         ]}]}]}
         requested_paths = []
-        def fake_get(path, key, params=None, ttl=0):
+        def fake_get(path, key, params=None, ttl=0, empty_ttl=900):
             requested_paths.append(path)
             if path == '/fixtures': return {'response': [api_fixture]}
             if path == '/odds': return odds
@@ -175,6 +197,49 @@ class OddsIntegrationTests(unittest.TestCase):
         self.assertEqual(book['goalLines'], [[2.25, 1.3, 3.2]])
         self.assertEqual(book['marketAt']['ahLines'], '2026-11-17T08:15:09+00:00')
         self.assertNotIn('/fixtures/lineups', requested_paths)  # 比赛还在三小时以后
+
+        # 备选盘口不能覆盖另一个来源已经给出的主盘口。
+        odds['response'][0]['bookmakers'][0]['bets'][1]['values'] = [
+            {'value': 'Home -1.5', 'odd': '3.25'}, {'value': 'Away -1.5', 'odd': '1.29'}]
+        main = {'line': -0.5, 'h': 1.9, 'a': 2.0}
+        f2 = dict(fixture, books=[{'book': 'BetVictor', 'ah': main}])
+        with tempfile.TemporaryDirectory() as tmp, patch.object(app, 'CACHE_DIR', tmp), patch.object(app, '_af_get', side_effect=fake_get), patch.dict(os.environ, {'API_FOOTBALL_KEY': 'test-only'}):
+            app.attach_apifootball([f2], teams, log=lambda *_: None)
+        self.assertEqual(f2['books'][0]['ah'], main)
+        self.assertEqual(f2['books'][0]['ahLines'], [[-1.5, 3.25, 1.29]])
+
+    def test_future_window_expands_only_when_quota_permits(self):
+        when = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=8)
+        fixture = {'id': 'future', 'date': when.isoformat(), 'home': '1', 'away': '2', 'hs': None, 'as': None}
+        teams = {'1': {'id': '1', 'name': 'Sabah FK'}, '2': {'id': '2', 'name': 'Barcelona'}}
+        api = {'fixture': {'id': 1635718, 'date': when.isoformat(), 'status': {'short': 'NS'}},
+               'teams': {'home': {'id': 1, 'name': 'Sabah FA'}, 'away': {'id': 2, 'name': 'Barcelona'}}}
+        calls = []
+        def fake_get(path, key, params=None, ttl=0, empty_ttl=900):
+            calls.append((path, ttl, empty_ttl))
+            if path == '/status': return {'response': {'requests': {'limit_day': 7500, 'current': 1000}}}
+            if path == '/fixtures': return {'response': [api]}
+            if path == '/odds': return {'response': [{'bookmakers': [{'name': 'William Hill', 'bets': [
+                {'id': 1, 'values': [{'value': 'Home', 'odd': '8'}, {'value': 'Draw', 'odd': '5'}, {'value': 'Away', 'odd': '1.3'}]}]}]}]}
+            return {'response': []}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(app, 'CACHE_DIR', tmp), patch.object(app, '_af_get', side_effect=fake_get), patch.dict(os.environ, {'API_FOOTBALL_KEY': 'test-only'}):
+            app.attach_apifootball([fixture], teams, log=lambda *_: None)
+        self.assertEqual(fixture['af'], '1635718')
+        self.assertEqual(fixture['books'][0]['book'], 'William Hill')
+        self.assertIn(('/odds', 43200, 21600), calls)
+
+        calls.clear()
+        def low_quota(path, key, params=None, ttl=0, empty_ttl=900):
+            calls.append(path)
+            if path == '/status': return {'response': {'requests': {'limit_day': 7500, 'current': 6800}}}
+            return {'response': []}
+        other = dict(fixture, id='future-low')
+        other.pop('af', None)
+        other.pop('books', None)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(app, 'CACHE_DIR', tmp), patch.object(app, '_af_get', side_effect=low_quota), patch.dict(os.environ, {'API_FOOTBALL_KEY': 'test-only'}):
+            app.attach_apifootball([other], teams, log=lambda *_: None)
+        self.assertNotIn('af', other)
+        self.assertNotIn('/odds', calls)
 
     def test_retained_quotes_expire_instead_of_refreshing_their_age(self):
         now = datetime.now(timezone.utc)
