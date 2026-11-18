@@ -9,6 +9,14 @@ import build_data as app
 
 
 class OddsIntegrationTests(unittest.TestCase):
+    def test_confirmed_team_aliases_match_without_equating_other_teams(self):
+        pairs = [('Ham-Kam', 'Hamarkameratene'), ('WSG Wattens', 'WSG Swarovski Tirol'),
+                 ('Stade Brestois 29', 'Brest')]
+        for api_name, site_name in pairs:
+            with self.subTest(api_name=api_name):
+                self.assertEqual(app._af_team_sim(api_name, {'name': site_name}), 1.0)
+        self.assertLess(app._af_team_sim('Lustenau', {'name': 'Austria Lustenau'}), 1.0)
+
     def test_api_lines_preserve_complete_pairs_and_reject_bad_values(self):
         values = [
             {"value": "Home -1.75", "odd": "1.90"},

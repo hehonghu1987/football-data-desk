@@ -1381,6 +1381,14 @@ _AF_TRANSLIT = {
     "anderlecht": "anderlecht", "brondby": "brondby", "malmo": "malmo",
 }
 
+# 经两家赛程核对的不同队名；只处理明确别名，避免放宽模糊匹配造成错配。
+_AF_TEAM_ALIASES = {
+    "ham kam": "hamarkameratene", "hamarkameratene": "hamarkameratene",
+    "wsg wattens": "wsg tirol", "wsg swarovski tirol": "wsg tirol",
+    "swarovski tirol": "wsg tirol",
+    "stade brestois": "brest", "brest": "brest",
+}
+
 
 def _af_norm_tokens(name):
     import re as _re
@@ -1427,6 +1435,8 @@ def _af_team_sim(name, team):
         nb = " ".join(nb_t)
         if not na or not nb:
             continue
+        if _AF_TEAM_ALIASES.get(na) and _AF_TEAM_ALIASES.get(na) == _AF_TEAM_ALIASES.get(nb):
+            return 1.0
         seq = difflib.SequenceMatcher(None, na, nb).ratio()
         sa, sb = set(na_t), set(nb_t)
         jac = len(sa & sb) / len(sa | sb) if (sa and sb) else 0.0
