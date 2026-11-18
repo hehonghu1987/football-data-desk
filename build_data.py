@@ -1289,13 +1289,16 @@ def _af_get(path, key, params=None, ttl=1800):
     params = params or {}
     # 不同密钥的套餐权限和配额可能不同；更换账号时不能复用旧账号缓存。
     account = hashlib.sha256(key.encode()).hexdigest()[:16]
-    tag = hashlib.md5((account + path + json.dumps(params, sort_keys=True)).encode()).hexdigest()[:12]
+    generation = "odds-v2" if path == "/odds" else ""
+    tag = hashlib.md5((account + generation + path + json.dumps(params, sort_keys=True)).encode()).hexdigest()[:12]
     cpath = os.path.join(CACHE_DIR, f"af_{tag}.json")
     try:
-        if os.path.exists(cpath) and time.time() - os.path.getmtime(cpath) < ttl:
+        age = time.time() - os.path.getmtime(cpath) if os.path.exists(cpath) else None
+        if age is not None and age < ttl:
             with open(cpath, "r", encoding="utf-8") as fh:
                 cached = json.load(fh)
-            if not cached.get("errors"):
+            # 未开盘的空结果不应像正常赔率一样长期遮住后续新报价。
+            if not cached.get("errors") and not (path == "/odds" and not cached.get("response") and age >= 900):
                 return cached
     except (OSError, ValueError):
         pass
@@ -1565,9 +1568,11 @@ def attach_apifootball(fixture_rows, teams, log=log):
         _score, f, afid = item
         f["af"] = afid
         soon = False
+        lineup_due = False
         try:
             ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
             soon = (f.get("hs") is None and f.get("as") is None) and ft <= now + timedelta(hours=60)
+            lineup_due = ft <= now + timedelta(hours=2)
         except ValueError:
             soon = False
         data = {"odds": None, "inj": None, "pred": None, "lineups": None}
@@ -1585,9 +1590,9 @@ def attach_apifootball(fixture_rows, teams, log=log):
                 data["pred"] = _af_get("/predictions", key, {"fixture": afid}, ttl=43200)
             except Exception as e:
                 failures.append(("预测", type(e).__name__))
-        if not _finished:
+        if not _finished and lineup_due:
             try:
-                data["lineups"] = _af_get("/fixtures/lineups", key, {"fixture": afid}, ttl=3600)
+                data["lineups"] = _af_get("/fixtures/lineups", key, {"fixture": afid}, ttl=1200)
             except Exception as e:
                 failures.append(("阵容", type(e).__name__))
         return item, data

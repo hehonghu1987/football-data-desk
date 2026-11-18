@@ -33,6 +33,20 @@ class OddsIntegrationTests(unittest.TestCase):
                     app._af_get('/injuries', 'key-one')
             self.assertEqual(app._af_get('/injuries', 'key-one')['response'], [3])
 
+    def test_empty_odds_cache_is_rechecked_soon(self):
+        from contextlib import contextmanager
+        import io
+        responses = iter([{'response': [], 'errors': []}, {'response': [{'fixture': 1}], 'errors': []}])
+        @contextmanager
+        def fake_open(request, timeout=0):
+            yield io.BytesIO(json.dumps(next(responses)).encode())
+        with tempfile.TemporaryDirectory() as tmp, patch.object(app, 'CACHE_DIR', tmp), patch.object(app.urllib.request, 'urlopen', side_effect=fake_open):
+            self.assertEqual(app._af_get('/odds', 'key-one', {'fixture': 1}, ttl=3600)['response'], [])
+            cache_file = os.path.join(tmp, os.listdir(tmp)[0])
+            old = datetime.now().timestamp() - 901
+            os.utime(cache_file, (old, old))
+            self.assertEqual(app._af_get('/odds', 'key-one', {'fixture': 1}, ttl=3600)['response'], [{'fixture': 1}])
+
     def test_confirmed_team_aliases_match_without_equating_other_teams(self):
         pairs = [('Ham-Kam', 'Hamarkameratene'), ('WSG Wattens', 'WSG Swarovski Tirol'),
                  ('Stade Brestois 29', 'Brest')]
@@ -80,7 +94,9 @@ class OddsIntegrationTests(unittest.TestCase):
             {"id": 5, "values": [{"value": "Over 2.5", "odd": "1.48"}, {"value": "Under 2.5", "odd": "2.60"}]},
             {"id": 50, "values": [{"value": "Over 2.25", "odd": "1.3"}, {"value": "Under 2.25", "odd": "3.2"}]},
         ]}]}]}
+        requested_paths = []
         def fake_get(path, key, params=None, ttl=0):
+            requested_paths.append(path)
             if path == '/fixtures': return {'response': [api_fixture]}
             if path == '/odds': return odds
             return {'response': []}
@@ -94,6 +110,7 @@ class OddsIntegrationTests(unittest.TestCase):
         self.assertEqual(book['ouLines'], [[2.5, 1.48, 2.6]])
         self.assertEqual(book['goalLines'], [[2.25, 1.3, 3.2]])
         self.assertEqual(book['marketAt']['ahLines'], '2026-11-17T08:15:09+00:00')
+        self.assertNotIn('/fixtures/lineups', requested_paths)  # 比赛还在三小时以后
 
     def test_retained_quotes_expire_instead_of_refreshing_their_age(self):
         now = datetime.now(timezone.utc)
