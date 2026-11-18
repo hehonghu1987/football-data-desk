@@ -2040,7 +2040,7 @@ td.gsep{border-left:1px solid var(--line)}
 
 <script>const DATA = __DATA_JSON__;</script>
 <script>
-(function expandCompact(){
+function expandCompactRecords(records){
   const K = ["shots","sot","corners","offsides","yellow","red","fouls","possession","blocked","saves"];
   const toObj = a => {
     if(!a) return null;
@@ -2048,7 +2048,7 @@ td.gsep{border-left:1px solid var(--line)}
     for(let i = 0; i < K.length; i++) o[K[i]] = a[i];
     return o;
   };
-  for(const m of (DATA.matches || []).concat(DATA.fixtures || [])){
+  for(const m of records){
     if(m.st){
       m.stats = { home: toObj(m.st[0]), away: toObj(m.st[1]) };
       delete m.st;
@@ -2058,7 +2058,8 @@ td.gsep{border-left:1px solid var(--line)}
       delete m.v;
     }
   }
-})();
+}
+expandCompactRecords((DATA.matches || []).concat(DATA.fixtures || []));
 </script>
 <script>
 (function(){
@@ -2286,6 +2287,7 @@ function loadHistory(){
     .then(r => r.ok ? r.json() : null)
     .then(h => {
       if(h && Array.isArray(h.matches) && h.matches.length){
+        expandCompactRecords(h.matches);
         DATA.matches = (DATA.matches || []).concat(h.matches);
         rebuildIndexes();
       }
@@ -5035,7 +5037,7 @@ function renderPreMatch(m){
   const ip = (odds || hasBooks) ? marketProbs(m) : (!isUpcoming ? (m.mkt || null) : null);
   const cells = [];
   if(odds || hasBooks){
-    const books = (m.books || []).filter(b => b.book !== "北单" && b.src !== "beidan" && (b.m || b.ah || b.ou || b.ahLines || b.ouLines || b.goalLines));
+    const books = (m.books || []).filter(b => b.book !== "北单" && b.src !== "beidan" && (b.m || b.ah || b.ou));
     const mbooks = books.filter(b => b.m);
     if(books.length){
       const ipc = marketProbs(m) || ip || consensusBooks(mbooks);
@@ -5120,9 +5122,6 @@ function renderPreMatch(m){
         const op = b.open || null;
         const om = (op && op.m) || [null, null, null];
         const oah = (op && op.ah) || {}, oou = (op && op.ou) || {};
-        const lineGroups = [["亚盘让球", "ahLines"], ["总进球大小球", "ouLines"], ["Goal Line（亚洲进球线）", "goalLines"]]
-          .filter(([, key]) => Array.isArray(b[key]) && b[key].length);
-        const moreLines = lineGroups.length ? `<tr><td colspan="11" style="text-align:left"><details><summary>更多盘口 · API-Football</summary>${lineGroups.map(([label, key]) => `<div class="odds-src" style="padding:6px 0"><b>${esc(label)}</b>${b.marketAt && b.marketAt[key] ? ` · 更新 ${esc(fullTime(b.marketAt[key]))}` : ""}<br>${b[key].map(v => `${key === "ahLines" ? esc(ahText(v[0])) : esc(ql(v[0])) + " 球"}：${key === "ahLines" ? "主 / 客" : "大 / 小"} ${qv(v[1])} / ${qv(v[2])}`).join("　 ·　 ")}</div>`).join("")}</details></td></tr>` : "";
         const mk = (label, mArr, ahObj, ouObj, cls, showName, prev) => {
           const pm = (prev && prev.m) || [null, null, null];
           const pah = (prev && prev.ah) || {};
@@ -5137,9 +5136,9 @@ function renderPreMatch(m){
         </tr>`;
         };
         if(op){
-          return mk("初始参考", om, oah, oou, "row-open", true) + mk(isUpcoming ? "当前记录" : "赛前记录", mm, ahb, oub, "", false, op) + moreLines;
+          return mk("初始参考", om, oah, oou, "row-open", true) + mk(isUpcoming ? "当前记录" : "赛前记录", mm, ahb, oub, "", false, op);
         }
-        return mk(isUpcoming ? "当前记录" : "赛前记录", mm, ahb, oub, "", true) + moreLines;
+        return mk(isUpcoming ? "当前记录" : "赛前记录", mm, ahb, oub, "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
         <div class="book-scope">
@@ -5155,7 +5154,7 @@ function renderPreMatch(m){
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
-        <div class="odds-src" style="padding:6px 2px 2px">初始参考可能是本站首次记录，并非机构开盘价。当前记录可能来自缓存；「—」表示暂无该项数据。更多盘口显示 API-Football 返回的其他盘口线。</div>
+        <div class="odds-src" style="padding:6px 2px 2px">初始参考可能是本站首次记录，并非机构开盘价。当前记录可能来自缓存；「—」表示暂无该项数据。</div>
       </div>`);
     } else if(odds){
       cells.push(`<div class="odds-cell">
