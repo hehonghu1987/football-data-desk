@@ -1488,6 +1488,98 @@ def _af_team_sim(name, team):
     return best
 
 
+_AF_HIST_STATS = {
+    "Total Shots": "shots", "Shots on Goal": "sot", "Corner Kicks": "corners",
+    "Offsides": "offsides", "Yellow Cards": "yellow", "Red Cards": "red",
+    "Fouls": "fouls", "Ball Possession": "possession", "Blocked Shots": "blocked",
+    "Goalkeeper Saves": "saves",
+}
+
+
+def backfill_missing_history(matches, upcoming, teams, limit=12, log=log):
+    """逐轮补充历史统计；只在双方、时间和比分一致时使用 API 数据。"""
+    key = os.environ.get("API_FOOTBALL_KEY", "").strip()
+    if not key:
+        return 0
+    teams_by_id = teams if isinstance(teams, dict) else {str(t["id"]): t for t in teams}
+    pair_order = {}
+    for f in upcoming:
+        pair = frozenset((str(f.get("home")), str(f.get("away"))))
+        when = f.get("date") or "9999"
+        pair_order[pair] = min(pair_order.get(pair, when), when)
+    candidates, restored = [], 0
+    now_ts = time.time()
+    for m in matches:
+        if m.get("stats") or m.get("hs") is None or m.get("as") is None:
+            continue
+        cache_name = f"af_history_{m['id']}.json"
+        cached = read_cache(cache_name)
+        if cached and cached.get("stats"):
+            m["stats"] = cached["stats"]
+            m["statsSource"] = "API-Football"
+            restored += 1
+            continue
+        if cached and now_ts - (cached.get("_t") or 0) < 7 * 86400:
+            continue
+        pair = frozenset((str(m.get("home")), str(m.get("away"))))
+        candidates.append((pair_order.get(pair, "9999"), m.get("date") or "", m))
+    candidates.sort(key=lambda x: (x[0], x[1], str(x[2].get("id"))))
+    filled = 0
+    for _, _, m in candidates[:limit]:
+        try:
+            when = datetime.fromisoformat(m["date"].replace("Z", "+00:00"))
+            day = when.astimezone(timezone.utc).date().isoformat()
+            data = _af_get("/fixtures", key, {"date": day, "timezone": "UTC"}, ttl=30 * 86400)
+            home, away = teams_by_id.get(str(m["home"])) or {}, teams_by_id.get(str(m["away"])) or {}
+            possible = []
+            for item in data.get("response") or []:
+                fx, team = item.get("fixture") or {}, item.get("teams") or {}
+                try:
+                    at = datetime.fromisoformat((fx.get("date") or "").replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                goals = item.get("goals") or {}
+                if abs((at - when).total_seconds()) > 3 * 3600 or goals.get("home") != m["hs"] or goals.get("away") != m["as"]:
+                    continue
+                if _af_team_sim((team.get("home") or {}).get("name"), home) < 0.92 or _af_team_sim((team.get("away") or {}).get("name"), away) < 0.92:
+                    continue
+                possible.append(item)
+            stats = None
+            if len(possible) == 1:
+                item = possible[0]
+                api_team = item.get("teams") or {}
+                raw = _af_get("/fixtures/statistics", key, {"fixture": item["fixture"]["id"]}, ttl=30 * 86400)
+                by_team = {str((r.get("team") or {}).get("id")): r for r in (raw.get("response") or [])}
+                stats = {}
+                for side in ("home", "away"):
+                    tid = str((api_team.get(side) or {}).get("id"))
+                    values = {}
+                    for s in (by_team.get(tid) or {}).get("statistics") or []:
+                        field = _AF_HIST_STATS.get(s.get("type"))
+                        value = s.get("value")
+                        if not field or value is None:
+                            continue
+                        try:
+                            num = float(str(value).strip().rstrip("%"))
+                        except ValueError:
+                            continue
+                        if math.isfinite(num):
+                            values[field] = int(num) if num.is_integer() else num
+                    stats[side] = values
+                if not stats.get("home") or not stats.get("away"):
+                    stats = None
+            write_cache(f"af_history_{m['id']}.json", {"stats": stats, "_t": time.time()})
+            if stats:
+                m["stats"] = stats
+                m["statsSource"] = "API-Football"
+                filled += 1
+        except Exception as e:
+            log(f"  ⚠ 历史统计补充失败 {m.get('id')}: {type(e).__name__}")
+    if restored or filled:
+        log(f"  API-Football 历史技术统计：恢复 {restored} 场，新补 {filled} 场")
+    return restored + filled
+
+
 def attach_apifootball(fixture_rows, teams, log=log):
     """用 API-Football（Pro）补多机构欧赔/亚盘/大小球。只补未来 7 天场次，
     赛程与赔率都缓存 30 分钟，单轮最多 260 场；不写 key 进代码。"""
@@ -4745,6 +4837,12 @@ def main():
                 hidden_n += 1
             match_rows.append(row)
     match_rows.sort(key=lambda m: m["date"] or "", reverse=True)
+
+    # 优先补近期赛程的历史交锋，逐轮扩展到其他缺少技术统计的比赛。
+    try:
+        backfill_missing_history(match_rows, fixtures.values(), teams)
+    except Exception as e:
+        log(f"  ⚠ 历史技术统计补充失败：{type(e).__name__}")
 
     # 多机构赛前盘口（football-data.co.uk）：先取 xG 供评级/赛前模型使用，
     # 盘口本身写成独立文件，比赛页按需加载，不增大首屏。

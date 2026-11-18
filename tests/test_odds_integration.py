@@ -82,6 +82,25 @@ class OddsIntegrationTests(unittest.TestCase):
         self.assertEqual(fixtures[0]['bj']['line'], -2)
         self.assertNotIn('books', fixtures[0])
 
+    def test_historical_stats_require_exact_teams_time_and_score(self):
+        match = {'id': 'old1', 'date': '2023-05-11T22:30:00Z', 'home': '1', 'away': '2', 'hs': 3, 'as': 0, 'stats': None}
+        teams = {'1': {'name': 'Botafogo'}, '2': {'name': 'Corinthians'}}
+        candidate = {'fixture': {'id': 1005690, 'date': '2023-05-11T22:30:00Z'}, 'goals': {'home': 3, 'away': 0}, 'teams': {'home': {'id': 120, 'name': 'Botafogo'}, 'away': {'id': 131, 'name': 'Corinthians'}}}
+        records = [{'team': {'id': 120}, 'statistics': [{'type': 'Total Shots', 'value': 16}, {'type': 'Ball Possession', 'value': '53%'}, {'type': 'Red Cards', 'value': None}]}, {'team': {'id': 131}, 'statistics': [{'type': 'Total Shots', 'value': 12}, {'type': 'Ball Possession', 'value': '47%'}]}]
+        def fake_get(path, key, params=None, ttl=0):
+            return {'response': [candidate] if path == '/fixtures' else records}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(app, 'CACHE_DIR', tmp), patch.object(app, '_af_get', side_effect=fake_get), patch.dict(os.environ, {'API_FOOTBALL_KEY': 'test-only'}):
+            self.assertEqual(app.backfill_missing_history([match], [{'date': '2026-11-19T00:30:00Z', 'home': '1', 'away': '2'}], teams, log=lambda *_: None), 1)
+            self.assertEqual(match['stats']['home']['shots'], 16)
+            self.assertEqual(match['stats']['away']['possession'], 47)
+            self.assertNotIn('red', match['stats']['home'])
+            restored = dict(match, stats=None)
+            self.assertEqual(app.backfill_missing_history([restored], [], teams, log=lambda *_: None), 1)
+            self.assertEqual(restored['stats'], match['stats'])
+            wrong = dict(match, id='old2', hs=2, stats=None)
+            self.assertEqual(app.backfill_missing_history([wrong], [], teams, log=lambda *_: None), 0)
+            self.assertIsNone(wrong['stats'])
+
     def test_api_markets_and_alternate_lines_reach_matched_fixture(self):
         now = datetime.now(timezone.utc).replace(microsecond=0)
         when = now + timedelta(hours=3)
