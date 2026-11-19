@@ -42,5 +42,6 @@ class DomesticFixtureTests(unittest.TestCase):
         for name in ('中国U21','中国女足','中国B队'):
             self.assertFalse(app._name_match(name, '中国', '中国'))
         self.assertTrue(app._name_match('布拉干蒂诺','布拉干RB',''))
+        self.assertTrue(app._name_match('布拉甘蒂诺红牛','布拉干RB',''))
 
 if __name__ == '__main__': unittest.main()
