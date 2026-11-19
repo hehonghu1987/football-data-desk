@@ -2318,11 +2318,13 @@ def _apply_af_bookmakers(f, bookmakers):
     return added
 
 
-def enrich_sp_fixtures(fixture_rows, log=log):
+def enrich_sp_fixtures(fixture_rows, teams=None, log=log):
     """给「竞彩补出来的赛程」用 API-Football 补赔率/预测/伤停（按联赛+开球时间匹配）。"""
     key = os.environ.get("API_FOOTBALL_KEY", "").strip()
     if not key:
         return 0
+    team_list = teams.values() if isinstance(teams, dict) else (teams or [])
+    tbi = {str(t.get("id")): t for t in team_list}
     n = 0
     for f in fixture_rows:
         if not str(f.get("id", "")).startswith("sp-"):
@@ -2337,7 +2339,7 @@ def enrich_sp_fixtures(fixture_rows, log=log):
             continue
         resp_items = []
         for _lg in lg_list:
-            for _season in (2026, 2025, 2024, None):
+            for _season in (2026, 2025, 2027, 2024, None):
                 _params = {"date": ft.date().isoformat(), "league": _lg, "timezone": "UTC"}
                 if _season is not None:
                     _params["season"] = _season
@@ -2351,6 +2353,13 @@ def enrich_sp_fixtures(fixture_rows, log=log):
                     break
             if resp_items:
                 break
+        # 兜底：联赛+赛季都拿不到时，用当天全部赛程按开球时间/队名匹配
+        if not resp_items:
+            try:
+                _d = _af_get("/fixtures", key, {"date": ft.date().isoformat(), "timezone": "UTC"}, ttl=1800)
+                resp_items = _d.get("response") or []
+            except Exception:
+                resp_items = []
         best = None
         for it in resp_items:
             try:
@@ -2358,11 +2367,27 @@ def enrich_sp_fixtures(fixture_rows, log=log):
             except ValueError:
                 continue
             diff = abs((mt - ft).total_seconds())
-            if diff <= 15 * 60 and (best is None or diff < best[0]):
-                best = (diff, it)
+            if diff > 15 * 60:
+                continue
+            # 有英文队名时做队名相似度校验，避免同一时间多场比赛错配
+            th = tbi.get(str(f.get("home"))) or {}
+            ta = tbi.get(str(f.get("away"))) or {}
+            home_n = ((it.get("teams") or {}).get("home") or {}).get("name") or ""
+            away_n = ((it.get("teams") or {}).get("away") or {}).get("name") or ""
+            score = 0.0
+            if th.get("name") and ta.get("name"):
+                score = min(_af_team_sim(home_n, th), _af_team_sim(away_n, ta))
+            if score >= 0.55:
+                cand = (0.0 if score >= 0.8 else 1.0, diff, it)
+            elif diff <= 5 * 60:
+                cand = (2.0, diff, it)
+            else:
+                continue
+            if best is None or cand[:2] < best[:2]:
+                best = cand
         if not best:
             continue
-        it = best[1]
+        it = best[2]
         afid = str((it.get("fixture") or {}).get("id") or "")
         if not afid:
             continue
@@ -5172,7 +5197,7 @@ def main():
         log(f"  竞彩官方挂载：{_hit}/{len(_sp)} 场（赛程 {len(fixture_rows)} 场）")
         try:
             add_sporttery_fixtures(fixture_rows, _cn_teams, team_rows, _sp)
-            _en_n = enrich_sp_fixtures(fixture_rows)
+            _en_n = enrich_sp_fixtures(fixture_rows, team_rows)
             if _en_n:
                 log(f"  竞彩补充赛程数据：{_en_n} 场（API-Football 赔率/预测/伤停）")
         except Exception as e:
