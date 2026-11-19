@@ -1638,7 +1638,6 @@ td.gsep{border-left:1px solid var(--line)}
       <div class="seg src-seg" id="src-seg" role="group" aria-label="数据来源筛选">
         <button type="button" data-src="all" aria-pressed="true">全部</button>
         <button type="button" data-src="jc" aria-pressed="false">竞彩在售</button>
-        <button type="button" data-src="bj" aria-pressed="false">北单列表</button>
       </div>
       <div class="day-bar" id="day-bar">
         <button class="day-btn" id="day-prev" type="button" aria-label="前一天">‹</button>
@@ -1763,10 +1762,9 @@ td.gsep{border-left:1px solid var(--line)}
             <tr><td>多机构欧赔 / 亚盘 / 大小球</td><td>The Odds API</td><td>英超、西甲、意甲、德甲、法甲、欧冠、欧联、欧国联</td><td><b class="ok">稳定 10–15 家</b></td></tr>
             <tr><td>补充欧赔（h2h）</td><td>The Odds API</td><td>英冠、荷甲、葡超、巴西甲、苏超、德乙、意乙、西乙、土超、比甲、奥甲、希腊超、丹超、瑞士超、波兰超、挪超、瑞典超、日职联、美职联、阿甲、法国杯、国王杯、德国杯、英联杯、法乙、德国丙</td><td><b class="ok">开赛前 7 天内分批补 1–9 家</b></td></tr>
             <tr><td>DraftKings / Bet365</td><td>ESPN</td><td>有盘口的俱乐部比赛</td><td><b class="ok">稳定</b></td></tr>
-            <tr><td>竞彩官方（胜平负 / 让球）</td><td>中国体彩公开接口</td><td>竞彩在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
-            <tr><td>北单（胜平负 / 让球 SP）</td><td>澳客北单列表</td><td>北单列表场次</td><td><b>以来源更新为准</b></td></tr>
+            <tr><td>竞彩官方（胜平负 / 让球 / 总进球→大小球）</td><td>中国体彩公开接口</td><td>竞彩在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
             <tr><td>模型公平赔率 / 大小球 / 亚盘</td><td>本站模型</td><td>所有有模型预测的比赛</td><td><b class="ok">兜底显示，不会空白</b></td></tr>
-            <tr><td>多机构赔率（友谊赛 / 世预赛等）</td><td>—</td><td>免费数据源不提供</td><td><b class="warn">不会有（仅竞彩/北单/模型）</b></td></tr>
+            <tr><td>多机构赔率（友谊赛 / 世预赛等）</td><td>—</td><td>免费数据源不提供</td><td><b class="warn">不会有（仅竞彩/模型）</b></td></tr>
             <tr><td>伤停名单、伤缺原因</td><td>—</td><td>ESPN 不提供足球伤停</td><td><b class="warn">不会有</b></td></tr>
           </tbody>
         </table>
@@ -2040,7 +2038,7 @@ td.gsep{border-left:1px solid var(--line)}
 
 <script>const DATA = __DATA_JSON__;</script>
 <script>
-function expandCompactRecords(records){
+(function expandCompact(){
   const K = ["shots","sot","corners","offsides","yellow","red","fouls","possession","blocked","saves"];
   const toObj = a => {
     if(!a) return null;
@@ -2048,7 +2046,7 @@ function expandCompactRecords(records){
     for(let i = 0; i < K.length; i++) o[K[i]] = a[i];
     return o;
   };
-  for(const m of records){
+  for(const m of (DATA.matches || []).concat(DATA.fixtures || [])){
     if(m.st){
       m.stats = { home: toObj(m.st[0]), away: toObj(m.st[1]) };
       delete m.st;
@@ -2058,8 +2056,7 @@ function expandCompactRecords(records){
       delete m.v;
     }
   }
-}
-expandCompactRecords((DATA.matches || []).concat(DATA.fixtures || []));
+})();
 </script>
 <script>
 (function(){
@@ -2287,7 +2284,6 @@ function loadHistory(){
     .then(r => r.ok ? r.json() : null)
     .then(h => {
       if(h && Array.isArray(h.matches) && h.matches.length){
-        expandCompactRecords(h.matches);
         DATA.matches = (DATA.matches || []).concat(h.matches);
         rebuildIndexes();
       }
@@ -2408,7 +2404,7 @@ async function renderSquads(m){
   if(!box) return;
   const h = TEAMS.get(String(m.home)), a = TEAMS.get(String(m.away));
   const [hp, ap] = await Promise.all([loadRoster(m.home), loadRoster(m.away)]);
-  if(!hp.length && !ap.length && !(m.afL && (m.afL.h || m.afL.a))){ box.hidden = true; return; }
+  if(!hp.length && !ap.length){ box.hidden = true; return; }
   box.hidden = false;
   const col = (t, pl, side) => {
     const afSide = (m.afL && m.afL[side]) || null;
@@ -2426,7 +2422,7 @@ async function renderSquads(m){
          <div class="squad-list bench">${bench.map(playerCard).join("")}</div>`
       : "";
     return `<div class="squad-team">
-      <h3 class="squad-h">${badge(t, "sm")}${esc((t && (t.cn || t.name)) || "")}${xi.f ? `<span class="squad-f">${esc(xi.f)}</span>` : ""}${xi.starters.length ? `<span class="squad-xi-n">${xi.from === "api" ? "官方首发" : "预计首发"} ${xi.starters.length} 人</span>` : ""}</h3>
+      <h3 class="squad-h">${badge(t, "sm")}${esc((t && (t.cn || t.name)) || "")}${xi.f ? `<span class="squad-f">${esc(xi.f)}</span>` : ""}${xi.starters.length ? `<span class="squad-xi-n">预计首发 ${xi.starters.length} 人</span>` : ""}</h3>
       ${xiHtml}
       ${benchHtml}
     </div>`;
@@ -2434,7 +2430,7 @@ async function renderSquads(m){
   box.innerHTML = `<section class="section">
     <div class="section-head">
       <h2 class="section-title">双方阵容</h2>
-      <span class="section-note">官方首发以数据源为准；预计首发按近期比赛推算</span>
+      <span class="section-note">预计首发（按最近比赛首发推算，非官方）· 位置 · 年龄 · 国籍 · 本赛季数据</span>
     </div>
     <details class="squad-details">
       <summary>双方球员名单（${hp.length + ap.length} 人）<span class="hint">点击展开 · 预计首发 + 替补</span></summary>
@@ -3273,7 +3269,6 @@ function marketProbs(m){
   const books = (m && m.books) || [];
   let sum = null, n = 0;
   for(const b of books){
-    if(b.book === "北单" || b.src === "beidan") continue;
     if(!b.m || b.m.length < 3) continue;
     const inv = b.m.map(x => 1 / x);
     const tot = inv[0] + inv[1] + inv[2];
@@ -3287,7 +3282,7 @@ function marketProbs(m){
   return null;
 }
 function consensusLine(m, key){
-  const books = ((m && m.books) || []).filter(b => b[key] && b[key].line != null && !(key === "ah" && b[key].alternate));
+  const books = ((m && m.books) || []).filter(b => b[key] && b[key].line != null);
   if(!books.length) return null;
   const cnt = new Map();
   for(const b of books){
@@ -3349,9 +3344,8 @@ function fixtureRowHtml(f, forceStatus){
     const hiTag = Math.max(fbp[0], fbp[1], fbp[2]) >= hiTh ? `<span class="tag tag-conf">高信心</span>` : "";
     predLine = `<div class="fix-pred">${hiTag}<span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span>${hints.length ? `<span class="hint">${hints.join(" · ")}</span>` : ""}</div>`;
   }
-  const srcTags = `${f.sp ? `<span class="tag tag-jc">竞彩${f.sp.num ? " " + esc(f.sp.num) : ""}</span>` : ""}${f.bj ? `<span class="tag tag-bj">北单${f.bj.num ? " " + esc(f.bj.num) : ""}</span>` : ""}`;
+  const srcTags = `${f.sp ? `<span class="tag tag-jc">竞彩${f.sp.num ? " " + esc(f.sp.num) : ""}</span>` : ""}`;
   if(predLine) predLine = predLine.replace('<div class="fix-pred">', `<div class="fix-pred">${srcTags}`);
-  else if(srcTags) predLine = `<div class="fix-pred">${srcTags}<span>暂无模型数据</span></div>`;
   return `<div class="fix-row" data-mid="${esc(f.id)}">
     <div class="fix-time">${fmtTime(f.date)}<button type="button" class="pin-btn${isPinned(f.id) ? " on" : ""}" data-pin="${esc(f.id)}" aria-pressed="${isPinned(f.id) ? "true" : "false"}" title="${isPinned(f.id) ? "取消置顶" : "置顶这场比赛"}" aria-label="置顶比赛">${isPinned(f.id) ? "★" : "☆"}</button></div>
     <div>${leagueChip(f.league)}</div>
@@ -3384,7 +3378,7 @@ function dayEntries(key){
 function syncSrcCounts(c){
   const seg = $("#src-seg");
   if(!seg) return;
-  const labels = { all: "全部", jc: "竞彩", bj: "北单" };
+  const labels = { all: "全部", jc: "竞彩" };
   seg.querySelectorAll("[data-src]").forEach(b => {
     const k = b.dataset.src;
     if(labels[k]) b.textContent = `${labels[k]} ${c[k] || 0}`;
@@ -3392,8 +3386,7 @@ function syncSrcCounts(c){
 }
 
 function srcOk(f){
-  if(state.src === "jc") return !!f.sp && new Date(f.date) > new Date();
-  if(state.src === "bj") return !!f.bj && new Date(f.date) > new Date();
+  if(state.src === "jc") return !!f.sp;
   return true;
 }
 
@@ -3403,7 +3396,7 @@ function renderFixtures(){
 
   if(state.day){
     const dayBase = dayEntries(state.day).filter(f => state.league === "all" || f.league === state.league);
-    syncSrcCounts({ all: dayBase.length, jc: dayBase.filter(f => f.sp && new Date(f.date) > new Date()).length, bj: dayBase.filter(f => f.bj && new Date(f.date) > new Date()).length });
+    syncSrcCounts({ all: dayBase.length, jc: dayBase.filter(f => f.sp).length });
     const all = dayBase.filter(srcOk);
     const [y, mo, da] = state.day.split("-").map(Number);
     const label = `${mo}月${da}日`;
@@ -3424,7 +3417,7 @@ function renderFixtures(){
   // 计数与面板展示窗口一致：只统计前 5 个比赛日
   const dayKeys5 = [...new Set(baseAll.map(f => dayKey(new Date(f.date))))].sort().slice(0, 5);
   const baseList = baseAll.filter(f => dayKeys5.includes(dayKey(new Date(f.date))));
-  syncSrcCounts({ all: baseList.length, jc: baseList.filter(f => f.sp && new Date(f.date) > new Date()).length, bj: baseList.filter(f => f.bj && new Date(f.date) > new Date()).length });
+  syncSrcCounts({ all: baseList.length, jc: baseList.filter(f => f.sp).length });
   const list = baseList.filter(srcOk);
   if(note){
     const started = list.some(f => fixtureStatus(f).kind !== "pre");
@@ -3433,7 +3426,7 @@ function renderFixtures(){
       note.classList.add("warn");
     } else {
       note.textContent = "时间为本地时区 · 未来 5 个比赛日"
-        + (state.src === "jc" ? ` · 竞彩列表 ${list.length} 场` : state.src === "bj" ? ` · 北单列表 ${list.length} 场` : "");
+        + (state.src === "jc" ? ` · 竞彩在售 ${list.length} 场` : "");
       note.classList.remove("warn");
     }
   }
@@ -3450,7 +3443,7 @@ function renderFixtures(){
   const titleBase = groups.has(TODAY_KEY) ? "今日赛程" : "近期赛程";
   $("#fixtures-title").textContent = state.league === "all" ? titleBase : state.league + " · " + titleBase;
   if(!keys.length){
-    panel.innerHTML = state.src === "all" ? `<div class="empty">${state.league === "all" ? "近期" : esc(state.league) + " 近期"}暂无已排定的比赛。<br>可以切换到其他联赛，或直接搜索球队查看历史数据。</div>` : `<div class="empty">当前筛选范围内没有可显示的未开赛场次。<br>也可能是来源暂不可用或快照已过期，请稍后再试。</div>`;
+    panel.innerHTML = `<div class="empty">${state.league === "all" ? "近期" : esc(state.league) + " 近期"}暂无已排定的比赛。<br>可以切换到其他联赛，或直接搜索球队查看历史数据。</div>`;
     return;
   }
   const dayBlock = k => {
@@ -3558,7 +3551,6 @@ function valuePicks(){
     // 欧赔：以「各机构隐含概率的中位数」作为公平基准，找高于基准的最优价
     const impl = [[], [], []], best = [0, 0, 0], bestBook = ["", "", ""];
     for(const b of books){
-      if(b.book === "北单" || b.src === "beidan") continue;
       if(!b.m || b.m.length < 3) continue;
       const inv = b.m.map(x => 1 / x), tot = inv[0] + inv[1] + inv[2];
       if(!tot) continue;
@@ -3583,7 +3575,7 @@ function valuePicks(){
     // 亚盘/大小球只在「模型与市场同线概率接近」时才提示，避免模型极端值造成的假 EV
     if(p && p.ah){
       for(const b of books){
-        if(!b.ah || b.ah.alternate || b.ah.h == null || b.ah.a == null) continue;
+        if(!b.ah || b.ah.h == null || b.ah.a == null) continue;
         const pH = p.ah[String(b.ah.line)];
         const pM = deVig2(b.ah.h, b.ah.a);
         if(pH == null || pM == null || Math.abs(pH - pM) > 0.10) continue;
@@ -5038,7 +5030,7 @@ function renderPreMatch(m){
   const ip = (odds || hasBooks) ? marketProbs(m) : (!isUpcoming ? (m.mkt || null) : null);
   const cells = [];
   if(odds || hasBooks){
-    const books = (m.books || []).filter(b => b.book !== "北单" && b.src !== "beidan" && (b.m || b.ah || b.ou));
+    const books = (m.books || []).filter(b => b.m || b.ah || b.ou);
     const mbooks = books.filter(b => b.m);
     if(books.length){
       const ipc = marketProbs(m) || ip || consensusBooks(mbooks);
@@ -5051,7 +5043,6 @@ function renderPreMatch(m){
         </div>
         <div class="odds-src">多家机构去水共识 · 小数赔率${books.length < 3 ? ` · 免费数据源本场仅 ${books.length} 家机构` : ""}</div>
         ${(m.sp && m.sp.had) ? `<div class="odds-src sp-line">竞彩官方：${m.sp.had.map(v => Number(v).toFixed(2)).join(" / ")}${(m.sp.hhad && m.sp.hhad.line != null) ? ` · 让球 ${m.sp.hhad.line > 0 ? "主受让" : (m.sp.hhad.line < 0 ? "主让" : "平手")}${Math.abs(m.sp.hhad.line)} 球 ${m.sp.hhad.h} / ${m.sp.hhad.d} / ${m.sp.hhad.a}` : ""}</div>` : ""}
-        ${(m.bj && m.bj.h != null) ? `<div class="odds-src sp-line">北单让球胜平负：${[m.bj.h, m.bj.d, m.bj.a].map(v => v == null ? "—" : Number(v).toFixed(2)).join(" / ")}${m.bj.line != null ? ` · ${m.bj.line > 0 ? "主受让" : m.bj.line < 0 ? "主让" : "平手"}${Math.abs(m.bj.line)} 球` : " · 让球数未提供"}</div>` : ""}
       </div>`);
       const ahc = consensusLine(m, "ah");
       if(ipc) cells.push(ahc ? `<div class="odds-cell">
@@ -5065,7 +5056,7 @@ function renderPreMatch(m){
       </div>` : `<div class="odds-cell empty">
         <div class="l">亚盘 · 让球</div>
         <div class="odds-line"><b>—</b></div>
-        <div class="odds-src">该场暂无亚盘数据${(m.sp || m.bj) ? "（可参考下方官方让球盘）" : "（机构未提供让球盘）"}</div>
+        <div class="odds-src">该场暂无亚盘数据${m.sp ? "（可参考下方官方让球盘）" : "（机构未提供让球盘）"}</div>
       </div>`);
       const ouc = consensusLine(m, "ou");
       if(ipc) cells.push(ouc ? `<div class="odds-cell">
@@ -5082,7 +5073,7 @@ function renderPreMatch(m){
         <div class="odds-src">该场暂无大小球数据（机构未提供）</div>
       </div>`);
       const qv = v => (v == null ? "—" : Number(v).toFixed(2));
-      const ql = v => (v == null ? "—" : String(Number(v)));
+      const ql = v => (v == null ? "—" : Number(v).toFixed(1));
       // 涨跌着色：红=涨、绿=降（无变化/无初赔则灰色）
       const mvCell = (cur, prev, fmt) => {
         const c = (fmt || qv)(cur), p = (fmt || qv)(prev);
@@ -5099,8 +5090,8 @@ function renderPreMatch(m){
         if(!isFinite(d) || Math.abs(d) < 1e-9) return c;
         return `<span class="${d < 0 ? "mv-up" : "mv-down"}" title="${d < 0 ? "升盘" : "降盘"}">${c}<i>${d < 0 ? "▲" : "▼"}</i></span>`;
       };
-      const ahq = ah => (ah && ah.line != null ? ahText(ah.line) + (ah.alternate ? ' <small title="仅有其他盘口线，不参与主盘共识">备选</small>' : "") : "—");
-      const MAINSTREAM = new Set(["Bet365","Pinnacle","William Hill","Ladbrokes","Unibet","Tipico","Winamax","DraftKings","Marathon Bet","1xBet","竞彩官方","竞彩总进球","北单"]);
+      const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
+      const MAINSTREAM = new Set(["Bet365","Pinnacle","William Hill","Ladbrokes","Unibet","Tipico","Winamax","DraftKings","Marathon Bet","1xBet","竞彩官方","竞彩总进球"]);
       const scope = state.bookScope || "all";
       const CUSTOM = (() => {
         try {
@@ -5127,21 +5118,19 @@ function renderPreMatch(m){
           const pm = (prev && prev.m) || [null, null, null];
           const pah = (prev && prev.ah) || {};
           const pou = (prev && prev.ou) || {};
-          const comparableAh = prev && ahObj.line != null && pah.line != null && Number(ahObj.line) === Number(pah.line) && !ahObj.alternate && !pah.alternate;
-          const comparableOu = prev && ouObj.line != null && pou.line != null && Number(ouObj.line) === Number(pou.line);
           return `<tr class="${cls}">
           <td class="bk" title="${esc(b.book)}">${showName ? bookLabel(b.book) : ""}</td>
           <td class="mq">${label}</td>
           <td>${mvCell(mArr[0], pm[0])}</td><td>${mvCell(mArr[1], pm[1])}</td><td>${mvCell(mArr[2], pm[2])}</td>
-          <td>${prev && !ahObj.alternate && !pah.alternate ? lineCell(ahObj.line, pah.line) : ahq(ahObj)}</td>
-          <td>${mvCell(ahObj.h, comparableAh ? pah.h : null)}</td><td>${mvCell(ahObj.a, comparableAh ? pah.a : null)}</td>
-          <td>${mvCell(ouObj.line, pou.line, ql)}</td><td>${mvCell(ouObj.over, comparableOu ? pou.over : null)}</td><td>${mvCell(ouObj.under, comparableOu ? pou.under : null)}</td>
+          <td>${prev ? lineCell(ahObj.line, pah.line) : ahq(ahObj)}</td>
+          <td>${mvCell(ahObj.h, pah.h)}</td><td>${mvCell(ahObj.a, pah.a)}</td>
+          <td>${mvCell(ouObj.line, pou.line, ql)}</td><td>${mvCell(ouObj.over, pou.over)}</td><td>${mvCell(ouObj.under, pou.under)}</td>
         </tr>`;
         };
         if(op){
-          return mk("初始参考", om, oah, oou, "row-open", true) + mk(isUpcoming ? "当前记录" : "赛前记录", mm, ahb, oub, "", false, op);
+          return mk("初赔", om, oah, oou, "row-open", true) + mk(isUpcoming ? "即时" : "收盘", mm, ahb, oub, "", false, op);
         }
-        return mk(isUpcoming ? "当前记录" : "赛前记录", mm, ahb, oub, "", true);
+        return mk(isUpcoming ? "即时" : "收盘", mm, ahb, oub, "", true);
       }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
         <div class="book-scope">
@@ -5152,12 +5141,12 @@ function renderPreMatch(m){
           </div>
           ${pickHtml}
         </div>
-        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>当前记录 vs 初始参考 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
+        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>即时 vs 初赔 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
         <table class="books">
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
-        <div class="odds-src" style="padding:6px 2px 2px">初始参考可能是本站首次记录，并非机构开盘价。当前记录可能来自缓存；「备选」不参与主盘共识，「—」表示暂无该项数据。</div>
+        <div class="odds-src" style="padding:6px 2px 2px">「—」表示该机构未开此盘口或数据源未提供；不同机构覆盖范围不同属正常（Bet365/平博/DraftKings/1xBet 通常最全）。</div>
       </div>`);
     } else if(odds){
       cells.push(`<div class="odds-cell">
@@ -5289,7 +5278,7 @@ function renderPreMatch(m){
   $("#odds-grid").innerHTML = cells.length ? cells.join("")
     : `<div class="odds-cell"><div class="l">赔率</div><div class="odds-src">该场暂无可用赔率</div></div>`;
   $("#odds-grid").hidden = !(odds || hasBooks);
-  // 官方让球盘（竞彩 / 北单）：3 项含平，单独展示，不混入亚盘 2 项口径
+  // 官方让球盘（竞彩）：3 项含平，单独展示，不混入亚盘 2 项口径
   try {
     const oa = $("#official-ah");
     if(oa){
@@ -5298,11 +5287,8 @@ function renderPreMatch(m){
       if(m.sp && m.sp.hhad && m.sp.hhad.line != null && m.sp.hhad.h != null){
         rows.push(`<div class="oa-row"><span class="oa-k">竞彩让球</span><span class="oa-line">${lineTxt(Number(m.sp.hhad.line))}</span><span class="oa-odds">${Number(m.sp.hhad.h).toFixed(2)} / ${Number(m.sp.hhad.d).toFixed(2)} / ${Number(m.sp.hhad.a).toFixed(2)}</span><span class="oa-note">主 / 平 / 客</span></div>`);
       }
-      if(m.bj && m.bj.line != null && m.bj.h != null){
-        rows.push(`<div class="oa-row"><span class="oa-k">北单让球</span><span class="oa-line">${lineTxt(Number(m.bj.line))}</span><span class="oa-odds">${Number(m.bj.h).toFixed(2)} / ${Number(m.bj.d).toFixed(2)} / ${Number(m.bj.a).toFixed(2)}</span><span class="oa-note">SP 主 / 平 / 客</span></div>`);
-      }
       if(rows.length){
-        oa.innerHTML = `<div class="panel oa-panel"><div class="oa-head">官方让球盘（竞彩 / 北单）<span>含平局选项，与亚盘 2 项口径不同，仅作参考</span></div>${rows.join("")}</div>`;
+        oa.innerHTML = `<div class="panel oa-panel"><div class="oa-head">官方让球盘（竞彩）<span>含平局选项，与亚盘 2 项口径不同，仅作参考</span></div>${rows.join("")}</div>`;
         oa.hidden = false;
       } else { oa.hidden = true; oa.innerHTML = ""; }
     }
@@ -5801,7 +5787,7 @@ function renderInsight(m){
         ahMain = "参考竞彩让球";
         ahSub = `${m.sp.hhad.line > 0 ? "主受让" : "主让"} ${Math.abs(m.sp.hhad.line)} 球`;
       }
-      vcards.push(`<div class="v-card"><div class="v-k">让球倾向</div><div class="v-v">${esc(ahMain)}</div><div class="v-s">${esc(ahSub || "竞彩/北单未开让球")}</div></div>`);
+      vcards.push(`<div class="v-card"><div class="v-k">让球倾向</div><div class="v-v">${esc(ahMain)}</div><div class="v-s">${esc(ahSub || "竞彩未开让球")}</div></div>`);
       vg.innerHTML = vcards.join("");
     }
   } catch(e){ /* ignore */ }
@@ -5893,7 +5879,6 @@ function renderMatch(id){
       <span>${esc(fullTime(m.date))}</span>
       ${leagueChip(m.league)}
       ${m.sp ? `<span class="tag tag-jc">竞彩 ${esc(m.sp.num || "")}</span>` : ""}
-      ${m.bj ? `<span class="tag tag-bj">北单 ${esc(m.bj.num || "")}${m.bj.line != null ? ` · 让球 ${m.bj.line > 0 ? "+" : ""}${m.bj.line}` : ""}</span>` : ""}
       ${m.venue ? `<span>${esc(m.venue)}</span>` : ""}
       <button type="button" class="pin-btn${isPinned(m.id) ? " on" : ""}" data-pin="${esc(m.id)}" aria-pressed="${isPinned(m.id) ? "true" : "false"}" title="置顶这场比赛">${isPinned(m.id) ? "★" : "☆"}<span class="pin-lbl">置顶</span></button>
     </div>
@@ -6139,7 +6124,7 @@ function renderDeep(m){
         marketBody += `<p><span class="deep-tag">大小球 ${Number(ouc.line).toFixed(1)}</span>模型大球 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.05 ? (d > 0 ? "，模型更偏大球" : "，模型更偏小球") : "，与市场接近"}。</p>`;
       }
     }
-    const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}${m.bj ? `<span class="deep-tag">北单 ${esc(m.bj.num || "")}</span>` : ""}`;
+    const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}`;
     marketBody = `<div class="deep-kv" style="margin-bottom:10px">${srcTags}</div>` + marketBody +
       `<p class="deep-foot">「差」为模型概率减市场去水概率，正值表示模型认为市场低估了该结果；「最优价」为该结果在比价机构中的最高小数赔率（机构覆盖场次不同，仅供参考）。模型整体弱于收盘线，方向仅供参考。</p>`;
   } else {

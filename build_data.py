@@ -15,7 +15,6 @@
 """
 
 import argparse
-import hashlib
 import json
 import math
 import os
@@ -1077,12 +1076,6 @@ ODDS_BOOK_WHITELIST = {
     "sbobet": "SBOBET", "188bet": "188BET", "12bet": "12BET",
     "crown": "Crown", "macauslot": "Macau Slot", "dafabet": "Dafabet",
     "oddset": "ODDSET", "snai": "SNAI", "codere": "Codere",
-    "sbo": "SBOBET", "betvictor": "BetVictor", "betano": "Betano",
-    "10bet": "10Bet", "bwin": "Bwin", "betfred": "BetFred",
-    "interwetten": "Interwetten", "5dimes": "5Dimes", "intertops": "Intertops",
-    "bovada": "Bovada", "betcris": "Betcris", "sportingbet": "Sportingbet",
-    "betway": "Betway", "expekt": "Expekt", "comeon": "ComeOn",
-    "netbet": "Netbet", "fonbet": "Fonbet", "superbet": "Superbet",
 }
 ODDSAPI_BOOKMAKERS = "pinnacle,williamhill,ladbrokes_uk,unibet_fr,unibet_nl,unibet_se,tipico_de,winamax_de,winamax_fr"
 ODDSAPI_BOOKMAKERS_EXTRA = ("onexbet,marathonbet,betsson,nordicbet,pmu_fr,leovegas_se,"
@@ -1109,11 +1102,6 @@ def filter_whitelist_books(fixture_rows):
             for k in ("m", "ou", "ah"):
                 if b.get(k) and not cur.get(k):
                     cur[k] = b[k]
-                    stamp = (b.get("marketAt") or {}).get(k)
-                    if stamp:
-                        cur.setdefault("marketAt", {})[k] = stamp
-            if b.get("open") and not cur.get("open"):
-                cur["open"] = b["open"]
             if b.get("src") == "oddsapi":
                 cur["src"] = "oddsapi"
         if merged:
@@ -1216,12 +1204,10 @@ def load_oddsapi_snapshot(fixture_rows):
             if isinstance(entry, dict):
                 title, m = entry.get("book"), entry.get("m")
                 ou, ah = entry.get("ou"), entry.get("ah")
-                market_at = entry.get("marketAt")
             elif entry and len(entry) >= 2:
                 title, m = entry[0], entry[1]
                 ou = entry[2] if len(entry) > 2 else None
                 ah = entry[3] if len(entry) > 3 else None
-                market_at = None
             else:
                 continue
             canon = _canon_book(title)
@@ -1237,8 +1223,6 @@ def load_oddsapi_snapshot(fixture_rows):
                 book["ou"] = ou
             if isinstance(ah, dict):
                 book["ah"] = ah
-            if isinstance(market_at, dict):
-                book["marketAt"] = market_at
             if not (book.get("m") or book.get("ou") or book.get("ah")):
                 continue
             books.append(book)
@@ -1277,59 +1261,25 @@ def _pin_get(url, timeout=30):
 
 
 AF_BASE = "https://v3.football.api-sports.io"
-_AF_RATE_LOCK = threading.Lock()
-_AF_NEXT_REQUEST = 0.0
-_AF_REQUEST_INTERVAL = 0.30  # 约 200 次/分钟，为同账号的其他请求保留余量
 
 
-def _af_wait_for_slot():
-    global _AF_NEXT_REQUEST
-    with _AF_RATE_LOCK:
-        now = time.monotonic()
-        if now < _AF_NEXT_REQUEST:
-            time.sleep(_AF_NEXT_REQUEST - now)
-        _AF_NEXT_REQUEST = time.monotonic() + _AF_REQUEST_INTERVAL
-
-
-def _af_get(path, key, params=None, ttl=1800, empty_ttl=900):
+def _af_get(path, key, params=None, ttl=1800):
     """API-Football 请求 + 本地缓存（避免重复消耗每日 7500 次额度）。"""
     import hashlib
     params = params or {}
-    # 不同密钥的套餐权限和配额可能不同；更换账号时不能复用旧账号缓存。
-    account = hashlib.sha256(key.encode()).hexdigest()[:16]
-    generation = "odds-v2" if path == "/odds" else ""
-    tag = hashlib.md5((account + generation + path + json.dumps(params, sort_keys=True)).encode()).hexdigest()[:12]
+    tag = hashlib.md5((path + json.dumps(params, sort_keys=True)).encode()).hexdigest()[:12]
     cpath = os.path.join(CACHE_DIR, f"af_{tag}.json")
     try:
-        age = time.time() - os.path.getmtime(cpath) if os.path.exists(cpath) else None
-        if age is not None and age < ttl:
+        if os.path.exists(cpath) and time.time() - os.path.getmtime(cpath) < ttl:
             with open(cpath, "r", encoding="utf-8") as fh:
-                cached = json.load(fh)
-            # 未开盘的空结果不应像正常赔率一样长期遮住后续新报价。
-            if not cached.get("errors") and not (path == "/odds" and not cached.get("response") and age >= empty_ttl):
-                return cached
-    except (OSError, ValueError):
+                return json.load(fh)
+    except OSError:
         pass
     qs = urllib.parse.urlencode(params) if params else ""
     url = AF_BASE + path + ("?" + qs if qs else "")
     req = urllib.request.Request(url, headers={"x-apisports-key": key})
-    for attempt in range(3):
-        _af_wait_for_slot()
-        try:
-            with urllib.request.urlopen(req, timeout=40) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            if e.code != 429 or attempt == 2:
-                raise
-            time.sleep(20)
-            continue
-        if not data.get("errors"):
-            break
-        error_text = str(data["errors"]).lower()
-        if attempt < 2 and ("rate limit" in error_text or "ratelimit" in error_text or "too many requests" in error_text):
-            time.sleep(20)
-            continue
-        raise RuntimeError("API-Football request failed")
+    with urllib.request.urlopen(req, timeout=40) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
         with open(cpath, "w", encoding="utf-8") as fh:
@@ -1339,39 +1289,37 @@ def _af_get(path, key, params=None, ttl=1800, empty_ttl=900):
     return data
 
 
-def _paired_lines(values, first, second):
-    """保留 API 的所有完整两边盘口，按盘口数字配对。"""
-    pairs = {}
-    for value in values or []:
-        label = str(value.get("value") or "").strip()
-        parts = label.split()
-        if len(parts) != 2 or parts[0].lower() not in (first, second):
-            continue
-        try:
-            line, odd = round(float(parts[1]), 2), float(value.get("odd"))
-        except (TypeError, ValueError):
-            continue
-        if not (math.isfinite(line) and math.isfinite(odd) and odd > 1):
-            continue
-        pairs.setdefault(line, {})[parts[0].lower()] = round(odd, 3)
-    return [[line, p[first], p[second]] for line, p in sorted(pairs.items())
-            if first in p and second in p]
-
-
 def _pick_ah(values):
     """从 API-Football 的 Asian Handicap 多线里挑主盘。
     API 的 value 写法是 "Home X"/"Away X"（同数字即互补方向），按同数字配对，
-    优先选择赔率较均衡的一对；只有其他盘口线时标为备选，不参与主盘共识。"""
-    cands = [(abs(ho - ao), line, ho, ao) for line, ho, ao in
-             _paired_lines(values, "home", "away")]
+    选赔率最均衡的一对；赔率明显不合理（比如 5.5/1.13）的机构直接跳过，
+    避免显示错误的盘口/水位。"""
+    homes, aways = {}, {}
+    for v in values or []:
+        val = (v.get("value") or "").strip()
+        try:
+            odd = float(v.get("odd"))
+        except (TypeError, ValueError):
+            continue
+        low = val.lower()
+        try:
+            key = round(float(val.split()[-1]), 2)
+        except (TypeError, ValueError, IndexError):
+            continue
+        if low.startswith("home "):
+            homes[key] = odd
+        elif low.startswith("away "):
+            aways[key] = odd
+    cands = []
+    for line, ho in homes.items():
+        ao = aways.get(line)
+        if ao:
+            cands.append((abs(ho - ao), line, ho, ao))
+    cands = [c for c in cands if 1.4 <= c[2] <= 5.0 and 1.4 <= c[3] <= 5.0 and c[0] <= 1.5]
     if not cands:
         return None
-    main_candidates = [c for c in cands if 1.4 <= c[2] <= 5.0 and 1.4 <= c[3] <= 5.0 and c[0] <= 1.5]
-    best = min(main_candidates or cands, key=lambda c: c[0])
-    result = {"line": best[1], "h": best[2], "a": best[3]}
-    if not main_candidates:
-        result["alternate"] = True
-    return result
+    best = min(cands, key=lambda c: c[0])
+    return {"line": best[1], "h": best[2], "a": best[3]}
 
 
 def _pick_ou(values):
@@ -1399,7 +1347,7 @@ def _pick_ou(values):
             pairs[round(line, 2)].setdefault("line", line)
     best = None
     for item in pairs.values():
-        if item.get("over") and item.get("under") and item.get("line") is not None:
+        if item.get("over") and item.get("under") and item.get("line"):
             d = abs(item["line"] - 2.5)
             if best is None or d < best[0]:
                 best = (d, item)
@@ -1419,14 +1367,6 @@ _AF_TRANSLIT = {
     "kiev": "kyiv", "bucuresti": "bucharest", "thessaloniki": "thessaloniki",
     "fenerbahce": "fenerbahce", "besiktas": "besiktas", "galatasaray": "galatasaray",
     "anderlecht": "anderlecht", "brondby": "brondby", "malmo": "malmo",
-}
-
-# 经两家赛程核对的不同队名；只处理明确别名，避免放宽模糊匹配造成错配。
-_AF_TEAM_ALIASES = {
-    "ham kam": "hamarkameratene", "hamarkameratene": "hamarkameratene",
-    "wsg wattens": "wsg tirol", "wsg swarovski tirol": "wsg tirol",
-    "swarovski tirol": "wsg tirol",
-    "stade brestois": "brest", "brest": "brest",
 }
 
 
@@ -1475,8 +1415,6 @@ def _af_team_sim(name, team):
         nb = " ".join(nb_t)
         if not na or not nb:
             continue
-        if _AF_TEAM_ALIASES.get(na) and _AF_TEAM_ALIASES.get(na) == _AF_TEAM_ALIASES.get(nb):
-            return 1.0
         seq = difflib.SequenceMatcher(None, na, nb).ratio()
         sa, sb = set(na_t), set(nb_t)
         jac = len(sa & sb) / len(sa | sb) if (sa and sb) else 0.0
@@ -1498,113 +1436,13 @@ def _af_team_sim(name, team):
     return best
 
 
-_AF_HIST_STATS = {
-    "Total Shots": "shots", "Shots on Goal": "sot", "Corner Kicks": "corners",
-    "Offsides": "offsides", "Yellow Cards": "yellow", "Red Cards": "red",
-    "Fouls": "fouls", "Ball Possession": "possession", "Blocked Shots": "blocked",
-    "Goalkeeper Saves": "saves",
-}
-
-
-def backfill_missing_history(matches, upcoming, teams, limit=12, log=log):
-    """逐轮补充历史统计；只在双方、时间和比分一致时使用 API 数据。"""
-    key = os.environ.get("API_FOOTBALL_KEY", "").strip()
-    if not key:
-        return 0
-    teams_by_id = teams if isinstance(teams, dict) else {str(t["id"]): t for t in teams}
-    pair_order = {}
-    for f in upcoming:
-        pair = frozenset((str(f.get("home")), str(f.get("away"))))
-        when = f.get("date") or "9999"
-        pair_order[pair] = min(pair_order.get(pair, when), when)
-    candidates, restored = [], 0
-    now_ts = time.time()
-    for m in matches:
-        if m.get("stats") or m.get("hs") is None or m.get("as") is None:
-            continue
-        cache_name = f"af_history_{m['id']}.json"
-        cached = read_cache(cache_name)
-        if cached and cached.get("stats"):
-            m["stats"] = cached["stats"]
-            m["statsSource"] = "API-Football"
-            restored += 1
-            continue
-        if cached and now_ts - (cached.get("_t") or 0) < 7 * 86400:
-            continue
-        pair = frozenset((str(m.get("home")), str(m.get("away"))))
-        candidates.append((pair_order.get(pair, "9999"), m.get("date") or "", m))
-    candidates.sort(key=lambda x: (x[0], x[1], str(x[2].get("id"))))
-    filled = 0
-    for _, _, m in candidates[:limit]:
-        try:
-            when = datetime.fromisoformat(m["date"].replace("Z", "+00:00"))
-            day = when.astimezone(timezone.utc).date().isoformat()
-            data = _af_get("/fixtures", key, {"date": day, "timezone": "UTC"}, ttl=30 * 86400)
-            home, away = teams_by_id.get(str(m["home"])) or {}, teams_by_id.get(str(m["away"])) or {}
-            possible = []
-            for item in data.get("response") or []:
-                fx, team = item.get("fixture") or {}, item.get("teams") or {}
-                try:
-                    at = datetime.fromisoformat((fx.get("date") or "").replace("Z", "+00:00"))
-                except ValueError:
-                    continue
-                goals = item.get("goals") or {}
-                if abs((at - when).total_seconds()) > 3 * 3600 or goals.get("home") != m["hs"] or goals.get("away") != m["as"]:
-                    continue
-                if _af_team_sim((team.get("home") or {}).get("name"), home) < 0.92 or _af_team_sim((team.get("away") or {}).get("name"), away) < 0.92:
-                    continue
-                possible.append(item)
-            stats = None
-            if len(possible) == 1:
-                item = possible[0]
-                api_team = item.get("teams") or {}
-                raw = _af_get("/fixtures/statistics", key, {"fixture": item["fixture"]["id"]}, ttl=30 * 86400)
-                by_team = {str((r.get("team") or {}).get("id")): r for r in (raw.get("response") or [])}
-                stats = {}
-                for side in ("home", "away"):
-                    tid = str((api_team.get(side) or {}).get("id"))
-                    values = {}
-                    for s in (by_team.get(tid) or {}).get("statistics") or []:
-                        field = _AF_HIST_STATS.get(s.get("type"))
-                        value = s.get("value")
-                        if not field or value is None:
-                            continue
-                        try:
-                            num = float(str(value).strip().rstrip("%"))
-                        except ValueError:
-                            continue
-                        if math.isfinite(num):
-                            values[field] = int(num) if num.is_integer() else num
-                    stats[side] = values
-                if not stats.get("home") or not stats.get("away"):
-                    stats = None
-            write_cache(f"af_history_{m['id']}.json", {"stats": stats, "_t": time.time()})
-            if stats:
-                m["stats"] = stats
-                m["statsSource"] = "API-Football"
-                filled += 1
-        except Exception as e:
-            log(f"  ⚠ 历史统计补充失败 {m.get('id')}: {type(e).__name__}")
-    if restored or filled:
-        log(f"  API-Football 历史技术统计：恢复 {restored} 场，新补 {filled} 场")
-    return restored + filled
-
-
 def attach_apifootball(fixture_rows, teams, log=log):
-    """用 API-Football 补充未来赛程；额度充足时扩展到 14 天。"""
+    """用 API-Football（Pro）补多机构欧赔/亚盘/大小球。只补未来 7 天场次，
+    赛程与赔率都缓存 30 分钟，单轮最多 260 场；不写 key 进代码。"""
     key = os.environ.get("API_FOOTBALL_KEY", "").strip()
     if not key:
         return 0, 0
     now = datetime.utcnow()
-    future_days = 7
-    try:
-        status = _af_get("/status", key, ttl=600).get("response") or {}
-        requests = status.get("requests") or {}
-        limit, current = requests.get("limit_day"), requests.get("current")
-        if isinstance(limit, (int, float)) and isinstance(current, (int, float)) and limit - current >= 750:
-            future_days = 14
-    except Exception as e:
-        log(f"  ⚠ API-Football 配额检查失败，保留 7 天采集：{type(e).__name__}")
     team_list = teams.values() if isinstance(teams, dict) else (teams or [])
     teams_by_id = {str(t.get("id")): t for t in team_list}
     targets, dates = [], set()
@@ -1620,7 +1458,7 @@ def attach_apifootball(fixture_rows, teams, log=log):
                 targets.append((ft, f))
                 dates.add(ft.date().isoformat())
             continue
-        if now - timedelta(hours=2) <= ft <= now + timedelta(days=future_days):
+        if now - timedelta(hours=2) <= ft <= now + timedelta(days=7):
             targets.append((ft, f))
             dates.add(ft.date().isoformat())
     if not targets:
@@ -1671,44 +1509,37 @@ def attach_apifootball(fixture_rows, teams, log=log):
     except Exception:
         pass
     ordered = sorted(matched.values(), key=lambda x: x[1].get("date") or "9999")
-    log(f"  API-Football 采集窗口：未来 {future_days} 天；已匹配 {len(ordered)} 场")
     from concurrent.futures import ThreadPoolExecutor
-    failures = []
 
     def _prefetch(item):
         _score, f, afid = item
         f["af"] = afid
         soon = False
-        lineup_due = False
-        far = False
         try:
             ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
             soon = (f.get("hs") is None and f.get("as") is None) and ft <= now + timedelta(hours=60)
-            lineup_due = ft <= now + timedelta(hours=2)
-            far = ft > now + timedelta(days=7)
         except ValueError:
             soon = False
         data = {"odds": None, "inj": None, "pred": None, "lineups": None}
         _finished = f.get("hs") is not None or f.get("as") is not None
         try:
-            data["odds"] = _af_get("/odds", key, {"fixture": afid},
-                                   ttl=43200 if far else 3600, empty_ttl=21600 if far else 900)
-        except Exception as e:
-            failures.append(("赔率", type(e).__name__))
+            data["odds"] = _af_get("/odds", key, {"fixture": afid}, ttl=10800)
+        except Exception:
+            pass
         if soon:
             try:
                 data["inj"] = _af_get("/injuries", key, {"fixture": afid}, ttl=14400)
-            except Exception as e:
-                failures.append(("伤停", type(e).__name__))
+            except Exception:
+                pass
             try:
                 data["pred"] = _af_get("/predictions", key, {"fixture": afid}, ttl=43200)
-            except Exception as e:
-                failures.append(("预测", type(e).__name__))
-        if not _finished and lineup_due:
+            except Exception:
+                pass
+        if not _finished:
             try:
-                data["lineups"] = _af_get("/fixtures/lineups", key, {"fixture": afid}, ttl=1200)
-            except Exception as e:
-                failures.append(("阵容", type(e).__name__))
+                data["lineups"] = _af_get("/fixtures/lineups", key, {"fixture": afid}, ttl=3600)
+            except Exception:
+                pass
         return item, data
 
     try:
@@ -1717,12 +1548,6 @@ def attach_apifootball(fixture_rows, teams, log=log):
     except Exception as e:
         log(f"  ⚠ API-Football 并发抓取失败：{str(e)[:60]}")
         return 0, 0
-    if failures:
-        counts = defaultdict(int)
-        for kind, error_type in failures:
-            counts[(kind, error_type)] += 1
-        log("  ⚠ API-Football 部分请求失败：" + "，".join(
-            f"{kind} {error_type} {count} 次" for (kind, error_type), count in sorted(counts.items())))
     added = 0
     # 用 API-Football 的赛果补比分（ESPN 偶尔缺漏，尤其友谊赛）
     for (_score, f, afid), _data in fetched:
@@ -1835,8 +1660,6 @@ def attach_apifootball(fixture_rows, teams, log=log):
             if not canon:
                 continue
             entry = {"book": canon, "src": "apifootball"}
-            source_at = resp[0].get("update")
-            markets_at = {}
             for bet in (bm.get("bets") or []):
                 bid = bet.get("id")
                 name = (bet.get("name") or "")
@@ -1849,35 +1672,15 @@ def attach_apifootball(fixture_rows, teams, log=log):
                     except (TypeError, ValueError):
                         continue
                     entry["m"] = [round(h, 2), round(d, 2), round(a, 2)]
-                    markets_at["m"] = source_at
                 elif bid == 4:
-                    lines = _paired_lines(bet.get("values"), "home", "away")
-                    if lines:
-                        entry["ahLines"] = lines
-                        markets_at["ahLines"] = source_at
                     ah = _pick_ah(bet.get("values"))
                     if ah:
                         entry["ah"] = {"line": ah["line"], "h": round(ah["h"], 2), "a": round(ah["a"], 2)}
-                        if ah.get("alternate"):
-                            entry["ah"]["alternate"] = True
-                        markets_at["ah"] = source_at
                 elif bid == 5:
-                    lines = _paired_lines(bet.get("values"), "over", "under")
-                    if lines:
-                        entry["ouLines"] = lines
-                        markets_at["ouLines"] = source_at
                     ou = _pick_ou(bet.get("values"))
                     if ou:
                         entry["ou"] = {"line": ou["line"], "over": round(ou["over"], 2), "under": round(ou["under"], 2)}
-                        markets_at["ou"] = source_at
-                elif bid == 50:
-                    lines = _paired_lines(bet.get("values"), "over", "under")
-                    if lines:
-                        entry["goalLines"] = lines
-                        markets_at["goalLines"] = source_at
-            if markets_at:
-                entry["marketAt"] = markets_at
-            if not any(entry.get(k) for k in ("m", "ah", "ou", "ahLines", "ouLines", "goalLines")):
+            if not (entry.get("m") or entry.get("ah") or entry.get("ou")):
                 continue
             books = f.setdefault("books", [])
             cur = next((b for b in books if b.get("book") == canon), None)
@@ -1885,16 +1688,10 @@ def attach_apifootball(fixture_rows, teams, log=log):
                 books.append(entry)
                 added += 1
             else:
-                applied = set()
-                for k in ("m", "ah", "ou", "ahLines", "ouLines", "goalLines"):
+                for k in ("m", "ah", "ou"):
                     if entry.get(k):
-                        if k == "ah" and entry[k].get("alternate") and cur.get("ah") and not cur["ah"].get("alternate"):
-                            continue
                         cur[k] = entry[k]
-                        applied.add(k)
                         added += 1
-                if markets_at:
-                    cur.setdefault("marketAt", {}).update({k: v for k, v in markets_at.items() if k in applied})
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
         with open(os.path.join(CACHE_DIR, "af_team_map.json"), "w", encoding="utf-8") as mf:
@@ -2159,7 +1956,7 @@ def attach_pinnacle(fixture_rows, teams, log=log):
             added += 1
         else:
             for k in ("m", "ah", "ou"):
-                if entry.get(k) and (not cur.get(k) or (k == "ah" and cur[k].get("alternate"))):
+                if entry.get(k) and not cur.get(k):
                     cur[k] = entry[k]
                     added += 1
     return added, len(ordered)
@@ -2187,14 +1984,13 @@ def merge_books_persist(fixture_rows, ttl_hours=36):
         if ft is not None and not (now - 2 * 3600 <= ft <= now + 10 * 86400):
             continue
         cur = {}
-        carried = {}
         for b in (f.get("books") or []):
             name = b.get("book")
-            if name:
+            if name and name != "北单":
                 cur[name] = b
         old = (persist.get(fid) or {}).get("books") or {}
         for name, rec in old.items():
-            if name == "北单" or (rec.get("b") or {}).get("src") == "beidan":
+            if name == "北单":
                 continue
             if name in cur:
                 continue
@@ -2204,10 +2000,9 @@ def merge_books_persist(fixture_rows, ttl_hours=36):
             if b:
                 f.setdefault("books", []).append(b)
                 cur[name] = b
-                carried[name] = rec.get("t")
                 filled += 1
         if cur:
-            kept[fid] = {"date": date, "books": {name: {"b": b, "t": carried.get(name, now)} for name, b in cur.items()}}
+            kept[fid] = {"date": date, "books": {name: {"b": b, "t": now} for name, b in cur.items()}}
     # 写入（保留未在当前窗口但仍在 TTL 内的旧场次）
     for fid, rec in persist.items():
         if fid in kept:
@@ -2247,8 +2042,6 @@ def _write_oddsapi_snapshot(fixture_rows):
             for k in ("m", "ou", "ah"):
                 if b.get(k):
                     item[k] = b.get(k)
-            if b.get("marketAt"):
-                item["marketAt"] = b["marketAt"]
             items.append(item)
         data[str(f.get("id"))] = {"items": items, "date": f.get("date"), "t": now}
     # 清理 21 天前的旧场次（兼容老格式：纯 list 视为已过期）
@@ -2353,17 +2146,15 @@ def fetch_sporttery():
             with open(os.path.join(ROOT, "odds_snapshots", "sporttery.json"), "r", encoding="utf-8") as f:
                 snap = json.load(f)
             ms = snap.get("matches") or []
-            if ms and time.time() - float(snap.get("_t") or 0) < 3 * 3600:
+            if ms:
                 log(f"  竞彩官方赔率：改用快照 {len(ms)} 场")
                 return ms
         except (OSError, ValueError):
             pass
-        return ((raw or {}).get("matches") or []) if raw and cache_age(raw, cache_path) < 3 * 3600 else []
+        return (raw or {}).get("matches") or []
     out = []
     for day in ((data.get("value") or {}).get("matchInfoList") or []):
         for m in (day.get("subMatchList") or []):
-            if m.get("matchStatus") and m["matchStatus"] != "Selling":
-                continue
             had = m.get("had") or {}
             hhad = m.get("hhad") or {}
             try:
@@ -2402,16 +2193,7 @@ def _norm_cn(s):
     return s.lower()
 
 
-# 明确的跨来源简称，禁止两字模糊匹配导致青年队或同名球队错配。
-_CN_ALIASES = [
-    {"布拉干rb", "布拉干蒂诺", "布拉干蒂诺红牛", "布拉甘蒂诺红牛"},
-    {"奥兰多", "奥兰多城"}, {"西雅图", "西雅图海湾人"},
-    {"盐湖城", "皇家盐湖城"}, {"比勒费", "比勒菲尔德"},
-    {"登博思", "邓伯什"}, {"拜仁", "拜仁慕尼黑"},
-    {"西悉尼", "西悉尼流浪者"}, {"阿德莱德", "阿德莱德联"},
-]
-
-def _name_match(our, abb, full=""):
+def _name_match(our, abb, full):
     a = _norm_cn(our)
     if not a:
         return False
@@ -2419,95 +2201,65 @@ def _name_match(our, abb, full=""):
         b = _norm_cn(cand)
         if not b:
             continue
-        if a == b or any(a in group and b in group for group in _CN_ALIASES):
+        if a == b or (len(a) >= 3 and a in b) or (len(b) >= 3 and b in a):
             return True
-        # 仅允许较长名称互为前缀，保护 U21、女足及 B 队。
-        if min(len(a), len(b)) >= 3 and (a.startswith(b) or b.startswith(a)):
-            if not any(x in a or x in b for x in ("u21", "u23", "女足", "b队")):
-                return True
     return False
 
 
-def _domestic_candidates(fixture_rows, teams, source):
-    try:
-        st = datetime.fromisoformat(source["date"].replace("Z", "+00:00"))
-        if st.tzinfo is None:
-            return []
-    except (KeyError, TypeError, ValueError):
-        return []
-    found = []
+def attach_sporttery(fixture_rows, teams, sp_matches):
+    """把竞彩官方盘口挂到对应赛程上（北京时间 + 队名模糊匹配）。"""
+    if not sp_matches:
+        return 0
+    hit = 0
+    parsed = []
+    for s in sp_matches:
+        try:
+            parsed.append((datetime.fromisoformat(s["date"].replace("Z", "+00:00")), s))
+        except (TypeError, ValueError):
+            continue
     for f in fixture_rows:
+        if not f.get("date"):
+            continue
         try:
             ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
-            if ft.tzinfo is None or abs((st - ft).total_seconds()) > 30 * 60:
+        except ValueError:
+            continue
+        h = teams.get(str(f.get("home"))) or {}
+        a = teams.get(str(f.get("away"))) or {}
+        hn, an = h.get("cn") or h.get("name"), a.get("cn") or a.get("name")
+        for st, s in parsed:
+            if abs((st - ft).total_seconds()) > 45 * 60:
                 continue
-        except (KeyError, TypeError, ValueError):
-            continue
-        h, a = teams.get(str(f.get("home"))) or {}, teams.get(str(f.get("away"))) or {}
-        if (_name_match(h.get("cn") or h.get("name"), source.get("home"), source.get("homeFull"))
-                and _name_match(a.get("cn") or a.get("name"), source.get("away"), source.get("awayFull"))):
-            found.append(f)
-    return found
-
-
-def _domestic_future(matches, now=None):
-    now = now or datetime.now(timezone.utc)
-    out = []
-    for item in matches:
-        try:
-            dt = datetime.fromisoformat(item["date"].replace("Z", "+00:00"))
-            if dt.tzinfo and dt > now:
-                out.append(item)
-        except (KeyError, TypeError, ValueError):
-            pass
-    return out
-
-
-def _add_domestic_fixture(source, provider, fixture_rows, team_rows, teams):
-    """来源有记录但已有赛程不存在时，按来源补比赛；不编造历史、模型或盘口。"""
-    if not all(source.get(k) for k in ("home", "away", "date", "league")):
-        return None
-    sides = []
-    for name in (source["home"], source["away"]):
-        key = hashlib.sha256((source["league"] + "|" + name).encode()).hexdigest()[:16]
-        tid = "domestic-team-" + key
-        if tid not in teams:
-            team = {"id": tid, "name": name, "short": name, "cn": name, "aliases": [],
-                    "abbr": "", "color": "", "alt": "", "location": "",
-                    "leagues": [source["league"]], "currentLeagues": [source["league"]],
-                    "cat": "major", "count": 0, "hasLogo": False}
-            team_rows.append(team)
-            teams[tid] = team
-        sides.append(tid)
-    key = hashlib.sha256((provider + "|" + str(source.get("id") or "") + "|" + source["date"]
-                          + "|" + source["home"] + "|" + source["away"]).encode()).hexdigest()[:20]
-    f = {"id": "domestic-" + key, "date": source["date"], "league": source["league"],
-         "home": sides[0], "away": sides[1], "state": "pre", "hs": None, "as": None,
-         "odds": None, "pred": None, "fixtureSource": provider}
-    fixture_rows.append(f)
-    return f
-
-
-def attach_sporttery(fixture_rows, teams, sp_matches, team_rows=None):
-    hit = 0
-    for s in _domestic_future(sp_matches):
-        candidates = _domestic_candidates(fixture_rows, teams, s)
-        if len(candidates) > 1:
-            log(f"  竞彩场次匹配不唯一：{s.get('num', '')}")
-            continue
-        f = candidates[0] if candidates else (_add_domestic_fixture(s, "sporttery", fixture_rows, team_rows, teams) if team_rows is not None else None)
-        if not f or f.get("sp"):
-            continue
-        had = s.get("had")
-        valid_had = isinstance(had, list) and len(had) == 3 and all(isinstance(v, (int, float)) and v > 1 for v in had)
-        f["sp"] = {"had": had if valid_had else None, "hhad": s.get("hhad"), "num": s.get("num", ""),
-                   "league": s.get("league", ""), "ttg": s.get("ttg")}
-        f.pop("hide", None)
-        if valid_had:
-            f.setdefault("books", []).append({"book": "竞彩官方", "m": had, "src": "sporttery"})
-        hit += 1
+            if _name_match(hn, s["home"], s["homeFull"]) and _name_match(an, s["away"], s["awayFull"]):
+                if s["had"] and all(v is not None for v in s["had"]):
+                    f["sp"] = {"had": s["had"], "hhad": s["hhad"], "num": s["num"],
+                               "league": s["league"], "ttg": s.get("ttg")}
+                    # 同时作为一家机构进入比价/共识（欧赔 3 项，让球 3 项单独展示）
+                    f.setdefault("books", []).append({"book": "竞彩官方", "m": s["had"], "src": "sporttery"})
+                    # 用竞彩「总进球」赔率合成 2.5 线大小球（去水后折算），补缺
+                    ttg = s.get("ttg") or {}
+                    try:
+                        ps = []
+                        for k in ("s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7"):
+                            v = ttg.get(k)
+                            if v and v > 1:
+                                ps.append(1.0 / v)
+                        if len(ps) == 8:
+                            tot = sum(ps)
+                            p_over = sum(ps[3:]) / tot
+                            p_under = sum(ps[:3]) / tot
+                            if 0.02 < p_over < 0.98:
+                                f.setdefault("books", []).append({
+                                    "book": "竞彩总进球", "src": "sporttery",
+                                    "ou": {"line": 2.5, "over": round(1 / p_over, 2),
+                                           "under": round(1 / p_under, 2)},
+                                })
+                    except (TypeError, ZeroDivisionError):
+                        pass
+                    hit += 1
+                break
     if hit:
-        log(f"  竞彩官方场次：匹配或补充 {hit} 场")
+        log(f"  竞彩官方盘口：匹配 {hit} 场")
     return hit
 
 
@@ -2521,17 +2273,13 @@ def _bd_float(x):
         return None
 
 
-def _bd_line(text):
-    return _bd_float(str(text or "").strip().strip("()（） "))
-
-
 def fetch_beidan():
     """北单（北京单场）在售场次 + 让球胜平负 SP 赔率。
     来源：澳客北单列表页（服务端渲染 HTML，非 /Remoting 接口）。
     缓存 10 分钟；CI 被拦时回退仓库快照。"""
     cache_path = os.path.join(CACHE_DIR, "beidan.json")
     raw = read_cache("beidan.json")
-    if raw and raw.get("parserVersion") == 2 and cache_age(raw, cache_path) < 600 and raw.get("matches"):
+    if raw and cache_age(raw, cache_path) < 600 and raw.get("matches"):
         return raw["matches"]
     out = []
     try:
@@ -2557,7 +2305,7 @@ def fetch_beidan():
                 continue
             lg = re.search(r'class="ls"[^>]*title="([^"]+)"', row)
             hc = re.search(r'class="handicapobj[^"]*"[^>]*>\s*([^<]*)</span>', row)
-            line = _bd_line(hc.group(1)) if hc else None
+            line = _bd_float((hc.group(1) or "").replace("+", "") if hc else None)
             # 主胜赔率：sbg 区块内 pltxt；平：pbg 的 em；客胜：fbg 里的 pltxt
             sbg = re.search(r'class="sbg".*?</a>', row, re.S)
             fbg = re.search(r'class="fbg".*?</a>', row, re.S)
@@ -2578,14 +2326,14 @@ def fetch_beidan():
         try:
             with open(os.path.join(ROOT, "odds_snapshots", "beidan.json"), "r", encoding="utf-8") as f:
                 snap = json.load(f)
-            out = (snap.get("matches") or []) if time.time() - float(snap.get("_t") or 0) < 3 * 3600 else []
+            out = snap.get("matches") or []
             if out:
                 log(f"  北单列表：改用快照 {len(out)} 场")
         except (OSError, ValueError):
             out = []
         return out
     if out:
-        write_cache("beidan.json", {"_t": time.time(), "parserVersion": 2, "matches": out})
+        write_cache("beidan.json", {"_t": time.time(), "matches": out})
         try:
             os.makedirs(os.path.join(ROOT, "odds_snapshots"), exist_ok=True)
             with open(os.path.join(ROOT, "odds_snapshots", "beidan.json"), "w", encoding="utf-8") as f:
@@ -2596,19 +2344,43 @@ def fetch_beidan():
     return out
 
 
-def attach_beidan(fixture_rows, teams, bj_matches, team_rows=None):
+def _name_match_loose(our, other):
+    a = _norm_cn(our)
+    b = _norm_cn(other)
+    if not a or not b:
+        return False
+    return a == b or (len(a) >= 2 and a in b) or (len(b) >= 2 and b in a)
+
+
+def attach_beidan(fixture_rows, teams, bj_matches):
+    if not bj_matches:
+        return 0
+    parsed = []
+    for m in bj_matches:
+        try:
+            parsed.append((datetime.fromisoformat(m["date"].replace("Z", "+00:00")), m))
+        except (TypeError, ValueError):
+            continue
     hit = 0
-    for m in _domestic_future(bj_matches):
-        candidates = _domestic_candidates(fixture_rows, teams, m)
-        if len(candidates) > 1:
-            log(f"  北单场次匹配不唯一：{m.get('num', '')}")
+    for f in fixture_rows:
+        if not f.get("date"):
             continue
-        f = candidates[0] if candidates else (_add_domestic_fixture(m, "beidan", fixture_rows, team_rows, teams) if team_rows is not None else None)
-        if not f or f.get("bj"):
+        try:
+            ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
+        except ValueError:
             continue
-        f["bj"] = {k: m.get(k) for k in ("num", "line", "h", "d", "a")}
-        f.pop("hide", None)
-        hit += 1
+        h = teams.get(str(f.get("home"))) or {}
+        a = teams.get(str(f.get("away"))) or {}
+        hn, an = h.get("cn") or h.get("name"), a.get("cn") or a.get("name")
+        for st, m in parsed:
+            if abs((st - ft).total_seconds()) > 30 * 60:
+                continue
+            if _name_match_loose(hn, m["home"]) and _name_match_loose(an, m["away"]):
+                f["bj"] = {"num": m["num"], "line": m["line"], "h": m["h"], "d": m["d"], "a": m["a"]}
+                if m.get("h") and m.get("d") and m.get("a"):
+                    f.setdefault("books", []).append({"book": "北单", "m": [m["h"], m["d"], m["a"]], "src": "beidan"})
+                hit += 1
+                break
     return hit
 
 
@@ -2811,196 +2583,6 @@ def fetch_oddsapi_books(fixture_rows, teams):
         pass
     _write_oddsapi_snapshot(fixture_rows)
     log(f"  Odds API：{len(targets)} 个联赛，写入 {total_books} 条机构报价，剩余额度 {remaining}")
-
-
-def log_odds_coverage(fixture_rows, log=log):
-    """记录未来十四天每个赛事和主要机构的实际字段覆盖。"""
-    now = datetime.now(timezone.utc)
-    leagues, books = defaultdict(lambda: defaultdict(int)), defaultdict(lambda: defaultdict(int))
-    for fixture in fixture_rows:
-        if fixture.get("hide") or fixture.get("hs") is not None or fixture.get("as") is not None:
-            continue
-        try:
-            when = datetime.fromisoformat((fixture.get("date") or "").replace("Z", "+00:00"))
-            if when.tzinfo is None:
-                when = when.replace(tzinfo=timezone.utc)
-        except ValueError:
-            continue
-        if not (now <= when <= now + timedelta(days=14)):
-            continue
-        rows = fixture.get("books") or []
-        bucket = leagues[fixture.get("league") or "其他"]
-        bucket["matches"] += 1
-        for field in ("m", "ah", "ou"):
-            if any(b.get(field) and (field != "ah" or not b[field].get("alternate")) for b in rows):
-                bucket[field] += 1
-        for book in rows:
-            name = book.get("book") or ""
-            if not name or name in ("北单", "竞彩总进球"):
-                continue
-            counts = books[name]
-            counts["matches"] += 1
-            for field in ("m", "ah", "ou"):
-                if book.get(field) and (field != "ah" or not book[field].get("alternate")):
-                    counts[field] += 1
-            if (book.get("ah") or {}).get("alternate"):
-                counts["alternate"] += 1
-    log("  盘口覆盖范围：未来 14 天（机构主盘口；备选单独统计）")
-    for league, c in sorted(leagues.items()):
-        log(f"  覆盖 {league}：{c['matches']} 场，欧赔 {c['m']}，亚盘主线 {c['ah']}，大小球 {c['ou']}")
-    for name in ("Pinnacle", "Bet365", "William Hill", "Ladbrokes", "Unibet", "Tipico", "Winamax", "Betfair"):
-        c = books.get(name)
-        if c:
-            log(f"  机构覆盖 {name}：{c['matches']} 场，欧赔 {c['m']}，亚盘主线 {c['ah']}，备选 {c['alternate']}，大小球 {c['ou']}")
-
-
-def fill_oddsapi_market_gaps(fixture_rows, teams):
-    """每日最多补查两个近期联赛的亚盘和大小球，不覆盖已有报价。"""
-    key = os.environ.get("ODDS_API_KEY", "").strip()
-    if not key:
-        return 0
-    try:
-        with open(ODDSAPI_STATE, encoding="utf-8") as f:
-            state = json.load(f)
-    except (OSError, ValueError):
-        return 0
-    remaining = state.get("remaining")
-    if not isinstance(remaining, (int, float)) or remaining <= 100:
-        log("  Odds API 缺失盘口：剩余额度不足或未知，跳过")
-        return 0
-    today = (datetime.utcnow() + timedelta(hours=8)).date().isoformat()
-    state_name = "oddsapi_market_gaps.json"
-    prior = read_cache(state_name) or {}
-    durable_path = os.path.join(ROOT, "odds_snapshots", state_name)
-    try:
-        with open(durable_path, encoding="utf-8") as f:
-            durable = json.load(f)
-    except (OSError, ValueError):
-        durable = {}
-    checked = set()
-    for record in (prior, durable):
-        if record.get("day") == today:
-            checked.update(record.get("leagues") or ([record["league"]] if record.get("league") else []))
-    if len(checked) >= 2:
-        return 0
-
-    now = datetime.utcnow()
-    leagues = {}
-    supported = {**ODDSAPI_EXTRA_LEAGUES, **ODDSAPI_LEAGUES}
-    for fixture in fixture_rows:
-        league = fixture.get("league")
-        if fixture.get("hide") or league not in supported or league in checked:
-            continue
-        try:
-            ft = datetime.fromisoformat((fixture.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
-        except ValueError:
-            continue
-        if not (now <= ft <= now + timedelta(hours=14)):
-            continue
-        gaps = sum(1 for b in fixture.get("books") or []
-                   if b.get("src") == "oddsapi" and b.get("m") and (not b.get("ah") or b["ah"].get("alternate") or not b.get("ou")))
-        if gaps:
-            leagues.setdefault(league, []).append((fixture, gaps))
-    if not leagues:
-        return 0
-    league, candidates = max(leagues.items(), key=lambda p: (sum(n for _, n in p[1]), -len(p[1])))
-    sport = supported[league]
-    url = (f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
-           f"?apiKey={key}&bookmakers={ODDSAPI_BOOKMAKERS},betfair"
-           "&markets=spreads,totals&oddsFormat=decimal&dateFormat=iso")
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=40) as resp:
-            events = json.loads(resp.read().decode("utf-8"))
-            rem = resp.headers.get("x-requests-remaining")
-            if rem is not None:
-                state["remaining"] = int(rem)
-    except (OSError, ValueError) as e:
-        log(f"  ⚠ Odds API 缺失盘口查询失败：{type(e).__name__}")
-        return 0
-    if not isinstance(events, list):
-        log("  ⚠ Odds API 缺失盘口返回格式异常")
-        return 0
-
-    count = 0
-    for event in events:
-        try:
-            event_time = datetime.fromisoformat((event.get("commence_time") or "").replace("Z", "+00:00"))
-        except ValueError:
-            continue
-        home_name, away_name = event.get("home_team") or "", event.get("away_team") or ""
-        matches = []
-        for fixture, _ in candidates:
-            try:
-                ft = datetime.fromisoformat((fixture.get("date") or "").replace("Z", "+00:00"))
-            except ValueError:
-                continue
-            if abs((ft - event_time).total_seconds()) > 3 * 3600:
-                continue
-            home = teams.get(str(fixture.get("home"))) or {}
-            away = teams.get(str(fixture.get("away"))) or {}
-            hs = _team_sim(home_name, home.get("name") or "")
-            a_s = _team_sim(away_name, away.get("name") or "")
-            if hs >= 0.8 and a_s >= 0.8:
-                matches.append((hs + a_s, fixture))
-        if not matches:
-            continue
-        matches.sort(key=lambda x: x[0], reverse=True)
-        if len(matches) > 1 and matches[0][0] == matches[1][0]:
-            continue
-        fixture = matches[0][1]
-        for raw_book in event.get("bookmakers") or []:
-            name = _canon_book(raw_book.get("title") or "")
-            if not name:
-                continue
-            current = next((b for b in fixture.get("books") or [] if b.get("book") == name), None)
-            if not current:
-                continue
-            for market in raw_book.get("markets") or []:
-                kind = market.get("key")
-                outcomes = market.get("outcomes") or []
-                quote = None
-                if kind == "totals" and not current.get("ou"):
-                    pairs = {}
-                    for o in outcomes:
-                        side = str(o.get("name") or "").lower()
-                        point, price = o.get("point"), o.get("price")
-                        if side in ("over", "under") and isinstance(point, (int, float)) and isinstance(price, (int, float)) and price > 1:
-                            pairs.setdefault(point, {})[side] = price
-                    valid = [(abs(line - 2.5), line, p) for line, p in pairs.items() if "over" in p and "under" in p]
-                    if valid:
-                        _, line, pair = min(valid, key=lambda x: x[0])
-                        quote = ("ou", {"line": line, "over": pair["over"], "under": pair["under"]})
-                elif kind == "spreads" and (not current.get("ah") or current["ah"].get("alternate")):
-                    sides = {}
-                    for o in outcomes:
-                        name_o, point, price = o.get("name") or "", o.get("point"), o.get("price")
-                        if not isinstance(point, (int, float)) or not isinstance(price, (int, float)) or price <= 1:
-                            continue
-                        if _team_sim(name_o, home_name) >= 0.8:
-                            sides["home"] = (point, price)
-                        elif _team_sim(name_o, away_name) >= 0.8:
-                            sides["away"] = (point, price)
-                    if "home" in sides and "away" in sides and abs(sides["home"][0] + sides["away"][0]) < 1e-6:
-                        quote = ("ah", {"line": sides["home"][0], "h": sides["home"][1], "a": sides["away"][1]})
-                if quote:
-                    field, value = quote
-                    current[field] = value
-                    current.setdefault("marketAt", {})[field] = market.get("last_update") or raw_book.get("last_update")
-                    count += 1
-    checked.add(league)
-    saved = {"day": today, "league": league, "leagues": sorted(checked), "count": count, "_t": time.time()}
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    write_cache(state_name, saved)
-    os.makedirs(os.path.dirname(durable_path), exist_ok=True)
-    with open(durable_path, "w", encoding="utf-8") as f:
-        json.dump(saved, f, ensure_ascii=False)
-    with open(ODDSAPI_STATE, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False)
-    if count:
-        _write_oddsapi_snapshot(fixture_rows)
-    log(f"  Odds API 缺失盘口：{league} 补充 {count} 项，剩余额度 {state.get('remaining')}")
-    return count
 
 
 def fetch_oddsapi_extra(fixture_rows, teams, remaining):
@@ -4566,6 +4148,10 @@ def build_market_backtest(match_rows, fd_map):
     return out
 
 
+# 不再展示的小赛事（用户要求精简：这些多为小众联赛/杯赛早期轮次）
+HIDE_LEAGUES = {"丹甲", "荷乙", "澳超", "法国杯", "冰岛超", "芬超", "爱超", "威超", "北爱超"}
+
+
 def compact_payload(payload):
     """压缩页面体积：统计数组化、场地去重、移除前端不用的字段。"""
     venues = []
@@ -4588,6 +4174,23 @@ def compact_payload(payload):
         m.pop("season", None)
         m.pop("leagueCode", None)
         m.pop("neutral", None)
+        m.pop("bj", None)
+        # 压缩机构报价：去掉 src；初赔与即时完全相同则不重复存
+        bs = m.get("books")
+        if isinstance(bs, list):
+            for b in bs:
+                if not isinstance(b, dict):
+                    continue
+                b.pop("src", None)
+                op = b.get("open")
+                if isinstance(op, dict):
+                    same = True
+                    for k in ("m", "ah", "ou"):
+                        if (op.get(k) or None) != (b.get(k) or None):
+                            same = False
+                            break
+                    if same:
+                        b.pop("open", None)
         if m.get("so") is None:
             m.pop("so", None)
     payload["venues"] = venues
@@ -5077,12 +4680,6 @@ def main():
             match_rows.append(row)
     match_rows.sort(key=lambda m: m["date"] or "", reverse=True)
 
-    # 优先补近期赛程的历史交锋，逐轮扩展到其他缺少技术统计的比赛。
-    try:
-        backfill_missing_history(match_rows, fixtures.values(), teams)
-    except Exception as e:
-        log(f"  ⚠ 历史技术统计补充失败：{type(e).__name__}")
-
     # 多机构赛前盘口（football-data.co.uk）：先取 xG 供评级/赛前模型使用，
     # 盘口本身写成独立文件，比赛页按需加载，不增大首屏。
     fd_map = {}
@@ -5336,19 +4933,18 @@ def main():
     except Exception as e:
         log(f"  ⚠ Odds API 抓取失败：{e}")
     filter_whitelist_books(fixture_rows)
+    # 北单已下线：移除任何来源残留的「北单」机构
+    for _f in fixture_rows:
+        if _f.get("books"):
+            _f["books"] = [b for b in _f["books"] if b.get("book") != "北单"]
+    apply_odds_open(fixture_rows)
     # 中国体彩竞彩官方赔率（公开接口）：补国家队赛事的胜平负 + 让球盘
     try:
         _sp = fetch_sporttery()
         _cn_teams = {str(t["id"]): t for t in team_rows}
-        _hit = attach_sporttery(fixture_rows, _cn_teams, _sp, team_rows)
+        _hit = attach_sporttery(fixture_rows, _cn_teams, _sp)
         log(f"  竞彩官方挂载：{_hit}/{len(_sp)} 场（赛程 {len(fixture_rows)} 场）")
-        try:
-            _bj = fetch_beidan()
-            _bj_hit = attach_beidan(fixture_rows, _cn_teams, _bj, team_rows)
-            log(f"  北单挂载：{_bj_hit}/{len(_domestic_future(_bj))} 场未开赛来源列表")
-            fixture_rows.sort(key=lambda f: f.get("date") or "")
-        except Exception as e:
-            log(f"  ⚠ 北单挂载失败：{str(e)[:80]}")
+        # 北单已按要求下线（小比赛太多，不再展示）
     except Exception as e:
         log(f"  ⚠ 竞彩官方盘口挂载失败：{str(e)[:80]}")
     try:
@@ -5411,17 +5007,9 @@ def main():
     except Exception as e:
         log(f"  ⚠ 平博盘口补充失败：{str(e)[:80]}")
     try:
-        for _ in range(2):
-            fill_oddsapi_market_gaps(fixture_rows, teams)
-    except Exception as e:
-        log(f"  ⚠ 其他机构盘口补充失败：{type(e).__name__}")
-    try:
         merge_books_persist(fixture_rows)
     except Exception as e:
         log(f"  ⚠ 机构报价持久化失败：{str(e)[:80]}")
-    log_odds_coverage(fixture_rows)
-    # 同时为后续补进来的 API 机构保留首次观察记录。
-    apply_odds_open(fixture_rows)
 
     # 盘口异动：把赛前快照的首末变化挂到对应比赛上
     moves = load_odds_movement()
@@ -5595,10 +5183,18 @@ def main():
 
     conf = build_confidence_stats(match_rows, fd_map)
 
+    # 去掉小赛事场次（保留的联赛见上）
+    try:
+        before_n = len(fixture_rows)
+        fixture_rows[:] = [f for f in fixture_rows if f.get("league") not in HIDE_LEAGUES]
+        if len(fixture_rows) != before_n:
+            log(f"  小赛事过滤：移除 {before_n - len(fixture_rows)} 场")
+    except Exception:
+        pass
     payload = {
         "meta": meta,
         "leagues": [{"label": l["label"], "code": l["code"], "cat": l["cat"],
-                     "hidden": bool(l.get("hidden_tab"))} for l in leagues],
+                     "hidden": bool(l.get("hidden_tab"))} for l in leagues if l.get("label") not in HIDE_LEAGUES],
         "categories": CATEGORIES,
         "teams": team_rows,
         "matches": match_rows,
