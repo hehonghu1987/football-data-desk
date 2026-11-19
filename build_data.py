@@ -2337,12 +2337,20 @@ def enrich_sp_fixtures(fixture_rows, log=log):
             continue
         resp_items = []
         for _lg in lg_list:
-            try:
-                _d = _af_get("/fixtures", key, {"date": ft.date().isoformat(), "league": _lg,
-                                                "season": 2026, "timezone": "UTC"}, ttl=1800)
-                resp_items.extend(_d.get("response") or [])
-            except Exception:
-                continue
+            for _season in (2026, 2025, 2024, None):
+                _params = {"date": ft.date().isoformat(), "league": _lg, "timezone": "UTC"}
+                if _season is not None:
+                    _params["season"] = _season
+                try:
+                    _d = _af_get("/fixtures", key, _params, ttl=1800)
+                    _items = _d.get("response") or []
+                except Exception:
+                    continue
+                if _items:
+                    resp_items.extend(_items)
+                    break
+            if resp_items:
+                break
         best = None
         for it in resp_items:
             try:
