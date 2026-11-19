@@ -2206,6 +2206,106 @@ def _name_match(our, abb, full):
     return False
 
 
+SP_LEAGUE_MAP = {
+    "巴甲": "巴西甲", "美职": "美职", "日职": "日职", "澳超": "澳超",
+    "荷乙": "荷乙", "德乙": "德乙", "英冠": "英冠", "苏超": "苏超",
+    "德甲": "德甲", "法甲": "法甲", "西甲": "西甲", "英超": "英超",
+    "意甲": "意甲", "葡超": "葡超", "荷甲": "荷甲", "比甲": "比甲",
+    "土超": "土超", "欧冠": "欧冠", "欧联": "欧联杯", "欧国联": "欧国联",
+    "世预赛": "世预赛欧洲区", "欧洲杯": "欧洲杯",
+}
+
+
+def _apply_sp_match(f, s):
+    """把一场竞彩数据挂到 fixture 上（欧赔、让球、总进球折算大小球）。"""
+    if not (s.get("had") and all(v is not None for v in s["had"])):
+        return False
+    f["sp"] = {"had": s["had"], "hhad": s.get("hhad"), "num": s.get("num"),
+               "league": s.get("league"), "ttg": s.get("ttg")}
+    f.setdefault("books", []).append({"book": "竞彩官方", "m": s["had"], "src": "sporttery"})
+    ttg = s.get("ttg") or {}
+    try:
+        ps = []
+        for k in ("s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7"):
+            v = ttg.get(k)
+            if v and v > 1:
+                ps.append(1.0 / v)
+        if len(ps) == 8:
+            tot = sum(ps)
+            p_over = sum(ps[3:]) / tot
+            p_under = sum(ps[:3]) / tot
+            if 0.02 < p_over < 0.98:
+                f.setdefault("books", []).append({
+                    "book": "竞彩总进球", "src": "sporttery",
+                    "ou": {"line": 2.5, "over": round(1 / p_over, 2),
+                           "under": round(1 / p_under, 2)},
+                })
+    except (TypeError, ZeroDivisionError):
+        pass
+    return True
+
+
+def _sp_find_team(name, full, cn_map):
+    for cand in (name, full):
+        if not cand:
+            continue
+        t = cn_map.get(cand)
+        if t:
+            return t
+    if not name:
+        return None
+    for key, t in cn_map.items():
+        if _name_match(key, name, full or ""):
+            return t
+    return None
+
+
+def add_sporttery_fixtures(fixture_rows, teams, team_rows, sp_matches, log=log):
+    """竞彩在售但 ESPN 赛程里没有的比赛，直接补成 fixture（保证竞彩完整）。"""
+    if not sp_matches:
+        return 0
+    matched_nums = {f.get("sp", {}).get("num") for f in fixture_rows if f.get("sp")}
+    cn_map = {}
+    for t in team_rows:
+        for k in (t.get("cn"), t.get("name"), t.get("short")):
+            if k:
+                cn_map.setdefault(k, t)
+    added = 0
+    for sp in sp_matches:
+        if sp.get("num") in matched_nums:
+            continue
+        if not (sp.get("date") and sp.get("home") and sp.get("away")):
+            continue
+        th = _sp_find_team(sp.get("home"), sp.get("homeFull"), cn_map)
+        ta = _sp_find_team(sp.get("away"), sp.get("awayFull"), cn_map)
+        if not th:
+            tid = f"sp-{sp.get('id')}-h"
+            th = {"id": tid, "name": sp.get("homeFull") or sp.get("home"), "cn": sp.get("homeFull") or sp.get("home"),
+                  "short": sp.get("home"), "count": 0, "cat": "other", "currentLeagues": [], "leagues": []}
+            team_rows.append(th)
+            cn_map[th["cn"]] = th
+        if not ta:
+            tid = f"sp-{sp.get('id')}-a"
+            ta = {"id": tid, "name": sp.get("awayFull") or sp.get("away"), "cn": sp.get("awayFull") or sp.get("away"),
+                  "short": sp.get("away"), "count": 0, "cat": "other", "currentLeagues": [], "leagues": []}
+            team_rows.append(ta)
+            cn_map[ta["cn"]] = ta
+        f = {
+            "id": f"sp-{sp.get('id')}",
+            "date": sp["date"],
+            "league": SP_LEAGUE_MAP.get(sp.get("league"), sp.get("league") or "竞彩"),
+            "home": th["id"], "away": ta["id"],
+            "state": "pre", "hs": None, "as": None,
+            "fixtureSource": "sporttery",
+        }
+        if _apply_sp_match(f, sp):
+            fixture_rows.append(f)
+            added += 1
+    if added:
+        log(f"  竞彩补充赛程：{added} 场（ESPN 未覆盖的在售比赛）")
+    return added
+
+
 def attach_sporttery(fixture_rows, teams, sp_matches):
     """把竞彩官方盘口挂到对应赛程上（北京时间 + 队名模糊匹配）。"""
     if not sp_matches:
@@ -2231,31 +2331,7 @@ def attach_sporttery(fixture_rows, teams, sp_matches):
             if abs((st - ft).total_seconds()) > 45 * 60:
                 continue
             if _name_match(hn, s["home"], s["homeFull"]) and _name_match(an, s["away"], s["awayFull"]):
-                if s["had"] and all(v is not None for v in s["had"]):
-                    f["sp"] = {"had": s["had"], "hhad": s["hhad"], "num": s["num"],
-                               "league": s["league"], "ttg": s.get("ttg")}
-                    # 同时作为一家机构进入比价/共识（欧赔 3 项，让球 3 项单独展示）
-                    f.setdefault("books", []).append({"book": "竞彩官方", "m": s["had"], "src": "sporttery"})
-                    # 用竞彩「总进球」赔率合成 2.5 线大小球（去水后折算），补缺
-                    ttg = s.get("ttg") or {}
-                    try:
-                        ps = []
-                        for k in ("s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7"):
-                            v = ttg.get(k)
-                            if v and v > 1:
-                                ps.append(1.0 / v)
-                        if len(ps) == 8:
-                            tot = sum(ps)
-                            p_over = sum(ps[3:]) / tot
-                            p_under = sum(ps[:3]) / tot
-                            if 0.02 < p_over < 0.98:
-                                f.setdefault("books", []).append({
-                                    "book": "竞彩总进球", "src": "sporttery",
-                                    "ou": {"line": 2.5, "over": round(1 / p_over, 2),
-                                           "under": round(1 / p_under, 2)},
-                                })
-                    except (TypeError, ZeroDivisionError):
-                        pass
+                if _apply_sp_match(f, s):
                     hit += 1
                 break
     if hit:
@@ -4944,6 +5020,10 @@ def main():
         _cn_teams = {str(t["id"]): t for t in team_rows}
         _hit = attach_sporttery(fixture_rows, _cn_teams, _sp)
         log(f"  竞彩官方挂载：{_hit}/{len(_sp)} 场（赛程 {len(fixture_rows)} 场）")
+        try:
+            add_sporttery_fixtures(fixture_rows, _cn_teams, team_rows, _sp)
+        except Exception as e:
+            log(f"  ⚠ 竞彩补充赛程失败：{str(e)[:80]}")
         # 北单已按要求下线（小比赛太多，不再展示）
     except Exception as e:
         log(f"  ⚠ 竞彩官方盘口挂载失败：{str(e)[:80]}")
@@ -5186,7 +5266,7 @@ def main():
     # 去掉小赛事场次（保留的联赛见上）
     try:
         before_n = len(fixture_rows)
-        fixture_rows[:] = [f for f in fixture_rows if f.get("league") not in HIDE_LEAGUES]
+        fixture_rows[:] = [f for f in fixture_rows if f.get("league") not in HIDE_LEAGUES or f.get("sp")]
         if len(fixture_rows) != before_n:
             log(f"  小赛事过滤：移除 {before_n - len(fixture_rows)} 场")
     except Exception:

@@ -1208,6 +1208,15 @@ main:focus{outline:none}
 .fresh-bar button{border:0;border-radius:6px;background:#fff;color:var(--draw);font:inherit;font-size:12px;font-weight:600;padding:4px 10px;cursor:pointer}
 .fresh-bar[hidden]{display:none}
 
+/* 历史交锋：整列为空时隐藏 */
+#match-h2h table.h2h-no-shots th:nth-child(6),#match-h2h table.h2h-no-shots td:nth-child(6){display:none}
+#match-h2h table.h2h-no-sot th:nth-child(7),#match-h2h table.h2h-no-sot td:nth-child(7){display:none}
+#match-h2h table.h2h-no-corners th:nth-child(8),#match-h2h table.h2h-no-corners td:nth-child(8){display:none}
+#match-h2h table.h2h-no-offsides th:nth-child(9),#match-h2h table.h2h-no-offsides td:nth-child(9){display:none}
+#match-h2h table.h2h-no-yellow th:nth-child(10),#match-h2h table.h2h-no-yellow td:nth-child(10){display:none}
+#match-h2h table.h2h-no-red th:nth-child(11),#match-h2h table.h2h-no-red td:nth-child(11){display:none}
+#match-h2h table.h2h-no-possession th:nth-child(12),#match-h2h table.h2h-no-possession td:nth-child(12){display:none}
+
 /* 数据覆盖说明 */
 .cov-panel{padding:0;overflow:hidden}
 .cov-table{width:100%;border-collapse:collapse;font-size:12px}
@@ -6718,6 +6727,17 @@ function renderMatchH2H(h, a, m){
     `<div class="sum-tile"><div class="l">最近一次交锋</div><div class="v">${last ? `${fmtDate(last.date).slice(5)}` : "—"}</div><div class="s">${last ? `${TEAMS.get(String(last.home)) ? (TEAMS.get(String(last.home)).cn || TEAMS.get(String(last.home)).name) : ""} ${last.hs}–${last.as} ${TEAMS.get(String(last.away)) ? (TEAMS.get(String(last.away)).cn || TEAMS.get(String(last.away)).name) : ""}` : "暂无"}</div></div>`
   ].join("") : "";
 
+  // 技术统计列自适应：整列都没有数据时隐藏，避免满屏「—」
+  try{
+    const tbl = $("#match-h2h") && $("#match-h2h").querySelector("table.stats");
+    if(tbl){
+      const keys = ["shots","sot","corners","offsides","yellow","red","possession"];
+      for(const k of keys){
+        const has = list.some(m => m.stats && m.stats.home && m.stats.home[k] != null);
+        tbl.classList.toggle("h2h-no-" + k, !has);
+      }
+    }
+  }catch(e){}
   $("#h2h-table-body").innerHTML = list.length
     ? list.map(x => rowHtml(x, h.id)).join("")
     : `<tr><td colspan="12"><div class="h2h-empty" style="margin:18px 0">${all.length ? "该主客场筛选下没有交锋记录，可切回「全部」。" : "本站尚未收录两队的历史交锋。每队仅保留最近 30 场，若两队近年未相遇则不会出现在这里。"}</div></td></tr>`;
