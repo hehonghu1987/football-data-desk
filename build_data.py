@@ -5191,6 +5191,17 @@ def main():
             log(f"  小赛事过滤：移除 {before_n - len(fixture_rows)} 场")
     except Exception:
         pass
+    # 只保留当前赛程里实际出现的联赛，避免联赛 tab / 数量统计里出现空联赛
+    try:
+        _present = {f.get("league") for f in fixture_rows if f.get("league")}
+        if _present:
+            _kept_leagues = [l for l in leagues if l.get("label") in _present]
+            if len(_kept_leagues) < len(leagues):
+                log(f"  联赛列表精简：{len(leagues)} → {len(_kept_leagues)} 个（仅保留当前赛程出现的）")
+            leagues = _kept_leagues
+            meta["leagueCount"] = len(_kept_leagues)
+    except Exception:
+        pass
     payload = {
         "meta": meta,
         "leagues": [{"label": l["label"], "code": l["code"], "cat": l["cat"],
