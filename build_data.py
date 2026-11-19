@@ -2362,6 +2362,8 @@ def fetch_sporttery():
     out = []
     for day in ((data.get("value") or {}).get("matchInfoList") or []):
         for m in (day.get("subMatchList") or []):
+            if m.get("matchStatus") and m["matchStatus"] != "Selling":
+                continue
             had = m.get("had") or {}
             hhad = m.get("hhad") or {}
             try:
