@@ -2222,11 +2222,15 @@ SP_LEAGUE_MAP = {
 
 def _apply_sp_match(f, s):
     """把一场竞彩数据挂到 fixture 上（欧赔、让球、总进球折算大小球）。"""
-    if not (s.get("had") and all(v is not None for v in s["had"])):
+    had = s.get("had")
+    had_ok = bool(had) and all(v is not None for v in had)
+    hhad = s.get("hhad") or {}
+    if not had_ok and not (hhad.get("h") is not None and hhad.get("a") is not None):
         return False
-    f["sp"] = {"had": s["had"], "hhad": s.get("hhad"), "num": s.get("num"),
+    f["sp"] = {"had": had if had_ok else None, "hhad": s.get("hhad"), "num": s.get("num"),
                "league": s.get("league"), "ttg": s.get("ttg")}
-    f.setdefault("books", []).append({"book": "竞彩官方", "m": s["had"], "src": "sporttery"})
+    if had_ok:
+        f.setdefault("books", []).append({"book": "竞彩官方", "m": had, "src": "sporttery"})
     ttg = s.get("ttg") or {}
     try:
         ps = []
@@ -2265,7 +2269,7 @@ def _sp_find_team(name, full, cn_map):
 
 
 AF_LEAGUE_IDS = {
-    "巴西甲": 71, "美职": 253, "日职": 98, "澳超": 188, "德乙": 79, "荷乙": 89,
+    "巴西甲": 71, "美职": 253, "日职": [98, 99], "澳超": 188, "德乙": 79, "荷乙": 89,
     "德甲": 78, "法甲": 61, "西甲": 140, "英超": 39, "意甲": 135, "荷甲": 88,
     "葡超": 94, "比甲": 144, "土超": 203, "苏超": 179, "希腊超": 197,
     "奥甲": 218, "挪超": 103, "英冠": 40, "欧冠": 2, "欧联杯": 3, "欧国联": 5,
@@ -2326,17 +2330,21 @@ def enrich_sp_fixtures(fixture_rows, log=log):
         api_lg = AF_LEAGUE_IDS.get(f.get("league"))
         if not api_lg:
             continue
+        lg_list = api_lg if isinstance(api_lg, (list, tuple)) else [api_lg]
         try:
             ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
         except ValueError:
             continue
-        try:
-            d = _af_get("/fixtures", key, {"date": ft.date().isoformat(), "league": api_lg,
-                                           "season": 2026, "timezone": "UTC"}, ttl=1800)
-        except Exception:
-            continue
+        resp_items = []
+        for _lg in lg_list:
+            try:
+                _d = _af_get("/fixtures", key, {"date": ft.date().isoformat(), "league": _lg,
+                                                "season": 2026, "timezone": "UTC"}, ttl=1800)
+                resp_items.extend(_d.get("response") or [])
+            except Exception:
+                continue
         best = None
-        for it in (d.get("response") or []):
+        for it in resp_items:
             try:
                 mt = datetime.fromisoformat((it.get("fixture") or {}).get("date", "").replace("Z", "+00:00")).replace(tzinfo=None)
             except ValueError:
