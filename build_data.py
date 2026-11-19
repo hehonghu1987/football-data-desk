@@ -15,6 +15,7 @@
 """
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -2352,12 +2353,12 @@ def fetch_sporttery():
             with open(os.path.join(ROOT, "odds_snapshots", "sporttery.json"), "r", encoding="utf-8") as f:
                 snap = json.load(f)
             ms = snap.get("matches") or []
-            if ms:
+            if ms and time.time() - float(snap.get("_t") or 0) < 3 * 3600:
                 log(f"  竞彩官方赔率：改用快照 {len(ms)} 场")
                 return ms
         except (OSError, ValueError):
             pass
-        return (raw or {}).get("matches") or []
+        return ((raw or {}).get("matches") or []) if raw and cache_age(raw, cache_path) < 3 * 3600 else []
     out = []
     for day in ((data.get("value") or {}).get("matchInfoList") or []):
         for m in (day.get("subMatchList") or []):
@@ -2399,7 +2400,16 @@ def _norm_cn(s):
     return s.lower()
 
 
-def _name_match(our, abb, full):
+# 明确的跨来源简称，禁止两字模糊匹配导致青年队或同名球队错配。
+_CN_ALIASES = [
+    {"布拉干rb", "布拉干蒂诺", "布拉干蒂诺红牛"},
+    {"奥兰多", "奥兰多城"}, {"西雅图", "西雅图海湾人"},
+    {"盐湖城", "皇家盐湖城"}, {"比勒费", "比勒菲尔德"},
+    {"登博思", "邓伯什"}, {"拜仁", "拜仁慕尼黑"},
+    {"西悉尼", "西悉尼流浪者"}, {"阿德莱德", "阿德莱德联"},
+]
+
+def _name_match(our, abb, full=""):
     a = _norm_cn(our)
     if not a:
         return False
@@ -2407,65 +2417,95 @@ def _name_match(our, abb, full):
         b = _norm_cn(cand)
         if not b:
             continue
-        if a == b or (len(a) >= 3 and a in b) or (len(b) >= 3 and b in a):
+        if a == b or any(a in group and b in group for group in _CN_ALIASES):
             return True
+        # 仅允许较长名称互为前缀，保护 U21、女足及 B 队。
+        if min(len(a), len(b)) >= 3 and (a.startswith(b) or b.startswith(a)):
+            if not any(x in a or x in b for x in ("u21", "u23", "女足", "b队")):
+                return True
     return False
 
 
-def attach_sporttery(fixture_rows, teams, sp_matches):
-    """把竞彩官方盘口挂到对应赛程上（北京时间 + 队名模糊匹配）。"""
-    if not sp_matches:
-        return 0
-    hit = 0
-    parsed = []
-    for s in sp_matches:
-        try:
-            parsed.append((datetime.fromisoformat(s["date"].replace("Z", "+00:00")), s))
-        except (TypeError, ValueError):
-            continue
+def _domestic_candidates(fixture_rows, teams, source):
+    try:
+        st = datetime.fromisoformat(source["date"].replace("Z", "+00:00"))
+        if st.tzinfo is None:
+            return []
+    except (KeyError, TypeError, ValueError):
+        return []
+    found = []
     for f in fixture_rows:
-        if not f.get("date"):
-            continue
         try:
             ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
-        except ValueError:
-            continue
-        h = teams.get(str(f.get("home"))) or {}
-        a = teams.get(str(f.get("away"))) or {}
-        hn, an = h.get("cn") or h.get("name"), a.get("cn") or a.get("name")
-        for st, s in parsed:
-            if abs((st - ft).total_seconds()) > 45 * 60:
+            if ft.tzinfo is None or abs((st - ft).total_seconds()) > 30 * 60:
                 continue
-            if _name_match(hn, s["home"], s["homeFull"]) and _name_match(an, s["away"], s["awayFull"]):
-                if s["had"] and all(v is not None for v in s["had"]):
-                    f["sp"] = {"had": s["had"], "hhad": s["hhad"], "num": s["num"],
-                               "league": s["league"], "ttg": s.get("ttg")}
-                    # 同时作为一家机构进入比价/共识（欧赔 3 项，让球 3 项单独展示）
-                    f.setdefault("books", []).append({"book": "竞彩官方", "m": s["had"], "src": "sporttery"})
-                    # 用竞彩「总进球」赔率合成 2.5 线大小球（去水后折算），补缺
-                    ttg = s.get("ttg") or {}
-                    try:
-                        ps = []
-                        for k in ("s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7"):
-                            v = ttg.get(k)
-                            if v and v > 1:
-                                ps.append(1.0 / v)
-                        if len(ps) == 8:
-                            tot = sum(ps)
-                            p_over = sum(ps[3:]) / tot
-                            p_under = sum(ps[:3]) / tot
-                            if 0.02 < p_over < 0.98:
-                                f.setdefault("books", []).append({
-                                    "book": "竞彩总进球", "src": "sporttery",
-                                    "ou": {"line": 2.5, "over": round(1 / p_over, 2),
-                                           "under": round(1 / p_under, 2)},
-                                })
-                    except (TypeError, ZeroDivisionError):
-                        pass
-                    hit += 1
-                break
+        except (KeyError, TypeError, ValueError):
+            continue
+        h, a = teams.get(str(f.get("home"))) or {}, teams.get(str(f.get("away"))) or {}
+        if (_name_match(h.get("cn") or h.get("name"), source.get("home"), source.get("homeFull"))
+                and _name_match(a.get("cn") or a.get("name"), source.get("away"), source.get("awayFull"))):
+            found.append(f)
+    return found
+
+
+def _domestic_future(matches, now=None):
+    now = now or datetime.now(timezone.utc)
+    out = []
+    for item in matches:
+        try:
+            dt = datetime.fromisoformat(item["date"].replace("Z", "+00:00"))
+            if dt.tzinfo and dt > now:
+                out.append(item)
+        except (KeyError, TypeError, ValueError):
+            pass
+    return out
+
+
+def _add_domestic_fixture(source, provider, fixture_rows, team_rows, teams):
+    """来源有记录但已有赛程不存在时，按来源补比赛；不编造历史、模型或盘口。"""
+    if not all(source.get(k) for k in ("home", "away", "date", "league")):
+        return None
+    sides = []
+    for name in (source["home"], source["away"]):
+        key = hashlib.sha256((source["league"] + "|" + name).encode()).hexdigest()[:16]
+        tid = "domestic-team-" + key
+        if tid not in teams:
+            team = {"id": tid, "name": name, "short": name, "cn": name, "aliases": [],
+                    "abbr": "", "color": "", "alt": "", "location": "",
+                    "leagues": [source["league"]], "currentLeagues": [source["league"]],
+                    "cat": "major", "count": 0, "hasLogo": False}
+            team_rows.append(team)
+            teams[tid] = team
+        sides.append(tid)
+    key = hashlib.sha256((provider + "|" + str(source.get("id") or "") + "|" + source["date"]
+                          + "|" + source["home"] + "|" + source["away"]).encode()).hexdigest()[:20]
+    f = {"id": "domestic-" + key, "date": source["date"], "league": source["league"],
+         "home": sides[0], "away": sides[1], "state": "pre", "hs": None, "as": None,
+         "odds": None, "pred": None, "fixtureSource": provider}
+    fixture_rows.append(f)
+    return f
+
+
+def attach_sporttery(fixture_rows, teams, sp_matches, team_rows=None):
+    hit = 0
+    for s in _domestic_future(sp_matches):
+        candidates = _domestic_candidates(fixture_rows, teams, s)
+        if len(candidates) > 1:
+            log(f"  竞彩场次匹配不唯一：{s.get('num', '')}")
+            continue
+        f = candidates[0] if candidates else (_add_domestic_fixture(s, "sporttery", fixture_rows, team_rows, teams) if team_rows is not None else None)
+        if not f or f.get("sp"):
+            continue
+        had = s.get("had")
+        valid_had = isinstance(had, list) and len(had) == 3 and all(isinstance(v, (int, float)) and v > 1 for v in had)
+        f["sp"] = {"had": had if valid_had else None, "hhad": s.get("hhad"), "num": s.get("num", ""),
+                   "league": s.get("league", ""), "ttg": s.get("ttg")}
+        f.pop("hide", None)
+        if valid_had:
+            f.setdefault("books", []).append({"book": "竞彩官方", "m": had, "src": "sporttery"})
+        hit += 1
     if hit:
-        log(f"  竞彩官方盘口：匹配 {hit} 场")
+        log(f"  竞彩官方场次：匹配或补充 {hit} 场")
     return hit
 
 
@@ -2536,7 +2576,7 @@ def fetch_beidan():
         try:
             with open(os.path.join(ROOT, "odds_snapshots", "beidan.json"), "r", encoding="utf-8") as f:
                 snap = json.load(f)
-            out = snap.get("matches") or []
+            out = (snap.get("matches") or []) if time.time() - float(snap.get("_t") or 0) < 3 * 3600 else []
             if out:
                 log(f"  北单列表：改用快照 {len(out)} 场")
         except (OSError, ValueError):
@@ -2554,41 +2594,19 @@ def fetch_beidan():
     return out
 
 
-def _name_match_loose(our, other):
-    a = _norm_cn(our)
-    b = _norm_cn(other)
-    if not a or not b:
-        return False
-    return a == b or (len(a) >= 2 and a in b) or (len(b) >= 2 and b in a)
-
-
-def attach_beidan(fixture_rows, teams, bj_matches):
-    if not bj_matches:
-        return 0
-    parsed = []
-    for m in bj_matches:
-        try:
-            parsed.append((datetime.fromisoformat(m["date"].replace("Z", "+00:00")), m))
-        except (TypeError, ValueError):
-            continue
+def attach_beidan(fixture_rows, teams, bj_matches, team_rows=None):
     hit = 0
-    for f in fixture_rows:
-        if not f.get("date"):
+    for m in _domestic_future(bj_matches):
+        candidates = _domestic_candidates(fixture_rows, teams, m)
+        if len(candidates) > 1:
+            log(f"  北单场次匹配不唯一：{m.get('num', '')}")
             continue
-        try:
-            ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
-        except ValueError:
+        f = candidates[0] if candidates else (_add_domestic_fixture(m, "beidan", fixture_rows, team_rows, teams) if team_rows is not None else None)
+        if not f or f.get("bj"):
             continue
-        h = teams.get(str(f.get("home"))) or {}
-        a = teams.get(str(f.get("away"))) or {}
-        hn, an = h.get("cn") or h.get("name"), a.get("cn") or a.get("name")
-        for st, m in parsed:
-            if abs((st - ft).total_seconds()) > 30 * 60:
-                continue
-            if _name_match_loose(hn, m["home"]) and _name_match_loose(an, m["away"]):
-                f["bj"] = {"num": m["num"], "line": m["line"], "h": m["h"], "d": m["d"], "a": m["a"]}
-                hit += 1
-                break
+        f["bj"] = {k: m.get(k) for k in ("num", "line", "h", "d", "a")}
+        f.pop("hide", None)
+        hit += 1
     return hit
 
 
@@ -5320,12 +5338,13 @@ def main():
     try:
         _sp = fetch_sporttery()
         _cn_teams = {str(t["id"]): t for t in team_rows}
-        _hit = attach_sporttery(fixture_rows, _cn_teams, _sp)
+        _hit = attach_sporttery(fixture_rows, _cn_teams, _sp, team_rows)
         log(f"  竞彩官方挂载：{_hit}/{len(_sp)} 场（赛程 {len(fixture_rows)} 场）")
         try:
             _bj = fetch_beidan()
-            _bj_hit = attach_beidan(fixture_rows, _cn_teams, _bj)
-            log(f"  北单挂载：{_bj_hit}/{len(_bj)} 场")
+            _bj_hit = attach_beidan(fixture_rows, _cn_teams, _bj, team_rows)
+            log(f"  北单挂载：{_bj_hit}/{len(_domestic_future(_bj))} 场未开赛来源列表")
+            fixture_rows.sort(key=lambda f: f.get("date") or "")
         except Exception as e:
             log(f"  ⚠ 北单挂载失败：{str(e)[:80]}")
     except Exception as e:

@@ -1638,7 +1638,7 @@ td.gsep{border-left:1px solid var(--line)}
       <div class="seg src-seg" id="src-seg" role="group" aria-label="数据来源筛选">
         <button type="button" data-src="all" aria-pressed="true">全部</button>
         <button type="button" data-src="jc" aria-pressed="false">竞彩在售</button>
-        <button type="button" data-src="bj" aria-pressed="false">北单在售</button>
+        <button type="button" data-src="bj" aria-pressed="false">北单列表</button>
       </div>
       <div class="day-bar" id="day-bar">
         <button class="day-btn" id="day-prev" type="button" aria-label="前一天">‹</button>
@@ -1763,8 +1763,8 @@ td.gsep{border-left:1px solid var(--line)}
             <tr><td>多机构欧赔 / 亚盘 / 大小球</td><td>The Odds API</td><td>英超、西甲、意甲、德甲、法甲、欧冠、欧联、欧国联</td><td><b class="ok">稳定 10–15 家</b></td></tr>
             <tr><td>补充欧赔（h2h）</td><td>The Odds API</td><td>英冠、荷甲、葡超、巴西甲、苏超、德乙、意乙、西乙、土超、比甲、奥甲、希腊超、丹超、瑞士超、波兰超、挪超、瑞典超、日职联、美职联、阿甲、法国杯、国王杯、德国杯、英联杯、法乙、德国丙</td><td><b class="ok">开赛前 7 天内分批补 1–9 家</b></td></tr>
             <tr><td>DraftKings / Bet365</td><td>ESPN</td><td>有盘口的俱乐部比赛</td><td><b class="ok">稳定</b></td></tr>
-            <tr><td>竞彩官方（胜平负 / 让球 / 总进球→大小球）</td><td>中国体彩公开接口</td><td>竞彩在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
-            <tr><td>北单（胜平负 / 让球 SP）</td><td>澳客北单列表</td><td>北单在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
+            <tr><td>竞彩官方（胜平负 / 让球）</td><td>中国体彩公开接口</td><td>竞彩在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
+            <tr><td>北单（胜平负 / 让球 SP）</td><td>澳客北单列表</td><td>北单列表场次</td><td><b>以来源更新为准</b></td></tr>
             <tr><td>模型公平赔率 / 大小球 / 亚盘</td><td>本站模型</td><td>所有有模型预测的比赛</td><td><b class="ok">兜底显示，不会空白</b></td></tr>
             <tr><td>多机构赔率（友谊赛 / 世预赛等）</td><td>—</td><td>免费数据源不提供</td><td><b class="warn">不会有（仅竞彩/北单/模型）</b></td></tr>
             <tr><td>伤停名单、伤缺原因</td><td>—</td><td>ESPN 不提供足球伤停</td><td><b class="warn">不会有</b></td></tr>
@@ -3351,6 +3351,7 @@ function fixtureRowHtml(f, forceStatus){
   }
   const srcTags = `${f.sp ? `<span class="tag tag-jc">竞彩${f.sp.num ? " " + esc(f.sp.num) : ""}</span>` : ""}${f.bj ? `<span class="tag tag-bj">北单${f.bj.num ? " " + esc(f.bj.num) : ""}</span>` : ""}`;
   if(predLine) predLine = predLine.replace('<div class="fix-pred">', `<div class="fix-pred">${srcTags}`);
+  else if(srcTags) predLine = `<div class="fix-pred">${srcTags}<span>暂无模型数据</span></div>`;
   return `<div class="fix-row" data-mid="${esc(f.id)}">
     <div class="fix-time">${fmtTime(f.date)}<button type="button" class="pin-btn${isPinned(f.id) ? " on" : ""}" data-pin="${esc(f.id)}" aria-pressed="${isPinned(f.id) ? "true" : "false"}" title="${isPinned(f.id) ? "取消置顶" : "置顶这场比赛"}" aria-label="置顶比赛">${isPinned(f.id) ? "★" : "☆"}</button></div>
     <div>${leagueChip(f.league)}</div>
@@ -3391,8 +3392,8 @@ function syncSrcCounts(c){
 }
 
 function srcOk(f){
-  if(state.src === "jc") return !!f.sp;
-  if(state.src === "bj") return !!f.bj;
+  if(state.src === "jc") return !!f.sp && new Date(f.date) > new Date();
+  if(state.src === "bj") return !!f.bj && new Date(f.date) > new Date();
   return true;
 }
 
@@ -3402,7 +3403,7 @@ function renderFixtures(){
 
   if(state.day){
     const dayBase = dayEntries(state.day).filter(f => state.league === "all" || f.league === state.league);
-    syncSrcCounts({ all: dayBase.length, jc: dayBase.filter(f => f.sp).length, bj: dayBase.filter(f => f.bj).length });
+    syncSrcCounts({ all: dayBase.length, jc: dayBase.filter(f => f.sp && new Date(f.date) > new Date()).length, bj: dayBase.filter(f => f.bj && new Date(f.date) > new Date()).length });
     const all = dayBase.filter(srcOk);
     const [y, mo, da] = state.day.split("-").map(Number);
     const label = `${mo}月${da}日`;
@@ -3423,7 +3424,7 @@ function renderFixtures(){
   // 计数与面板展示窗口一致：只统计前 5 个比赛日
   const dayKeys5 = [...new Set(baseAll.map(f => dayKey(new Date(f.date))))].sort().slice(0, 5);
   const baseList = baseAll.filter(f => dayKeys5.includes(dayKey(new Date(f.date))));
-  syncSrcCounts({ all: baseList.length, jc: baseList.filter(f => f.sp).length, bj: baseList.filter(f => f.bj).length });
+  syncSrcCounts({ all: baseList.length, jc: baseList.filter(f => f.sp && new Date(f.date) > new Date()).length, bj: baseList.filter(f => f.bj && new Date(f.date) > new Date()).length });
   const list = baseList.filter(srcOk);
   if(note){
     const started = list.some(f => fixtureStatus(f).kind !== "pre");
@@ -3432,7 +3433,7 @@ function renderFixtures(){
       note.classList.add("warn");
     } else {
       note.textContent = "时间为本地时区 · 未来 5 个比赛日"
-        + (state.src === "jc" ? ` · 竞彩在售 ${list.length} 场` : state.src === "bj" ? ` · 北单在售 ${list.length} 场` : "");
+        + (state.src === "jc" ? ` · 竞彩列表 ${list.length} 场` : state.src === "bj" ? ` · 北单列表 ${list.length} 场` : "");
       note.classList.remove("warn");
     }
   }
@@ -3449,7 +3450,7 @@ function renderFixtures(){
   const titleBase = groups.has(TODAY_KEY) ? "今日赛程" : "近期赛程";
   $("#fixtures-title").textContent = state.league === "all" ? titleBase : state.league + " · " + titleBase;
   if(!keys.length){
-    panel.innerHTML = `<div class="empty">${state.league === "all" ? "近期" : esc(state.league) + " 近期"}暂无已排定的比赛。<br>可以切换到其他联赛，或直接搜索球队查看历史数据。</div>`;
+    panel.innerHTML = state.src === "all" ? `<div class="empty">${state.league === "all" ? "近期" : esc(state.league) + " 近期"}暂无已排定的比赛。<br>可以切换到其他联赛，或直接搜索球队查看历史数据。</div>` : `<div class="empty">当前筛选范围内没有可显示的未开赛场次。<br>也可能是来源暂不可用或快照已过期，请稍后再试。</div>`;
     return;
   }
   const dayBlock = k => {

@@ -141,7 +141,7 @@ class OddsIntegrationTests(unittest.TestCase):
         self.assertEqual(app._bd_line('(-2)'), -2)
         self.assertEqual(app._bd_line('（+1）'), 1)
         self.assertIsNone(app._bd_line(''))
-        now = datetime.now(timezone.utc).replace(microsecond=0)
+        now = (datetime.now(timezone.utc) + timedelta(hours=1)).replace(microsecond=0)
         fixtures = [{"date": now.isoformat(), "home": "1", "away": "2"}]
         teams = {"1": {"cn": "弗拉门戈"}, "2": {"cn": "巴拉纳竞技"}}
         matches = [{"date": now.isoformat(), "home": "弗拉门戈", "away": "巴拉纳竞技", "num": "21", "line": -2, "h": 5.49, "d": 4.97, "a": 1.62}]
