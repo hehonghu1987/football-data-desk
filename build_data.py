@@ -2197,11 +2197,15 @@ def _name_match(our, abb, full):
     a = _norm_cn(our)
     if not a:
         return False
+    import difflib
     for cand in (abb, full):
         b = _norm_cn(cand)
         if not b:
             continue
         if a == b or (len(a) >= 3 and a in b) or (len(b) >= 3 and b in a):
+            return True
+        # 中文缩写/异体字（布拉干RB vs 布拉甘蒂诺红牛）：高相似度也认
+        if len(a) >= 2 and len(b) >= 2 and difflib.SequenceMatcher(None, a, b).ratio() >= 0.5:
             return True
     return False
 
@@ -2258,6 +2262,134 @@ def _sp_find_team(name, full, cn_map):
         if _name_match(key, name, full or ""):
             return t
     return None
+
+
+AF_LEAGUE_IDS = {
+    "巴西甲": 71, "美职": 253, "日职": 98, "澳超": 188, "德乙": 79, "荷乙": 89,
+    "德甲": 78, "法甲": 61, "西甲": 140, "英超": 39, "意甲": 135, "荷甲": 88,
+    "葡超": 94, "比甲": 144, "土超": 203, "苏超": 179, "希腊超": 197,
+    "奥甲": 218, "挪超": 103, "英冠": 40, "欧冠": 2, "欧联杯": 3, "欧国联": 5,
+    "意大利杯": 137, "德国杯": 81, "国王杯": 143, "足总杯": 45, "英联杯": 48,
+}
+
+
+def _apply_af_bookmakers(f, bookmakers):
+    """把 API-Football 的 bookmakers 数组解析并挂到 fixture 上。"""
+    if not bookmakers:
+        return 0
+    added = 0
+    for bm in bookmakers:
+        canon = _canon_book(bm.get("name") or "")
+        if not canon:
+            continue
+        entry = {"book": canon, "src": "apifootball"}
+        for bet in (bm.get("bets") or []):
+            bid = bet.get("id")
+            if bid == 1:
+                vals = {v.get("value"): v.get("odd") for v in (bet.get("values") or [])}
+                try:
+                    entry["m"] = [round(float(vals["Home"]), 2), round(float(vals["Draw"]), 2), round(float(vals["Away"]), 2)]
+                except (KeyError, TypeError, ValueError):
+                    pass
+            elif bid == 4:
+                ah = _pick_ah(bet.get("values"))
+                if ah:
+                    entry["ah"] = {"line": ah["line"], "h": round(ah["h"], 2), "a": round(ah["a"], 2)}
+            elif bid == 5:
+                ou = _pick_ou(bet.get("values"))
+                if ou:
+                    entry["ou"] = {"line": ou["line"], "over": round(ou["over"], 2), "under": round(ou["under"], 2)}
+        if not (entry.get("m") or entry.get("ah") or entry.get("ou")):
+            continue
+        books = f.setdefault("books", [])
+        cur = next((b for b in books if b.get("book") == canon), None)
+        if cur is None:
+            books.append(entry)
+            added += 1
+        else:
+            for k in ("m", "ah", "ou"):
+                if entry.get(k):
+                    cur[k] = entry[k]
+                    added += 1
+    return added
+
+
+def enrich_sp_fixtures(fixture_rows, log=log):
+    """给「竞彩补出来的赛程」用 API-Football 补赔率/预测/伤停（按联赛+开球时间匹配）。"""
+    key = os.environ.get("API_FOOTBALL_KEY", "").strip()
+    if not key:
+        return 0
+    n = 0
+    for f in fixture_rows:
+        if not str(f.get("id", "")).startswith("sp-"):
+            continue
+        api_lg = AF_LEAGUE_IDS.get(f.get("league"))
+        if not api_lg:
+            continue
+        try:
+            ft = datetime.fromisoformat((f.get("date") or "").replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            continue
+        try:
+            d = _af_get("/fixtures", key, {"date": ft.date().isoformat(), "league": api_lg,
+                                           "season": 2026, "timezone": "UTC"}, ttl=1800)
+        except Exception:
+            continue
+        best = None
+        for it in (d.get("response") or []):
+            try:
+                mt = datetime.fromisoformat((it.get("fixture") or {}).get("date", "").replace("Z", "+00:00")).replace(tzinfo=None)
+            except ValueError:
+                continue
+            diff = abs((mt - ft).total_seconds())
+            if diff <= 15 * 60 and (best is None or diff < best[0]):
+                best = (diff, it)
+        if not best:
+            continue
+        it = best[1]
+        afid = str((it.get("fixture") or {}).get("id") or "")
+        if not afid:
+            continue
+        f["af"] = afid
+        try:
+            od = _af_get("/odds", key, {"fixture": afid}, ttl=10800)
+            bms = ((od.get("response") or [{}])[0] or {}).get("bookmakers") or []
+            _apply_af_bookmakers(f, bms)
+        except Exception:
+            pass
+        try:
+            pr = _af_get("/predictions", key, {"fixture": afid}, ttl=43200)
+            if pr.get("response"):
+                pred = (pr["response"][0].get("predictions") or {})
+                pct = pred.get("percent") or {}
+                def _pv(x):
+                    try:
+                        return round(float(str(x).replace("%", "")) / 100, 3)
+                    except (TypeError, ValueError):
+                        return None
+                h_, d_, a_ = _pv(pct.get("home")), _pv(pct.get("draw")), _pv(pct.get("away"))
+                if h_ is not None:
+                    f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": (pred.get("advice") or "")[:60]}
+        except Exception:
+            pass
+        try:
+            inj = _af_get("/injuries", key, {"fixture": afid}, ttl=14400)
+            if inj.get("response"):
+                hh, aa = [], []
+                api_home = str((((it.get("teams") or {}).get("home") or {}).get("id")) or "")
+                for row in inj["response"]:
+                    pl = row.get("player") or {}
+                    tm = row.get("team") or {}
+                    if not pl.get("name"):
+                        continue
+                    rec = {"n": pl.get("name"), "r": (pl.get("reason") or "")[:24], "t": (pl.get("type") or "")[:10]}
+                    (hh if str(tm.get("id")) == api_home else aa).append(rec)
+                if hh or aa:
+                    f["inj"] = {"h": hh[:12], "a": aa[:12]}
+        except Exception:
+            pass
+        n += 1
+    return n
 
 
 def add_sporttery_fixtures(fixture_rows, teams, team_rows, sp_matches, log=log):
@@ -2328,9 +2460,11 @@ def attach_sporttery(fixture_rows, teams, sp_matches):
         a = teams.get(str(f.get("away"))) or {}
         hn, an = h.get("cn") or h.get("name"), a.get("cn") or a.get("name")
         for st, s in parsed:
-            if abs((st - ft).total_seconds()) > 45 * 60:
+            if abs((st - ft).total_seconds()) > 90 * 60:
                 continue
-            if _name_match(hn, s["home"], s["homeFull"]) and _name_match(an, s["away"], s["awayFull"]):
+            _hm = _name_match(hn, s["home"], s["homeFull"])
+            _am = _name_match(an, s["away"], s["awayFull"])
+            if _hm and _am:
                 if _apply_sp_match(f, s):
                     hit += 1
                 break
@@ -5022,6 +5156,9 @@ def main():
         log(f"  竞彩官方挂载：{_hit}/{len(_sp)} 场（赛程 {len(fixture_rows)} 场）")
         try:
             add_sporttery_fixtures(fixture_rows, _cn_teams, team_rows, _sp)
+            _en_n = enrich_sp_fixtures(fixture_rows)
+            if _en_n:
+                log(f"  竞彩补充赛程数据：{_en_n} 场（API-Football 赔率/预测/伤停）")
         except Exception as e:
             log(f"  ⚠ 竞彩补充赛程失败：{str(e)[:80]}")
         # 北单已按要求下线（小比赛太多，不再展示）

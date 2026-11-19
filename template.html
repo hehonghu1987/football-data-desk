@@ -3343,6 +3343,13 @@ function fixtureRowHtml(f, forceStatus){
     predLine = `<div class="fix-pred"><span class="tag tag-live">进行中</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : `<span>开赛中</span>`}<span>每 30 分钟更新</span></div>`;
   } else if(fst.kind === "stale"){
     predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : ""}<span>数据截止 ${esc(dataStamp())}</span></div>`;
+  } else if(!pd && f.books && f.books.length){
+    const _ip = marketProbs(f);
+    if(_ip){
+      predLine = `<div class="fix-pred"><span class="tag">欧赔</span><span>主胜 <b>${Math.round(_ip[0]*100)}%</b></span><span>平 <b>${Math.round(_ip[1]*100)}%</b></span><span>客胜 <b>${Math.round(_ip[2]*100)}%</b></span><span class="hint">${f.books.length} 家机构</span></div>`;
+    } else if(f.sp){
+      predLine = `<div class="fix-pred"><span class="tag">竞彩</span><span>主胜 <b>${Number(f.sp.had[0]).toFixed(2)}</b></span><span>平 <b>${Number(f.sp.had[1]).toFixed(2)}</b></span><span>客胜 <b>${Number(f.sp.had[2]).toFixed(2)}</b></span></div>`;
+    }
   } else if(pd && fbp){
     const o25 = pd.lines ? pd.lines["2.5"] : null;
     const btts = pd.btts != null ? pd.btts : null;
