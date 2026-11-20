@@ -8,7 +8,7 @@
 <meta http-equiv="Expires" content="0">
 <script>document.documentElement.classList.add("js-boot");setTimeout(function(){document.documentElement.classList.remove("js-boot")},15000);</script>
 <title>绿茵数据台 · 足球赛程比分与模型预测</title>
-<meta name="description" content="每 30 分钟刷新数据的足球数据台：五大联赛、欧冠、英冠、巴西甲的赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，含进球线、亚盘让球与角球盘口概率。">
+<meta name="description" content="每 30 分钟刷新数据的足球数据台：竞彩、重点俱乐部赛事与国家队比赛的赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，含进球线、亚盘让球与角球盘口概率。">
 <meta name="theme-color" content="#0E7A49">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://hehonghu1987.github.io/football-data-desk/">
@@ -37,7 +37,7 @@
 <link rel="icon" href="og-icon.png" type="image/png">
 <link rel="prefetch" href="data/history.json" as="fetch" crossorigin>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebSite","name":"绿茵数据台","alternateName":"MATCH DATA DESK","url":"https://hehonghu1987.github.io/football-data-desk/","description":"足球赛程比分、技术统计与攻防模型预测，覆盖五大联赛、欧冠、欧联杯、英冠、巴西甲及各国杯赛，含进球线、亚盘与角球盘口概率。","inLanguage":"zh-CN","publisher":{"@type":"Organization","name":"绿茵数据台"},"about":[{"@type":"Thing","name":"足球赛程与比分"},{"@type":"Thing","name":"足球技术统计"},{"@type":"Thing","name":"足球比赛模型预测"}]}
+{"@context":"https://schema.org","@type":"WebSite","name":"绿茵数据台","alternateName":"MATCH DATA DESK","url":"https://hehonghu1987.github.io/football-data-desk/","description":"足球赛程比分、技术统计与攻防模型预测，覆盖竞彩、重点俱乐部赛事与国家队比赛，含进球线、亚盘与角球盘口概率。","inLanguage":"zh-CN","publisher":{"@type":"Organization","name":"绿茵数据台"},"about":[{"@type":"Thing","name":"足球赛程与比分"},{"@type":"Thing","name":"足球技术统计"},{"@type":"Thing","name":"足球比赛模型预测"}]}
 </script>
 <link rel="preload" href="fonts/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
 <style>
@@ -319,7 +319,7 @@ input{font:inherit}
   white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s;
 }
 .cat-tab:hover{color:var(--ink)}
-.cat-tab[aria-selected="true"]{
+.cat-tab[aria-pressed="true"]{
   background:var(--surface);color:var(--ink);
   box-shadow:0 1px 3px rgba(18,33,26,.12);
 }
@@ -1095,13 +1095,7 @@ html{scroll-behavior:smooth}
   .sq-card{grid-template-columns:22px minmax(0,1fr) 108px}
 }
 
-/* 页签「更多赛事」 */
-.more-leagues{position:relative}
-.more-leagues>summary{list-style:none;cursor:pointer;font-size:12px;color:var(--muted);border:1px dashed var(--line-strong);border-radius:999px;padding:6px 12px}
-.more-leagues>summary::-webkit-details-marker{display:none}
-.more-leagues>summary::after{content:" ▾"}
-.more-leagues[open]>summary::after{content:" ▴"}
-.more-leagues-row{position:absolute;z-index:40;left:0;top:calc(100% + 6px);display:flex;flex-wrap:wrap;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:var(--shadow);min-width:320px;max-width:min(760px,84vw)}
+.competition-select{font:inherit;color:var(--ink);padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 
 /* 多机构赔率比价表 */
 .books-wrap{overflow-x:auto;background:var(--surface)}
@@ -1403,8 +1397,6 @@ td.gsep{border-left:1px solid var(--line)}
 
 /* 数据来源标签 */
 .tag-jc{background:color-mix(in srgb, var(--accent) 14%, transparent);color:var(--accent)}
-.tag-bj{background:color-mix(in srgb, var(--draw) 16%, transparent);color:var(--draw)}
-.src-seg{margin:0 0 10px}
 
 /* 置顶比赛 */
 .pin-btn{margin-left:6px;border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:3px 4px;border-radius:6px;vertical-align:middle}
@@ -1561,7 +1553,7 @@ td.gsep{border-left:1px solid var(--line)}
 <noscript>
   <div class="noscript-note">
     <p class="noscript-title">绿茵数据台 · 足球赛程比分与模型预测</p>
-    <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
+    <p>本站提供竞彩、重点俱乐部赛事与国家队比赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
     <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
     <p><a href="/football-data-desk/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
     <p>数据来源 ESPN 公开接口，赔率来自指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365），每 30 分钟自动更新。</p>
@@ -1627,7 +1619,7 @@ td.gsep{border-left:1px solid var(--line)}
       </div>
     </div>
 
-    <nav class="cat-tabs" role="tablist" aria-label="赛事分类" id="cat-tabs"></nav>
+    <nav class="cat-tabs" aria-label="赛事筛选" id="cat-tabs"></nav>
 
     <section class="section" id="pinned-sec" hidden>
       <div class="section-head">
@@ -1643,10 +1635,6 @@ td.gsep{border-left:1px solid var(--line)}
         <h2 class="section-title" id="fixtures-title">今日赛程</h2>
         <button class="chip-btn export-btn" id="export-daily" type="button">导出赛程卡片</button>
         <span class="section-note" id="fixtures-note">时间为本地时区 · 未来 5 个比赛日</span>
-      </div>
-      <div class="seg src-seg" id="src-seg" role="group" aria-label="数据来源筛选">
-        <button type="button" data-src="all" aria-pressed="true">全部</button>
-        <button type="button" data-src="jc" aria-pressed="false">竞彩在售</button>
       </div>
       <div class="day-bar" id="day-bar">
         <button class="day-btn" id="day-prev" type="button" aria-label="前一天">‹</button>
@@ -2033,7 +2021,7 @@ td.gsep{border-left:1px solid var(--line)}
 <footer class="footer">
   <div class="row">
     <span>数据来源：ESPN 公开接口 · 赔率来自平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 · 缺失项以 — 表示</span>
-    <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
+    <span>赛程：竞彩 · 五大联赛 · 英冠 · 荷甲 · 葡超 · 比甲 · 巴西甲 · 欧冠 · 欧联杯 · 国际比赛</span>
   </div>
   <div class="row">
     <span>比分每 30 分钟自动更新 · 赛前盘口快照持续积累 · 缺失项以 — 表示</span>
@@ -2202,7 +2190,7 @@ function pinnedList(){
   const out = [];
   for(const id of PINNED){
     const m = MATCH_BY_ID.get(String(id));
-    if(m) out.push(m);
+    if(m && !m.hide) out.push(m);
   }
   out.sort((a, b) => new Date(a.date) - new Date(b.date));
   return out;
@@ -2607,7 +2595,6 @@ function avgText(v){
 /* ---------- state ---------- */
 const state = {
   league: "all",
-  src: "all",
   q: "",
   side: "all",
   comp: "all",
@@ -2991,7 +2978,7 @@ async function exportDailyCard(){
   const ctx = cv.getContext("2d");
   ctx.textBaseline = "top";
 
-  const today = DATA.fixtures || [];
+  const today = leagueFixtureList(state.league);
   const list = today
     .filter(f => f.pred && !f.hide)
     .sort((x, y2) => new Date(x.date) - new Date(y2.date))
@@ -3182,49 +3169,34 @@ function renderHero(){
   $("#stat-teams").textContent = niceNum(meta.teamCount || (DATA.teams || []).length);
 }
 
+const competitionGroups = DATA.leagues || [];
+const nationalCompetitions = new Set(competitionGroups.filter(l => l.cat === "national").map(l => l.label));
+const scheduleTabs = ["all", "竞彩", "国际比赛"];
+
+function matchesSelection(m, selection){
+  if(selection === "all") return true;
+  if(selection === "竞彩") return !!(m.sp || m.jcNum);
+  if(selection === "国际比赛") return nationalCompetitions.has(m.league) || m.isInternational === true;
+  return m.league === selection;
+}
+
 function renderTabs(){
-  const tabs = $("#cat-tabs");
-  const all = [{ id: "all", label: "全部" }].concat(
-    (DATA.leagues || []).filter(l => !l.hidden).map(l => ({ id: l.label, label: l.label }))
-  ).map(o => ({ id: o.id, label: o.label, n: upcomingCount(o.id) }));
-  // 全部非隐藏赛事都展示（无近期比赛的联赛也能点进去看积分榜/赛果）；
-  // 有近期比赛的排在前面，其余按常见赛事顺序
-  const orderIdx = id => { const i = LEAGUE_ORDER.indexOf(id); return i < 0 ? 999 : i; };
-  const sorted = all.slice().sort((a, b) => {
-    const an = a.id === "all" ? -1 : (a.n > 0 ? 0 : 1);
-    const bn = b.id === "all" ? -1 : (b.n > 0 ? 0 : 1);
-    if(an !== bn) return an - bn;
-    return orderIdx(a.id) - orderIdx(b.id);
-  });
-  const active = sorted.filter(o => o.id === "all" || o.n > 0 || o.id === state.league);
-  const more = sorted.filter(o => !(o.id === "all" || o.n > 0 || o.id === state.league));
-  const tabHtml = o => `<button type="button" class="cat-tab" role="tab" data-league="${esc(o.id)}" aria-selected="${state.league === o.id}">
-      ${esc(o.label)}<span class="n">${o.n}</span>
-    </button>`;
-  tabs.innerHTML = active.map(tabHtml).join("") +
-    (more.length ? `<details class="more-leagues"><summary>更多赛事（${more.length}）</summary><div class="more-leagues-row">${more.map(tabHtml).join("")}</div></details>` : "");
+  const buttons = scheduleTabs.map(id =>
+    `<button type="button" class="cat-tab" data-league="${esc(id)}" aria-pressed="${state.league === id}">${id === "all" ? "全部" : id}<span class="n">${upcomingCount(id)}</span></button>`);
+  const options = competitionGroups.filter(l => l.cat !== "national").sort((a,b) => compSort(a.label,b.label))
+    .map(l => `<option value="${esc(l.label)}"${state.league === l.label ? " selected" : ""}>${esc(l.label)}</option>`);
+  $("#cat-tabs").innerHTML = buttons.join("") + `<select id="competition-select" class="competition-select" aria-label="选择俱乐部赛事"><option value="all">按赛事查看</option>${options.join("")}</select>`;
 }
 
 function leagueMatchList(league){
-  const all = DATA.matches || [];
-  return league === "all" ? all : all.filter(m => m.league === league);
+  return (DATA.matches || []).filter(m => !m.hide && matchesSelection(m, league));
 }
 function leagueFixtureList(league){
-  const all = DATA.fixtures || [];
-  return league === "all" ? all : all.filter(f => f.league === league);
+  return (DATA.fixtures || []).filter(f => matchesSelection(f, league));
 }
 /* 与「今日赛程」面板口径一致：只统计前 5 个有比赛的比赛日 */
 function upcomingCount(league){
   const start = new Date(TODAY_KEY + "T00:00:00");
-  const days = new Set();
-  for(const f of leagueFixtureList(league)){
-    if(f.hide) continue;
-    const d = new Date(f.date);
-    if(isNaN(d) || d < start) continue;
-    days.add(dayKey(d));
-  }
-  // 页签计数覆盖数据集里全部未来赛程（不只看前 5 天），
-  // 国际比赛周后恢复的联赛也能出现在主页签里；赛程面板仍按前 5 个比赛日展示。
   let n = 0;
   for(const f of leagueFixtureList(league)){
     if(f.hide) continue;
@@ -3278,6 +3250,7 @@ function marketProbs(m){
   const books = (m && m.books) || [];
   let sum = null, n = 0;
   for(const b of books){
+
     if(!b.m || b.m.length < 3) continue;
     const inv = b.m.map(x => 1 / x);
     const tot = inv[0] + inv[1] + inv[2];
@@ -3360,7 +3333,8 @@ function fixtureRowHtml(f, forceStatus){
     const hiTag = Math.max(fbp[0], fbp[1], fbp[2]) >= hiTh ? `<span class="tag tag-conf">高信心</span>` : "";
     predLine = `<div class="fix-pred">${hiTag}<span class="tag">${fip ? "综合" : "模型"}</span><span>主胜 <b>${Math.round(fbp[0]*100)}%</b></span><span>平 <b>${Math.round(fbp[1]*100)}%</b></span><span>客胜 <b>${Math.round(fbp[2]*100)}%</b></span><span>预期进球 <b>${pd.xgH.toFixed(1)}–${pd.xgA.toFixed(1)}</b></span>${hints.length ? `<span class="hint">${hints.join(" · ")}</span>` : ""}</div>`;
   }
-  const srcTags = `${f.sp ? `<span class="tag tag-jc">竞彩${f.sp.num ? " " + esc(f.sp.num) : ""}</span>` : ""}`;
+  const jcNum = (f.sp || {}).num || f.jcNum;
+  const srcTags = jcNum ? `<span class="tag tag-jc">竞彩 ${esc(jcNum)}</span>` : "";
   if(predLine) predLine = predLine.replace('<div class="fix-pred">', `<div class="fix-pred">${srcTags}`);
   return `<div class="fix-row" data-mid="${esc(f.id)}">
     <div class="fix-time">${fmtTime(f.date)}<button type="button" class="pin-btn${isPinned(f.id) ? " on" : ""}" data-pin="${esc(f.id)}" aria-pressed="${isPinned(f.id) ? "true" : "false"}" title="${isPinned(f.id) ? "取消置顶" : "置顶这场比赛"}" aria-label="置顶比赛">${isPinned(f.id) ? "★" : "☆"}</button></div>
@@ -3385,25 +3359,10 @@ function dayEntries(key){
     const d = new Date(m.date);
     if(isNaN(d) || dayKey(d) !== key || seen.has(String(m.id))) continue;
     out.push({ id: m.id, date: m.date, league: m.league, home: m.home, away: m.away,
-               state: "post", hs: m.hs, as: m.as });
+               state: "post", hs: m.hs, as: m.as, jcNum: m.jcNum, isInternational: m.isInternational });
   }
   out.sort((x, y) => new Date(x.date) - new Date(y.date));
   return out;
-}
-
-function syncSrcCounts(c){
-  const seg = $("#src-seg");
-  if(!seg) return;
-  const labels = { all: "全部", jc: "竞彩" };
-  seg.querySelectorAll("[data-src]").forEach(b => {
-    const k = b.dataset.src;
-    if(labels[k]) b.textContent = `${labels[k]} ${c[k] || 0}`;
-  });
-}
-
-function srcOk(f){
-  if(state.src === "jc") return !!f.sp;
-  return true;
 }
 
 function renderFixtures(){
@@ -3411,9 +3370,7 @@ function renderFixtures(){
   const note = $("#fixtures-note");
 
   if(state.day){
-    const dayBase = dayEntries(state.day).filter(f => state.league === "all" || f.league === state.league);
-    syncSrcCounts({ all: dayBase.length, jc: dayBase.filter(f => f.sp).length });
-    const all = dayBase.filter(srcOk);
+    const all = dayEntries(state.day).filter(f => matchesSelection(f, state.league));
     const [y, mo, da] = state.day.split("-").map(Number);
     const label = `${mo}月${da}日`;
     $("#fixtures-title").textContent = (state.league === "all" ? "" : state.league + " · ") + label;
@@ -3432,9 +3389,7 @@ function renderFixtures(){
   );
   // 计数与面板展示窗口一致：只统计前 5 个比赛日
   const dayKeys5 = [...new Set(baseAll.map(f => dayKey(new Date(f.date))))].sort().slice(0, 5);
-  const baseList = baseAll.filter(f => dayKeys5.includes(dayKey(new Date(f.date))));
-  syncSrcCounts({ all: baseList.length, jc: baseList.filter(f => f.sp).length });
-  const list = baseList.filter(srcOk);
+  const list = baseAll.filter(f => dayKeys5.includes(dayKey(new Date(f.date))));
   if(note){
     const started = list.some(f => fixtureStatus(f).kind !== "pre");
     if(started){
@@ -3442,7 +3397,7 @@ function renderFixtures(){
       note.classList.add("warn");
     } else {
       note.textContent = "时间为本地时区 · 未来 5 个比赛日"
-        + (state.src === "jc" ? ` · 竞彩在售 ${list.length} 场` : "");
+        + (state.league === "竞彩" ? ` · 竞彩 ${list.length} 场` : "");
       note.classList.remove("warn");
     }
   }
@@ -3459,7 +3414,7 @@ function renderFixtures(){
   const titleBase = groups.has(TODAY_KEY) ? "今日赛程" : "近期赛程";
   $("#fixtures-title").textContent = state.league === "all" ? titleBase : state.league + " · " + titleBase;
   if(!keys.length){
-    panel.innerHTML = `<div class="empty">${state.league === "all" ? "近期" : esc(state.league) + " 近期"}暂无已排定的比赛。<br>可以切换到其他联赛，或直接搜索球队查看历史数据。</div>`;
+    panel.innerHTML = state.league !== "竞彩" ? `<div class="empty">${state.league === "all" ? "近期" : esc(state.league) + " 近期"}暂无已排定的比赛。<br>可以切换到其他联赛，或直接搜索球队查看历史数据。</div>` : `<div class="empty">当前没有可显示的竞彩赛程。</div>`;
     return;
   }
   const dayBlock = k => {
@@ -3509,7 +3464,7 @@ function renderConfidence(){
   const start = new Date(TODAY_KEY + "T00:00:00").getTime();
   const end = start + 5 * 86400000;
   const picks = [];
-  for(const f of (DATA.fixtures || [])){
+  for(const f of leagueFixtureList(state.league)){
     if(f.hide) continue;
     const t = new Date(f.date).getTime();
     if(isNaN(t) || t < start || t > end) continue;
@@ -3559,7 +3514,7 @@ function valuePicks(){
     const a = arr.slice().sort((x, y) => x - y);
     return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null;
   };
-  for(const f of (DATA.fixtures || [])){
+  for(const f of leagueFixtureList(state.league)){
     if(f.hide || !f.books || !f.books.length) continue;
     const t = new Date(f.date).getTime();
     if(isNaN(t) || t < start || t > end) continue;
@@ -3567,6 +3522,7 @@ function valuePicks(){
     // 欧赔：以「各机构隐含概率的中位数」作为公平基准，找高于基准的最优价
     const impl = [[], [], []], best = [0, 0, 0], bestBook = ["", "", ""];
     for(const b of books){
+
       if(!b.m || b.m.length < 3) continue;
       const inv = b.m.map(x => 1 / x), tot = inv[0] + inv[1] + inv[2];
       if(!tot) continue;
@@ -3695,7 +3651,10 @@ function renderIndex(){
   /* 归属判定：主联赛命中，或当前参赛该联赛（保证欧战名单完整） */
   const inGroup = (t, lg) => primaryOf(t) === lg || cur(t).includes(lg);
   let groups = [];
-  if(state.league === "all"){
+  if(state.league === "竞彩" || state.league === "国际比赛"){
+    const entrants = new Set(leagueFixtureList(state.league).flatMap(f => [String(f.home), String(f.away)]));
+    groups = [{label: state.league, teams: allTeams.filter(t => entrants.has(String(t.id)))}];
+  } else if(state.league === "all"){
     // 每个联赛一个组：主联赛归属（当前联赛优先，其次曾效力联赛），
     // 欧战赛事额外保留完整参赛名单，避免豪门只出现在国内联赛组里
     const teams = allTeams.filter(usable);
@@ -4091,7 +4050,7 @@ function renderMarketBench(days, tile){
 function renderDisagreeBoard(){
   const sec = $("#dis-board-sec"), box = $("#dis-board");
   if(!sec || !box) return;
-  const list = DATA.disboard || [];
+  const list = (DATA.disboard || []).filter(r => matchesSelection(MATCH_BY_ID.get(String(r.id)) || {league:r.lg}, state.league));
   if(!list.length){ sec.hidden = true; return; }
   sec.hidden = false;
   const names = r => {
@@ -4117,7 +4076,7 @@ function renderDisagreeBoard(){
 function renderIndexBoard(){
   const sec = $("#ix-board-sec"), box = $("#ix-board");
   if(!sec || !box) return;
-  const list = DATA.ixboard || [];
+  const list = (DATA.ixboard || []).filter(r => matchesSelection(MATCH_BY_ID.get(String(r.id)) || {league:r.lg}, state.league));
   if(!list.length){ sec.hidden = true; return; }
   sec.hidden = false;
   box.innerHTML = `<div class="ix-row ix-head"><span>日期</span><span>比赛</span><span>机构</span><span>返还率</span><span>离散度 主/平/客</span><span>最高凯利</span><span>赛果</span></div>` +
@@ -4259,17 +4218,6 @@ function shiftDay(delta){
 
 $("#day-prev")?.addEventListener("click", () => shiftDay(-1));
 $("#day-next")?.addEventListener("click", () => shiftDay(1));
-$("#src-seg")?.addEventListener("click", e => {
-  const b = e.target.closest("[data-src]");
-  if(!b) return;
-  state.src = b.dataset.src;
-  $("#src-seg").querySelectorAll("[data-src]").forEach(x => {
-    x.classList.toggle("on", x === b);
-    x.setAttribute("aria-pressed", x === b ? "true" : "false");
-  });
-  renderFixtures();
-});
-
 $("#day-today")?.addEventListener("click", () => { state.day = dayKey(new Date()); syncDayBar(); renderFixtures(); });
 $("#day-window")?.addEventListener("click", () => { state.day = null; syncDayBar(); renderFixtures(); });
 $("#day-input")?.addEventListener("change", e => {
@@ -4381,11 +4329,16 @@ $("#standings-select")?.addEventListener("change", e => {
   renderStandings();
 });
 
+$("#cat-tabs").addEventListener("change", e => {
+  if(e.target.id !== "competition-select") return;
+  location.hash = e.target.value === "all" ? "#/" : "#/league/" + encodeURIComponent(e.target.value);
+});
+
 $("#cat-tabs").addEventListener("click", e => {
   const b = e.target.closest("[data-league]");
   if(!b) return;
   const lg = b.dataset.league;
-  if(lg !== "all") state.standingsLg = lg;
+  if(!scheduleTabs.includes(lg)) state.standingsLg = lg;
   const next = lg === "all" ? "#/" : "#/league/" + encodeURIComponent(lg);
   if(location.hash === next){
     state.league = lg;
@@ -5294,7 +5247,7 @@ function renderPreMatch(m){
   $("#odds-grid").innerHTML = cells.length ? cells.join("")
     : `<div class="odds-cell"><div class="l">赔率</div><div class="odds-src">该场暂无可用赔率</div></div>`;
   $("#odds-grid").hidden = !(odds || hasBooks);
-  // 官方让球盘（竞彩）：3 项含平，单独展示，不混入亚盘 2 项口径
+  // 竞彩让球盘：3 项含平，单独展示，不混入亚盘 2 项口径
   try {
     const oa = $("#official-ah");
     if(oa){
@@ -5304,7 +5257,7 @@ function renderPreMatch(m){
         rows.push(`<div class="oa-row"><span class="oa-k">竞彩让球</span><span class="oa-line">${lineTxt(Number(m.sp.hhad.line))}</span><span class="oa-odds">${Number(m.sp.hhad.h).toFixed(2)} / ${Number(m.sp.hhad.d).toFixed(2)} / ${Number(m.sp.hhad.a).toFixed(2)}</span><span class="oa-note">主 / 平 / 客</span></div>`);
       }
       if(rows.length){
-        oa.innerHTML = `<div class="panel oa-panel"><div class="oa-head">官方让球盘（竞彩）<span>含平局选项，与亚盘 2 项口径不同，仅作参考</span></div>${rows.join("")}</div>`;
+        oa.innerHTML = `<div class="panel oa-panel"><div class="oa-head">竞彩让球盘<span>含平局选项，与亚盘 2 项口径不同，仅作参考</span></div>${rows.join("")}</div>`;
         oa.hidden = false;
       } else { oa.hidden = true; oa.innerHTML = ""; }
     }
@@ -5894,7 +5847,7 @@ function renderMatch(id){
     <div class="match-meta">
       <span>${esc(fullTime(m.date))}</span>
       ${leagueChip(m.league)}
-      ${m.sp ? `<span class="tag tag-jc">竞彩 ${esc(m.sp.num || "")}</span>` : ""}
+      ${m.sp || m.jcNum ? `<span class="tag tag-jc">竞彩 ${esc(m.sp?.num || m.jcNum || "")}</span>` : ""}
       ${m.venue ? `<span>${esc(m.venue)}</span>` : ""}
       <button type="button" class="pin-btn${isPinned(m.id) ? " on" : ""}" data-pin="${esc(m.id)}" aria-pressed="${isPinned(m.id) ? "true" : "false"}" title="置顶这场比赛">${isPinned(m.id) ? "★" : "☆"}<span class="pin-lbl">置顶</span></button>
     </div>
@@ -6140,7 +6093,7 @@ function renderDeep(m){
         marketBody += `<p><span class="deep-tag">大小球 ${Number(ouc.line).toFixed(1)}</span>模型大球 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.05 ? (d > 0 ? "，模型更偏大球" : "，模型更偏小球") : "，与市场接近"}。</p>`;
       }
     }
-    const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}`;
+    const srcTags = m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : "";
     marketBody = `<div class="deep-kv" style="margin-bottom:10px">${srcTags}</div>` + marketBody +
       `<p class="deep-foot">「差」为模型概率减市场去水概率，正值表示模型认为市场低估了该结果；「最优价」为该结果在比价机构中的最高小数赔率（机构覆盖场次不同，仅供参考）。模型整体弱于收盘线，方向仅供参考。</p>`;
   } else {
@@ -6841,10 +6794,10 @@ function route(){
   const lm = h.match(/^#\/league\/(.+)$/);
   if(lm){
     const lg = decodeURIComponent(lm[1]);
-    const known = lg === "all" || (DATA.leagues || []).some(l => l.label === lg);
+    const known = scheduleTabs.includes(lg) || competitionGroups.some(l => l.label === lg);
     if(known){
       state.league = lg;
-      if(lg !== "all") state.standingsLg = lg;
+      if(!scheduleTabs.includes(lg)) state.standingsLg = lg;
       renderHome();
       window.scrollTo({top: 0, behavior: "auto"});
       return;

@@ -137,18 +137,6 @@ class OddsIntegrationTests(unittest.TestCase):
         self.assertTrue(any('覆盖 巴西甲' in line and '亚盘主线 0' in line for line in logs))
         self.assertTrue(any('机构覆盖 Betfair' in line and '备选 1' in line for line in logs))
 
-    def test_beidan_handicap_is_not_added_to_ordinary_odds(self):
-        self.assertEqual(app._bd_line('(-2)'), -2)
-        self.assertEqual(app._bd_line('（+1）'), 1)
-        self.assertIsNone(app._bd_line(''))
-        now = (datetime.now(timezone.utc) + timedelta(hours=1)).replace(microsecond=0)
-        fixtures = [{"date": now.isoformat(), "home": "1", "away": "2"}]
-        teams = {"1": {"cn": "弗拉门戈"}, "2": {"cn": "巴拉纳竞技"}}
-        matches = [{"date": now.isoformat(), "home": "弗拉门戈", "away": "巴拉纳竞技", "num": "21", "line": -2, "h": 5.49, "d": 4.97, "a": 1.62}]
-        self.assertEqual(app.attach_beidan(fixtures, teams, matches), 1)
-        self.assertEqual(fixtures[0]['bj']['line'], -2)
-        self.assertNotIn('books', fixtures[0])
-
     def test_historical_stats_require_exact_teams_time_and_score(self):
         match = {'id': 'old1', 'date': '2023-05-11T22:30:00Z', 'home': '1', 'away': '2', 'hs': 3, 'as': 0, 'stats': None}
         teams = {'1': {'name': 'Botafogo'}, '2': {'name': 'Corinthians'}}
