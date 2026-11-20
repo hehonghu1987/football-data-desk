@@ -1516,42 +1516,47 @@ def _advice_team(teams, tid):
     return t
 
 
-_ADV_RULES = [
-    (r"Combo Double chance\s*:\s*(.+?)\s+or\s+draw\s+and\s+\+([\d.]+)\s+goals", r"双选组合：\1 或平局，且总进球大于 \2"),
-    (r"Combo Double chance\s*:\s*draw\s+or\s+(.+?)\s+and\s+-([\d.]+)\s+goals", r"双选组合：平局或 \1，且总进球小于 \2"),
-    (r"Combo Winner\s*:\s*(.+?)\s+and\s+\+([\d.]+)\s+goals", r"独赢组合：\1，且总进球大于 \2"),
-    (r"Combo Winner\s*:\s*(.+?)\s+and\s+-([\d.]+)\s+goals", r"独赢组合：\1，且总进球小于 \2"),
-    (r"Double chance\s*:\s*(.+?)\s+or\s+draw$", r"双选：\1 或平局"),
-    (r"Double chance\s*:\s*draw\s+or\s+(.+)$", r"双选：平局或 \1"),
-    (r"Winner\s*:\s*(.+)$", r"独赢：\1"),
-    (r"Both teams to score", r"双方进球"),
-    (r"Over\s+([\d.]+)\s+goals", r"总进球大于 \1"),
-    (r"Under\s+([\d.]+)\s+goals", r"总进球小于 \1"),
-    (r"^Home team win$", r"主队胜"),
-    (r"^Away team win$", r"客队胜"),
-    (r"^Draw$", r"平局"),
+_ADV_PATTERNS = [
+    (r"Combo Double chance\s*:\s*(.+?)\s+or\s+draw\s+and\s+\+([\d.]+)\s+goals", "双选组合：{} 或平局，且总进球大于 {}"),
+    (r"Combo Double chance\s*:\s*(.+?)\s+or\s+draw\s+and\s+-([\d.]+)\s+goals", "双选组合：{} 或平局，且总进球小于 {}"),
+    (r"Combo Double chance\s*:\s*draw\s+or\s+(.+?)\s+and\s+\+([\d.]+)\s+goals", "双选组合：平局或 {}，且总进球大于 {}"),
+    (r"Combo Double chance\s*:\s*draw\s+or\s+(.+?)\s+and\s+-([\d.]+)\s+goals", "双选组合：平局或 {}，且总进球小于 {}"),
+    (r"Combo Winner\s*:\s*(.+?)\s+and\s+\+([\d.]+)\s+goals", "独赢组合：{}，且总进球大于 {}"),
+    (r"Combo Winner\s*:\s*(.+?)\s+and\s+-([\d.]+)\s+goals", "独赢组合：{}，且总进球小于 {}"),
+    (r"Double chance\s*:\s*(.+?)\s+or\s+draw", "双选：{} 或平局"),
+    (r"Double chance\s*:\s*draw\s+or\s+(.+)", "双选：平局或 {}"),
+    (r"Winner\s*:\s*(.+)", "独赢：{}"),
+    (r"Both teams to score", "双方进球"),
+    (r"Over\s+([\d.]+)\s+goals", "总进球大于 {}"),
+    (r"Under\s+([\d.]+)\s+goals", "总进球小于 {}"),
+    (r"Home team win", "主队胜"),
+    (r"Away team win", "客队胜"),
+    (r"Draw", "平局"),
 ]
 
 
-def translate_advice(adv, f, teams):
-    """外部模型建议 → 中文（队名替换成中文名，规则翻译）。"""
+def translate_advice(adv, f, teams, api_home=None, api_away=None):
+    """外部模型建议 → 中文（队名换成中文名，规则翻译）。"""
     if not adv:
         return ""
-    a = str(adv).strip()
+    a = " ".join(str(adv).split())
+    import re as _re
     pairs = []
-    for side in ("home", "away"):
+    for side, api_name in (("home", api_home), ("away", api_away)):
         t = _advice_team(teams, f.get(side))
-        en = t.get("name") or ""
-        cn = t.get("cn") or en
-        if en and en != cn:
-            pairs.append((en, cn))
+        cn = t.get("cn") or t.get("name") or ""
+        for en in (api_name, t.get("name")):
+            if en and cn and en != cn:
+                pairs.append((str(en), cn))
     for en, cn in sorted(pairs, key=lambda x: -len(x[0])):
         a = a.replace(en, cn)
-    import re as _re
-    for pat, rep in _ADV_RULES:
-        if _re.search(pat, a):
-            a = _re.sub(pat, rep, a)
-            break
+    for pat, fmt in _ADV_PATTERNS:
+        m = _re.fullmatch(r"(?:Combo\s+)?" + pat, a)
+        if m:
+            try:
+                return fmt.format(*[g.strip() for g in m.groups()])
+            except (IndexError, KeyError):
+                return fmt.format(*m.groups())
     return a[:80]
 
 
@@ -1729,7 +1734,11 @@ def attach_apifootball(fixture_rows, teams, log=log):
             h_, d_, a_ = _p(pct.get("home")), _p(pct.get("draw")), _p(pct.get("away"))
             adv = ((pr["response"][0].get("predictions") or {}).get("advice") or "")[:60]
             if h_ is not None and d_ is not None and a_ is not None:
-                f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": translate_advice(adv, f, teams)}
+                _api_t = (api_fixtures.get(afid) or {}).get("teams") or {}
+                f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": translate_advice(
+                    adv, f, teams,
+                    ((_api_t.get("home") or {}).get("name") or ""),
+                    ((_api_t.get("away") or {}).get("name") or ""))}
         # 官方/预计首发（API-Football 一般赛前 1 小时内给出）
         lu = data.get("lineups") or {}
         if lu.get("response"):
@@ -2529,7 +2538,10 @@ def enrich_sp_fixtures(fixture_rows, teams=None, log=log):
                         return None
                 h_, d_, a_ = _pv(pct.get("home")), _pv(pct.get("draw")), _pv(pct.get("away"))
                 if h_ is not None:
-                    f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": translate_advice(pred.get("advice"), f, teams)}
+                    f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": translate_advice(
+                        pred.get("advice"), f, teams,
+                        ((it.get("teams") or {}).get("home") or {}).get("name") or "",
+                        ((it.get("teams") or {}).get("away") or {}).get("name") or "")}
         except Exception:
             pass
         try:
