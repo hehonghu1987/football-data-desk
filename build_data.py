@@ -4575,6 +4575,16 @@ def compact_payload(payload):
         if m.get("so") is None:
             m.pop("so", None)
     payload["venues"] = venues
+    # 参考预测建议本地化：用最终球队中文名替换（构建早期 team.cn 可能还没补上）
+    try:
+        teams_map = {str(t.get("id")): t for t in (payload.get("teams") or [])}
+        import re as _re
+        for _f in payload.get("fixtures") or []:
+            _a = (_f.get("afp") or {}).get("adv")
+            if _a and _re.search(r"[A-Za-z]{3,}", _a):
+                _f["afp"]["adv"] = translate_advice(_a, _f, teams_map)
+    except Exception:
+        pass
 
 
 def _decay(item, day):
