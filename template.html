@@ -1190,9 +1190,6 @@ main:focus{outline:none}
 .book-pick input{accent-color:var(--accent);width:13px;height:13px}
 
 /* 新版本提示条 */
-.fresh-bar{position:sticky;top:0;z-index:90;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 12px;background:var(--draw);color:#fff;font-size:12.5px}
-.fresh-bar button{border:0;border-radius:6px;background:#fff;color:var(--draw);font:inherit;font-size:12px;font-weight:600;padding:4px 10px;cursor:pointer}
-.fresh-bar[hidden]{display:none}
 
 /* 历史交锋：整列为空时隐藏 */
 #match-h2h table.h2h-no-shots th:nth-child(6),#match-h2h table.h2h-no-shots td:nth-child(6){display:none}
@@ -1516,10 +1513,6 @@ td.gsep{border-left:1px solid var(--line)}
 </head>
 <body>
 <a class="skip-link" href="#main-content">跳到主要内容</a>
-<div id="fresh-bar" class="fresh-bar" hidden role="status">
-  <span>数据已更新，当前页面是旧版本</span>
-  <button type="button" id="fresh-reload">点击刷新</button>
-</div>
 
 <!-- 首屏骨架：4.4MB 内联数据解析期间先画占位，避免内容插入时整页跳动（CLS） -->
 <div id="boot-skeleton" aria-hidden="true">
@@ -2525,14 +2518,6 @@ function avgText(v){
     clearTimeout(t);
     t = setTimeout(mark, 300);
   }).observe(document.body, {childList:true, subtree:true});
-})();
-
-/* ---------- header meta ---------- */
-(function headerInit(){
-  // 不显示数据更新时间 / 生成时间（保持页面干净，也不对外暴露更新节奏）
-  document.getElementById("fresh-reload")?.addEventListener("click", () => {
-    if(window.__hardReload) window.__hardReload();
-  });
 })();
 
 /* ---------- state ---------- */
@@ -6921,22 +6906,37 @@ if("requestIdleCallback" in window){
 })();
 </script>
 <script>
-// 新构建检测：页面开着时静态数据不会自己更新，每 90 秒比对 ETag，提示刷新
-(function watchFresh(){
+// 自动刷新：静默比对版本（ETag），发现新构建后在用户空闲时自动刷新页面
+(function autoRefresh(){
   try{
-    let etag = null;
+    let etag = null, reloaded = false, lastInput = Date.now();
     const head = () => fetch(location.pathname, {method: "HEAD", cache: "no-store"})
       .then(r => r.headers.get("etag") || r.headers.get("last-modified")).catch(() => null);
     head().then(v => { etag = v; });
-    setInterval(() => {
-      if(document.hidden) return;
-      head().then(v => {
-        if(v && etag && v !== etag){
-          const bar = document.getElementById("fresh-bar");
-          if(bar){ bar.hidden = false; }
-        }
-      });
-    }, 90000);
+    ["pointerdown", "keydown", "touchstart", "wheel", "scroll"].forEach(ev => {
+      window.addEventListener(ev, () => { lastInput = Date.now(); }, {passive: true, capture: true});
+    });
+    const check = async () => {
+      if(reloaded || document.hidden) return;
+      const v = await head();
+      if(!v || !etag || v === etag) return;
+      // 用户 20 秒内有操作就先不打断，等下一次检查
+      if(Date.now() - lastInput < 20000) return;
+      reloaded = true;
+      try{ sessionStorage.setItem("lg-restore-scroll", String(window.scrollY)); }catch(e){}
+      location.reload();
+    };
+    setInterval(check, 60000);
+    document.addEventListener("visibilitychange", () => { if(!document.hidden) check(); });
+    // 刷新后恢复滚动位置
+    try{
+      const y = sessionStorage.getItem("lg-restore-scroll");
+      if(y != null){
+        sessionStorage.removeItem("lg-restore-scroll");
+        window.scrollTo(0, Number(y) || 0);
+      }
+    }catch(e){}
+    // 强制刷新按钮（保留：用于清缓存）
     const hardReload = async () => {
       try{
         if("caches" in window){ const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
@@ -6945,7 +6945,6 @@ if("requestIdleCallback" in window){
       location.replace(location.pathname + "?r=" + Date.now());
     };
     window.__hardReload = hardReload;
-    document.getElementById("fresh-reload")?.addEventListener("click", hardReload);
     document.getElementById("hard-reload")?.addEventListener("click", hardReload);
   }catch(e){}
 })();
