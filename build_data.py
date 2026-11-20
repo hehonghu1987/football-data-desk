@@ -1933,6 +1933,15 @@ def attach_af_squads(fixture_rows, teams, log=log):
         log("  API-Football 名单：拉取失败示例 " + "；".join(f"{a}/{b}->api{c}" for a, b, c in _fail[:6]))
     if all_rosters:
         try:
+            try:
+                for _tid, _plist in all_rosters.items():
+                    for _p in (_plist or []):
+                        _en = _p.get("n") or ""
+                        _zh = player_cn(_en)
+                        if _zh and _zh != _en:
+                            _p["n"] = _zh
+            except Exception:
+                pass
             with open(os.path.join(DATA_DIR, "af_rosters.json"), "w", encoding="utf-8") as fh:
                 json.dump(all_rosters, fh, ensure_ascii=False, separators=(",", ":"))
         except OSError:
@@ -3657,7 +3666,7 @@ def build_team_lineups(match_rows, team_ids, workers):
 
 def _load_player_cn():
     out = {}
-    for fname in ("player_cn.json", "player_cn_extra.json"):
+    for fname in ("player_cn.json", "player_cn_extra.json", "player_cn_bulk.json"):
         path = os.path.join(ROOT, fname)
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -5571,6 +5580,11 @@ def main():
         try:
             os.makedirs(ros_dir, exist_ok=True)
             for _tid, _pl in rosters.items():
+                for _p in _pl:
+                    _en = _p.get("e") or _p.get("n") or ""
+                    _zh = player_cn(_en)
+                    if _zh and _zh != _en:
+                        _p["n"] = _zh
                 with open(os.path.join(ros_dir, f"{_tid}.json"), "w", encoding="utf-8") as sf:
                     json.dump({"players": _pl}, sf, ensure_ascii=False, separators=(",", ":"))
             log(f"  球队名单拆分：{len(rosters)} 个小文件（data/rosters/<teamId>.json）")
@@ -5645,6 +5659,11 @@ def main():
             lu_dir = os.path.join(DATA_DIR, "lineups")
             os.makedirs(lu_dir, exist_ok=True)
             for _tid, _lu in (payload.get("lineups") or {}).items():
+                for _p in (_lu.get("p") or []):
+                    _en = _p.get("en") or _p.get("n") or ""
+                    _zh = player_cn(_en)
+                    if _zh and _zh != _en:
+                        _p["n"] = _zh
                 with open(os.path.join(lu_dir, f"{_tid}.json"), "w", encoding="utf-8") as sf:
                     json.dump(_lu, sf, ensure_ascii=False, separators=(",", ":"))
         except OSError:
