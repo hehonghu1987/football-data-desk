@@ -474,7 +474,7 @@ def main():
         ib = ('<h1>比赛索引</h1><p class="sub">未来赛程与近 30 天赛果的静态页，含模型预测、盘口与比赛事件。</p>'
               '<h2>未来赛程</h2><div class="chips">' + "".join(link(m) for m in up[:120]) + '</div>'
               '<h2>近期赛果</h2><div class="chips">' + "".join(link(m) for m in rec) + '</div>'
-              '<div class="foot">比分每 30 分钟自动更新。</div>')
+              '</div>')
         with open(os.path.join(match_dir, "index.html"), "w", encoding="utf-8") as fh:
             fh.write(page(f"{BRAND} · 比赛索引", f"{BRAND}比赛索引：赛程、比分、模型预测与盘口。",
                           ib, f"{SITE}/matches/index.html"))
@@ -494,7 +494,7 @@ def main():
     ibody = f"""<h1>球队索引</h1>
 <p class="sub">共 {len(pages)} 支球队 · 点击查看近期战绩与逐场技术统计</p>
 {''.join(idx)}
-<div class="foot">比分每 30 分钟自动更新。</div>"""
+"""
     with open(os.path.join(teams_dir, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(page(f"{BRAND} · 球队索引", f"{BRAND}收录 {len(pages)} 支球队的近期战绩、逐场技术统计与模型预测。",
                       ibody, f"{SITE}/teams/index.html"))

@@ -1547,7 +1547,7 @@ td.gsep{border-left:1px solid var(--line)}
     <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
     <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
     <p><a href="/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
-    <p>赔率来自多家机构，每 30 分钟自动更新。</p>
+    <p>赔率来自多家机构。</p>
   </div>
 </noscript>
 <header class="topbar">
@@ -2014,11 +2014,7 @@ td.gsep{border-left:1px solid var(--line)}
 
 <footer class="footer">
   <div class="row">
-    <span>赔率来自多家机构 · 缺失项以 — 表示</span>
     <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
-  </div>
-  <div class="row">
-    <span>比分每 30 分钟自动更新 · 赛前盘口快照持续积累 · 缺失项以 — 表示</span>
   </div>
   <div class="row">
     <span>往期内容：<a href="/daily/index.html">每日简报</a> · <a href="/teams/index.html">球队索引</a></span>
@@ -3297,7 +3293,7 @@ function fixtureRowHtml(f, forceStatus){
   } else if(fst.kind === "live"){
     predLine = `<div class="fix-pred"><span class="tag tag-live">进行中</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : `<span>开赛中</span>`}<span>每 30 分钟更新</span></div>`;
   } else if(fst.kind === "stale"){
-    predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : ""}<span>数据截止 ${esc(dataStamp())}</span></div>`;
+    predLine = `<div class="fix-pred"><span class="tag tag-wait">已开赛</span>${fst.score ? `<span>比分 <b>${esc(fst.score)}</b></span>` : ""}</div>`;
   } else if(!pd && f.books && f.books.length){
     const _ip = marketProbs(f);
     if(_ip){
@@ -3393,7 +3389,7 @@ function renderFixtures(){
   if(note){
     const started = list.some(f => fixtureStatus(f).kind !== "pre");
     if(started){
-      note.textContent = `数据截止 ${dataStamp()} · 比分每 30 分钟刷新`;
+      note.textContent = "比赛进行中 · 比分随后同步";
       note.classList.add("warn");
     } else {
       note.textContent = "时间为本地时区 · 未来 5 个比赛日"
@@ -5971,9 +5967,9 @@ function renderMatch(id){
     <div class="match-foot">
       <span>主队技术统计在左，客队在右</span>
       ${done ? `<span>${recTextFor(m, h.id)}</span>`
-        : (live ? `<span>比赛进行中 · 比分每 30 分钟刷新</span>`
+        : (live ? `<span>比赛进行中</span>`
         : (m.date && +new Date(m.date) <= Date.now()
-            ? `<span>比赛已开始 · 数据截止 ${esc(dataStamp())}，比分待下一次更新</span>`
+            ? `<span>比赛已开始 · 比分待更新</span>`
             : `<span>比赛尚未开始</span>`))}
     </div>
   </div>`;
