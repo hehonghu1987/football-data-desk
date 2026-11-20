@@ -1029,7 +1029,7 @@ html{scroll-behavior:smooth}
 .insight-list li{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .insight-list .k{display:block;margin:0 0 5px;font-size:10.5px}
 .insight-list p{font-size:12px;line-height:1.8}
-.insight-lead{background:var(--accent-soft);border:1px solid #BFE3CF;border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:13px;line-height:1.75;color:var(--ink)}
+.insight-lead{background:var(--accent-soft);border:1px solid #BFE3CF;border-radius:12px;padding:14px 16px;margin:0 0 12px;font-size:13px;line-height:1.85;color:var(--ink);white-space:pre-line}
 @media(max-width:900px){.insight-list{grid-template-columns:1fr}}
 .insight-more{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .insight-more>summary{cursor:pointer;list-style:none;padding:12px 14px;font-size:12.5px;color:var(--ink-2);font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -5699,33 +5699,85 @@ function renderInsight(m){
   sec.hidden = false;
 
   let lead = "";
+  const NN = ["主胜", "平局", "客胜"];
   if(upcoming){
     if(model){
       const favName = fav === "home" ? hn : fav === "away" ? an : null;
-      lead = favName
-        ? `${favName}略占上风：模型预期进球 ${xh.toFixed(1)}–${xa.toFixed(1)}`
-        : `双方胜面接近：模型预期进球 ${xh.toFixed(1)}–${xa.toFixed(1)}`;
-      lead += `，${(xh + xa) >= 2.8 ? "比赛节奏可能偏快" : (xh + xa) <= 2.2 ? "比赛节奏可能偏慢" : "整体节奏中等"}。`;
-      if(ip){
-        const marketFav = ip[0] >= ip[1] && ip[0] >= ip[2] ? "home" : (ip[2] >= ip[1] ? "away" : "even");
-        lead += ` 市场与模型${marketFav === fav ? "方向一致" : "存在分歧"}。`;
+      const segs = [];
+      // ① 概率与预期进球
+      let p1 = `模型：${hn} ${pct(final[0])} · 平 ${pct(final[1])} · ${an} ${pct(final[2])}，预期进球 ${xh.toFixed(2)}–${xa.toFixed(2)}（合计 ${(xh + xa).toFixed(2)}）`;
+      if(ip) p1 += `；市场：${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}`;
+      segs.push(p1 + "。");
+      // ② 模型与市场分歧（找最大差值）
+      if(ip && mp && mp.every(v => v != null)){
+        let maxI = 0, maxAbs = 0;
+        for(let i = 0; i < 3; i++){
+          const d = Math.abs((mp[i] || 0) - (ip[i] || 0));
+          if(d > maxAbs){ maxAbs = d; maxI = i; }
+        }
+        const g = (mp[maxI] || 0) - (ip[maxI] || 0);
+        if(maxAbs >= 0.03){
+          segs.push(`分歧最大的是${NN[maxI]}：模型 ${pct(mp[maxI])}、市场 ${pct(ip[maxI])}，相差 ${(maxAbs * 100).toFixed(1)} 个百分点，模型${g > 0 ? "更看好" : "更看淡"}${NN[maxI]}。`);
+        } else {
+          segs.push("模型与市场基本一致，胜负方向没有明显价值点。");
+        }
       }
+      // ③ 进球盘
+      if(m.pred && m.pred.o25 != null){
+        let g2 = `进球：模型大 2.5 球 ${pct(m.pred.o25)}`;
+        const ouc = (m.books && m.books.length) ? consensusLine(m, "ou") : null;
+        if(ouc && Math.abs(Number(ouc.line) - 2.5) < 0.01){
+          const pm = _devig2(ouc.over, ouc.under);
+          if(pm != null){
+            const d = m.pred.o25 - pm;
+            g2 += `、市场 ${pct(pm)}，相差 ${(Math.abs(d) * 100).toFixed(1)} 个百分点${Math.abs(d) >= 0.05 ? (d > 0 ? "，模型偏大球" : "，模型偏小球") : ""}`;
+          }
+        }
+        if(m.pred.btts != null) g2 += `；双方进球 ${pct(m.pred.btts)}`;
+        segs.push(g2 + "。");
+      }
+      // ④ 状态与交锋
+      const formBits = [];
+      if(h5.ms.length && a5.ms.length){
+        formBits.push(`${hn}近 5 场 ${fmtRec(h5.rec)}、${an}近 5 场 ${fmtRec(a5.rec)}`);
+      }
+      const h2h = h2hMatches(h.id, a.id, m.id);
+      if(h2h.length >= 3){
+        const rec2 = recordOf(h2h.slice(0, 6), h.id);
+        const gavg = h2h.slice(0, 6).reduce((n, x) => n + (x.hs || 0) + (x.as || 0), 0) / Math.min(6, h2h.length);
+        formBits.push(`近 ${Math.min(6, h2h.length)} 次交锋 ${hn} ${fmtRec(rec2)}、场均 ${gavg.toFixed(1)} 球`);
+      }
+      if(formBits.length) segs.push("状态与交锋：" + formBits.join("；") + "。");
+      // ⑤ 结论
+      const leanTxt = favName
+        ? `综合判断：倾向 ${favName}${ip ? ((fav === "home" ? ip[0] : ip[2]) > 0.5 ? "（市场也给出过半概率，方向较一致）" : "，但市场并未过热，属于温和倾向") : ""}。`
+        : "综合判断：胜负接近，平局与一球差是主要剧本，不建议重注单一方向。";
+      const riskTxt = "风险提示：模型基于近三个赛季攻防数据与赛程强度推算，阵容轮换、临场伤停或跨联赛比赛会降低可靠性。";
+      segs.push(leanTxt);
+      segs.push(riskTxt);
+      lead = segs.join("\n");
+      if(!lead) lead = "该场可用数据有限，以下为基于近期战绩与交锋的简要分析。";
     } else if(ip){
       const favName = fav === "home" ? hn : fav === "away" ? an : "平局";
-      lead = `缺少完整模型数据，仅从盘口看市场更倾向${favName}。`;
+      lead = `仅从市场盘口看，更倾向${favName}：去水概率 ${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}。本站模型缺少一方联赛数据，结论参考性有限。`;
     } else {
       lead = "该场可用数据有限，以下为基于近期战绩与交锋的简要分析。";
     }
   } else {
     const winner = m.hs > m.as ? hn : (m.hs < m.as ? an : null);
-    lead = winner ? `${winner}取胜，比分 ${m.hs}–${m.as}。` : `双方 ${m.hs}–${m.as} 战平。`;
+    const parts = [winner ? `${winner}以 ${Math.max(m.hs, m.as)}–${Math.min(m.hs, m.as)} 取胜` : `双方 ${m.hs}–${m.as} 战平`];
     const s = m.stats;
     if(s && s.home && s.away){
       const sh = s.home.shots, sa = s.away.shots;
-      if(sh != null && sa != null){
-        lead += ` 全场射门 ${sh}–${sa}、射正 ${s.home.sot ?? "—"}–${s.away.sot ?? "—"}。`;
-      }
+      if(sh != null && sa != null) parts.push(`全场射门 ${sh}–${sa}、射正 ${s.home.sot ?? "—"}–${s.away.sot ?? "—"}`);
+      if(s.home.possession != null && s.away.possession != null) parts.push(`控球 ${Number(s.home.possession).toFixed(0)}%–${Number(s.away.possession).toFixed(0)}%`);
     }
+    if(m.pre && m.pre.o25 != null){
+      const p25 = m.pre.o25, total = (m.hs || 0) + (m.as || 0);
+      const hit = (total > 2.5) === (p25 >= 0.5);
+      parts.push(`赛前模型大 2.5 球 ${pct(p25)}，实际 ${total} 球，方向${hit ? "命中" : "未中"}`);
+    }
+    lead = parts.join("，") + "。";
   }
 
   $("#insight-lead").textContent = lead;
