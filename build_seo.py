@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, "data", "matches.json")
 OUT = os.path.join(ROOT, "seo")
-SITE = "https://hehonghu1987.github.io/football-data-desk"
+SITE = "https://zhiqiulab.com"
 BRAND = "绿茵数据台"
 
 ORDER = ("shots", "sot", "corners", "offsides", "yellow", "red",
@@ -134,12 +134,12 @@ def page(title, desc, body, canonical):
 <meta property="og:description" content="{esc(desc)}">
 <meta property="og:url" content="{esc(canonical)}">
 <meta property="og:image" content="{SITE}/og-image.png">
-<link rel="icon" href="/football-data-desk/og-icon.png">
+<link rel="icon" href="/og-icon.png">
 <style>{CSS}</style>
 </head>
 <body>
 <header><div class="bar">
-  <a href="/football-data-desk/" style="display:flex;align-items:center;gap:10px;color:inherit">
+  <a href="/" style="display:flex;align-items:center;gap:10px;color:inherit">
     <span class="logo">绿</span>
     <span class="brand">{BRAND}<small>MATCH DATA DESK</small></span>
   </a>
@@ -295,9 +295,9 @@ def main():
 {next_html}
 <h2>相关页面</h2>
 <div class="chips">
-  <a class="chip" href="/football-data-desk/#/team/{esc(tid)}">在数据台查看 {esc(name_cn)} 全部比赛</a>
+  <a class="chip" href="/#/team/{esc(tid)}">在数据台查看 {esc(name_cn)} 全部比赛</a>
   <a class="chip" href="index.html">全部球队索引</a>
-  <a class="chip" href="/football-data-desk/#/">今日赛程与模型预测</a>
+  <a class="chip" href="/#/">今日赛程与模型预测</a>
 </div>
 <div class="foot">
   数据来源 ESPN 公开接口，最后更新 {now.strftime('%Y-%m-%d %H:%M')}（北京时间）。<br>
@@ -418,7 +418,7 @@ def main():
         body += ('<h2>相关页面</h2><div class="chips">'
                  f'<a class="chip" href="../teams/{team_paths.get(str(home), "")}">{hname} 球队页</a>'
                  f'<a class="chip" href="../teams/{team_paths.get(str(away), "")}">{aname} 球队页</a>'
-                 f'<a class="chip" href="/football-data-desk/#/match/{esc(m.get("id"))}">在数据台查看</a>'
+                 f'<a class="chip" href="/#/match/{esc(m.get("id"))}">在数据台查看</a>'
                  '<a class="chip" href="index.html">全部比赛</a></div>')
         body += (f'<div class="foot">数据来源 ESPN 公开接口，最后更新 '
                  f'{now.strftime("%Y-%m-%d %H:%M")}（北京时间）。预测不代表确定结果。</div>')

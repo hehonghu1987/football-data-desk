@@ -22,7 +22,7 @@ DATA = os.path.join(ROOT, "data", "matches.json")
 SNAP_DIR = os.path.join(ROOT, "odds_snapshots")
 OUT = os.path.join(ROOT, "daily")
 SEO_SITEMAP = os.path.join(ROOT, "seo", "sitemap.xml")
-SITE = "https://hehonghu1987.github.io/football-data-desk"
+SITE = "https://zhiqiulab.com"
 BRAND = "绿茵数据台"
 BJ = timezone(timedelta(hours=8))
 
@@ -126,12 +126,12 @@ def page(title, desc, body, canonical):
 <meta property="og:description" content="{esc(desc)}">
 <meta property="og:url" content="{esc(canonical)}">
 <meta property="og:image" content="{SITE}/og-image.png">
-<link rel="icon" href="/football-data-desk/og-icon.png">
+<link rel="icon" href="/og-icon.png">
 <style>{CSS}</style>
 </head>
 <body>
 <header><div class="bar">
-  <a href="/football-data-desk/" style="display:flex;align-items:center;gap:10px;color:inherit">
+  <a href="/" style="display:flex;align-items:center;gap:10px;color:inherit">
     <span class="logo">绿</span>
     <span class="brand">{BRAND}<small>MATCH DATA DESK</small></span>
   </a>
@@ -372,7 +372,7 @@ def main():
 大小球方向判别力有限，请以胜平负为主参考。预测不代表确定结果。</div>
 <div class="foot">
   数据来源 ESPN 公开接口，赔率来自指定机构（平博/威廉希尔/立博/Unibet/Tipico/Winamax/1xBet 等）。<br>
-  在 <a href="/football-data-desk/">绿茵数据台</a> 查看逐场技术统计、球队近况与校准曲线。<br>
+  在 <a href="/">绿茵数据台</a> 查看逐场技术统计、球队近况与校准曲线。<br>
   <a href="index.html">往期简报</a>
 </div>"""
 
@@ -394,7 +394,7 @@ def main():
     ibody = (f"<h1>每日简报</h1><p class=\"sub\">共 {len(days)} 期</p>"
              f'<ul style="line-height:2.2">{links}</ul>'
              f'<div class="foot">每期含当日赛程、模型概率与盘口异动。'
-             f'<a href="/football-data-desk/">返回数据台</a></div>')
+             f'<a href="/">返回数据台</a></div>')
     with open(os.path.join(OUT, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(page(f"每日简报 · {BRAND}", f"{BRAND}每日赛事简报，含模型预测与盘口异动。",
                       ibody, f"{SITE}/daily/"))
