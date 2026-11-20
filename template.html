@@ -1675,9 +1675,12 @@ td.gsep{border-left:1px solid var(--line)}
       <div class="section-head">
         <h2 class="section-title" id="standings-title">积分榜</h2>
         <span class="section-note" id="standings-note"></span>
+        <button type="button" class="chip-btn" id="standings-toggle" aria-pressed="false" aria-controls="standings-body">展开</button>
         <select class="st-select" id="standings-select" aria-label="选择联赛积分榜" style="margin-left:auto"></select>
       </div>
-      <div class="panel st-wrap" id="standings-panel"></div>
+      <div id="standings-body" hidden>
+        <div class="panel st-wrap" id="standings-panel"></div>
+      </div>
     </section>
 
     <section class="section" id="model-perf">
@@ -4290,7 +4293,7 @@ $("#m-tabbar")?.addEventListener("click", e => {
     location.hash = "#/";
     setTimeout(() => {
       if(go === "pinned"){ if(!jump("#pinned-sec")) jump("#conf-sec"); }
-      else if(go === "data"){ if(!jump("#standings-sec")) jump("#conf-sec"); }
+      else if(go === "data"){ expandStandings(); if(!jump("#standings-sec")) jump("#conf-sec"); }
     }, 150);
   }
 });
@@ -4306,7 +4309,27 @@ $("#match-nav")?.addEventListener("click", e => {
 $("#standings-select")?.addEventListener("change", e => {
   state.standingsLg = e.target.value;
   renderStandings();
+  expandStandings();
 });
+
+// 积分榜折叠
+function expandStandings(){
+  const body = document.getElementById("standings-body");
+  const btn = document.getElementById("standings-toggle");
+  if(body) body.hidden = false;
+  if(btn){ btn.textContent = "收起"; btn.setAttribute("aria-pressed", "true"); }
+}
+(function bindStandingsToggle(){
+  const btn = document.getElementById("standings-toggle");
+  const body = document.getElementById("standings-body");
+  if(!btn || !body) return;
+  btn.addEventListener("click", () => {
+    body.hidden = !body.hidden;
+    btn.textContent = body.hidden ? "展开" : "收起";
+    btn.setAttribute("aria-pressed", body.hidden ? "false" : "true");
+    if(!body.hidden) body.scrollIntoView({behavior: "smooth", block: "nearest"});
+  });
+})();
 
 $("#cat-tabs").addEventListener("click", e => {
   const b = e.target.closest("[data-league]");
