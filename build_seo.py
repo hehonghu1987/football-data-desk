@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(ROOT, "data", "matches.json")
 OUT = os.path.join(ROOT, "seo")
 SITE = "https://zhiqiulab.com"
-BRAND = "绿茵数据台"
+BRAND = "智球实验室"
 
 ORDER = ("shots", "sot", "corners", "offsides", "yellow", "red",
          "fouls", "possession", "blocked", "saves")
@@ -141,7 +141,7 @@ def page(title, desc, body, canonical):
 <header><div class="bar">
   <a href="/" style="display:flex;align-items:center;gap:10px;color:inherit">
     <span class="logo">绿</span>
-    <span class="brand">{BRAND}<small>MATCH DATA DESK</small></span>
+    <span class="brand">{BRAND}<small>ZHIQIU LAB</small></span>
   </a>
 </div></header>
 <div class="wrap">
