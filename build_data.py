@@ -2302,7 +2302,7 @@ def _apply_sp_match(f, s):
     f["sp"] = {"had": had if had_ok else None, "hhad": s.get("hhad"), "num": s.get("num"),
                "league": s.get("league"), "ttg": s.get("ttg")}
     if had_ok:
-        f.setdefault("books", []).append({"book": "竞彩官方", "m": had, "src": "sporttery"})
+        f.setdefault("books", []).append({"book": "竞彩官方", "m": had})
     ttg = s.get("ttg") or {}
     try:
         ps = []
@@ -2316,7 +2316,7 @@ def _apply_sp_match(f, s):
             p_under = sum(ps[:3]) / tot
             if 0.02 < p_over < 0.98:
                 f.setdefault("books", []).append({
-                    "book": "竞彩总进球", "src": "sporttery",
+                    "book": "竞彩总进球",
                     "ou": {"line": 2.5, "over": round(1 / p_over, 2),
                            "under": round(1 / p_under, 2)},
                 })
@@ -2541,7 +2541,6 @@ def add_sporttery_fixtures(fixture_rows, teams, team_rows, sp_matches, log=log):
             "league": SP_LEAGUE_MAP.get(sp.get("league"), sp.get("league") or "竞彩"),
             "home": th["id"], "away": ta["id"],
             "state": "pre", "hs": None, "as": None,
-            "fixtureSource": "sporttery",
         }
         if _apply_sp_match(f, sp):
             fixture_rows.append(f)
@@ -5389,7 +5388,7 @@ def main():
         "fixtureCount": len(fixture_rows),
         "dateMin": min(dates) if dates else None,
         "dateMax": max(dates) if dates else None,
-        "source": "ESPN",
+        "source": "公开数据",
         "season": f"{CURRENT_SEASON}/{(CURRENT_SEASON + 1) % 100:02d}",
     }
     # 积分榜（俱乐部联赛 + 国家队小组赛）
