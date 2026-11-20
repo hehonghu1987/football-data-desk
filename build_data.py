@@ -3679,8 +3679,23 @@ def _load_player_cn():
 PLAYER_CN = _load_player_cn()
 
 
+def _norm_player_key(name):
+    import unicodedata
+    s = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
+    return " ".join(s.replace(".", " ").split())
+
+
+PLAYER_CN_NORM = {_norm_player_key(k): v for k, v in PLAYER_CN.items() if k}
+
+
 def player_cn(name):
-    return PLAYER_CN.get(name) or name
+    if not name:
+        return name
+    v = PLAYER_CN.get(name)
+    if v:
+        return v
+    v = PLAYER_CN_NORM.get(_norm_player_key(name))
+    return v or name
 
 
 RATING_LEAGUES = {"eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "eng.2", "bra.1",
