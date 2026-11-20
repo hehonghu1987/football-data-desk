@@ -479,7 +479,7 @@ input{font:inherit}
 .team-count .l{font-size:10.5px;color:var(--muted);margin-top:2px;letter-spacing:.04em}
 
 .sum-grid{
-  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
   gap:8px;margin-top:10px;
 }
 .sum-tile{
@@ -1203,7 +1203,6 @@ main:focus{outline:none}
 #match-h2h table.h2h-no-red th:nth-child(11),#match-h2h table.h2h-no-red td:nth-child(11){display:none}
 #match-h2h table.h2h-no-possession th:nth-child(12),#match-h2h table.h2h-no-possession td:nth-child(12){display:none}
 
-/* 数据覆盖说明 */
 .cov-panel{padding:0;overflow:hidden}
 .cov-table{width:100%;border-collapse:collapse;font-size:12px}
 .cov-table th,.cov-table td{padding:10px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;line-height:1.7}
@@ -1741,27 +1740,6 @@ td.gsep{border-left:1px solid var(--line)}
       <div id="team-index" hidden></div>
     </section>
 
-    <section class="section" id="coverage-sec">
-      <div class="section-head">
-        <h2 class="section-title">数据覆盖说明</h2>
-        <span class="section-note">哪些数据稳定有、哪些不会有，固定规则</span>
-      </div>
-      <div class="panel cov-panel">
-        <table class="cov-table">
-          <thead><tr><th>数据类型</th><th>覆盖范围</th><th>稳定性</th></tr></thead>
-          <tbody>
-            <tr><td>多机构欧赔 / 亚盘 / 大小球</td><td>英超、西甲、意甲、德甲、法甲、欧冠、欧联、欧国联</td><td><b class="ok">稳定 10–15 家</b></td></tr>
-            <tr><td>补充欧赔</td><td>英冠、荷甲、葡超、巴西甲、苏超、德乙、意乙、西乙、土超、比甲、奥甲、希腊超、丹超、瑞士超、波兰超、挪超、瑞典超、日职联、美职联、阿甲、法国杯、国王杯、德国杯、英联杯、法乙、德国丙</td><td><b class="ok">开赛前 7 天内分批补 1–9 家</b></td></tr>
-            <tr><td>部分机构赔率</td><td>有盘口的俱乐部比赛</td><td><b class="ok">稳定</b></td></tr>
-            <tr><td>竞彩（胜平负 / 让球 / 总进球→大小球）</td><td>竞彩在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
-            <tr><td>模型公平赔率 / 大小球 / 亚盘</td><td>所有有模型预测的比赛</td><td><b class="ok">兜底显示，不会空白</b></td></tr>
-            <tr><td>多机构赔率（友谊赛 / 世预赛等）</td><td>部分场次暂未覆盖</td><td><b class="warn">仅竞彩/模型</b></td></tr>
-            <tr><td>伤停名单、伤缺原因</td><td>部分热门比赛</td><td><b class="warn">赛前更新</b></td></tr>
-          </tbody>
-        </table>
-        <p class="cov-note">机构报价会保留 36 小时，避免因单轮波动丢失；空白场次会显示模型兜底数据。</p>
-      </div>
-    </section>
   </section>
 
   <!-- ============ TEAM ============ -->
@@ -2009,7 +1987,6 @@ td.gsep{border-left:1px solid var(--line)}
   <button type="button" data-go="home" class="on"><span class="ic">⚽</span>赛程</button>
   <button type="button" data-go="pinned"><span class="ic">★</span>置顶</button>
   <button type="button" data-go="data"><span class="ic">📊</span>数据</button>
-  <button type="button" data-go="about"><span class="ic">ℹ</span>说明</button>
 </nav>
 
 <footer class="footer">
@@ -4314,7 +4291,6 @@ $("#m-tabbar")?.addEventListener("click", e => {
     setTimeout(() => {
       if(go === "pinned"){ if(!jump("#pinned-sec")) jump("#conf-sec"); }
       else if(go === "data"){ if(!jump("#standings-sec")) jump("#conf-sec"); }
-      else jump("#coverage-sec");
     }, 150);
   }
 });
