@@ -198,19 +198,6 @@ input{font:inherit}
   padding:1px 5px;background:var(--surface);flex:none;
 }
 .topbar-meta{display:flex;align-items:center;gap:10px;flex:none}
-.update-chip{
-  display:flex;align-items:center;gap:6px;
-  font-family:var(--font-mono);font-size:10px;color:var(--muted);
-  white-space:nowrap;
-}
-.update-chip .dot{
-  width:6px;height:6px;border-radius:50%;background:var(--accent);
-  box-shadow:0 0 0 3px var(--accent-soft);
-}
-.update-chip .uage{font-size:10px;color:var(--muted);margin-left:4px;white-space:nowrap}
-.update-chip.stale .uage{color:var(--loss)}
-.update-chip.stale{color:var(--loss)}
-.update-chip.stale .dot{background:var(--loss);box-shadow:0 0 0 3px color-mix(in srgb,var(--loss) 18%,transparent)}
 .icon-btn{
   width:34px;height:34px;display:grid;place-items:center;
   border:1px solid var(--line);border-radius:9px;
@@ -956,7 +943,6 @@ button.h2h-link{background:none;border:0;padding:0;cursor:pointer;font-family:in
 }
 @media (max-width:640px){
   .brand-sub{display:none}
-  .update-chip .txt{display:none}
   .hero-date .d{font-size:40px}
   .hero-stats{gap:8px}
   .hero-stat .n{font-size:23px}
@@ -1512,7 +1498,6 @@ td.gsep{border-left:1px solid var(--line)}
 .sum-tile{border-radius:var(--card-radius)}
 @media(max-width:760px){
   /* 顶栏精简：隐藏更新时间文字，避免与站名挤在一起 */
-  #update-time,#update-age{display:none}
   .topbar-meta .update-chip .txt{display:none}
   .brand small{display:none}
   /* 赛程行改卡片式两行布局 */
@@ -1594,7 +1579,6 @@ td.gsep{border-left:1px solid var(--line)}
     </div>
 
     <div class="topbar-meta">
-      <span class="update-chip" id="update-chip"><span class="dot"></span><span class="txt">更新</span><span id="update-time">—</span><span id="update-age" class="uage"></span></span>
       <button class="icon-btn" id="hard-reload" type="button" aria-label="强制刷新" title="强制刷新：清除缓存并加载最新数据">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"></path><path d="M21 3v6h-6"></path></svg>
       </button>
@@ -2037,7 +2021,6 @@ td.gsep{border-left:1px solid var(--line)}
   </div>
   <div class="row">
     <span>比分每 30 分钟自动更新 · 赛前盘口快照持续积累 · 缺失项以 — 表示</span>
-    <span id="footer-meta"></span>
   </div>
   <div class="row">
     <span>往期内容：<a href="/daily/index.html">每日简报</a> · <a href="/teams/index.html">球队索引</a></span>
@@ -2572,36 +2555,10 @@ function avgText(v){
 
 /* ---------- header meta ---------- */
 (function headerInit(){
-  const meta = DATA.meta || {};
-  const g = meta.generatedAt ? new Date(meta.generatedAt) : null;
-  if(g && !isNaN(g)){
-    $("#update-time").textContent = `${pad2(g.getMonth()+1)}-${pad2(g.getDate())} ${pad2(g.getHours())}:${pad2(g.getMinutes())}`;
-  } else {
-    $("#update-time").textContent = "—";
-  }
-  $("#footer-meta").textContent = meta.generatedAt
-    ? `页面生成于 ${fullTime(meta.generatedAt)}`
-    : "";
-  // 顶栏显示「X 分钟前」，数据陈旧时变红提醒（正常每 30 分钟由云端刷新）
-  const ageEl = $("#update-age"), chip = $("#update-chip");
-  const paintAge = () => {
-    if(!g || isNaN(g) || !ageEl) return;
-    const mins = Math.round((Date.now() - g.getTime()) / 60000);
-    if(mins < 1){ ageEl.textContent = "刚刚"; }
-    else if(mins < 60){ ageEl.textContent = `${mins} 分钟前`; }
-    else { ageEl.textContent = `${Math.floor(mins / 60)} 小时前`; }
-    const stale = mins >= 45;
-    if(chip){
-      chip.classList.toggle("stale", stale);
-      chip.style.cursor = stale ? "pointer" : "";
-      chip.onclick = stale ? (() => { if(window.__hardReload) window.__hardReload(); }) : null;
-      chip.title = stale
-        ? `数据已 ${mins} 分钟未更新，点击此处强制刷新（正常每 30 分钟更新一次）`
-        : "数据每 30 分钟左右自动更新";
-    }
-  };
-  paintAge();
-  setInterval(paintAge, 30000);
+  // 不显示数据更新时间 / 生成时间（保持页面干净，也不对外暴露更新节奏）
+  document.getElementById("fresh-reload")?.addEventListener("click", () => {
+    if(window.__hardReload) window.__hardReload();
+  });
 })();
 
 /* ---------- state ---------- */
