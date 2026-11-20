@@ -1508,6 +1508,53 @@ def inj_type_zh(t):
     return t
 
 
+def _advice_team(teams, tid):
+    if isinstance(teams, dict):
+        t = teams.get(str(tid)) or teams.get(tid) or {}
+    else:
+        t = next((x for x in (teams or []) if str(x.get("id")) == str(tid)), {}) or {}
+    return t
+
+
+_ADV_RULES = [
+    (r"Combo Double chance\s*:\s*(.+?)\s+or\s+draw\s+and\s+\+([\d.]+)\s+goals", r"双选组合：\1 或平局，且总进球大于 \2"),
+    (r"Combo Double chance\s*:\s*draw\s+or\s+(.+?)\s+and\s+-([\d.]+)\s+goals", r"双选组合：平局或 \1，且总进球小于 \2"),
+    (r"Combo Winner\s*:\s*(.+?)\s+and\s+\+([\d.]+)\s+goals", r"独赢组合：\1，且总进球大于 \2"),
+    (r"Combo Winner\s*:\s*(.+?)\s+and\s+-([\d.]+)\s+goals", r"独赢组合：\1，且总进球小于 \2"),
+    (r"Double chance\s*:\s*(.+?)\s+or\s+draw$", r"双选：\1 或平局"),
+    (r"Double chance\s*:\s*draw\s+or\s+(.+)$", r"双选：平局或 \1"),
+    (r"Winner\s*:\s*(.+)$", r"独赢：\1"),
+    (r"Both teams to score", r"双方进球"),
+    (r"Over\s+([\d.]+)\s+goals", r"总进球大于 \1"),
+    (r"Under\s+([\d.]+)\s+goals", r"总进球小于 \1"),
+    (r"^Home team win$", r"主队胜"),
+    (r"^Away team win$", r"客队胜"),
+    (r"^Draw$", r"平局"),
+]
+
+
+def translate_advice(adv, f, teams):
+    """外部模型建议 → 中文（队名替换成中文名，规则翻译）。"""
+    if not adv:
+        return ""
+    a = str(adv).strip()
+    pairs = []
+    for side in ("home", "away"):
+        t = _advice_team(teams, f.get(side))
+        en = t.get("name") or ""
+        cn = t.get("cn") or en
+        if en and en != cn:
+            pairs.append((en, cn))
+    for en, cn in sorted(pairs, key=lambda x: -len(x[0])):
+        a = a.replace(en, cn)
+    import re as _re
+    for pat, rep in _ADV_RULES:
+        if _re.search(pat, a):
+            a = _re.sub(pat, rep, a)
+            break
+    return a[:80]
+
+
 def attach_apifootball(fixture_rows, teams, log=log):
     """用 API-Football（Pro）补多机构欧赔/亚盘/大小球。只补未来 7 天场次，
     赛程与赔率都缓存 30 分钟，单轮最多 260 场；不写 key 进代码。"""
@@ -1682,7 +1729,7 @@ def attach_apifootball(fixture_rows, teams, log=log):
             h_, d_, a_ = _p(pct.get("home")), _p(pct.get("draw")), _p(pct.get("away"))
             adv = ((pr["response"][0].get("predictions") or {}).get("advice") or "")[:60]
             if h_ is not None and d_ is not None and a_ is not None:
-                f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": adv}
+                f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": translate_advice(adv, f, teams)}
         # 官方/预计首发（API-Football 一般赛前 1 小时内给出）
         lu = data.get("lineups") or {}
         if lu.get("response"):
@@ -2482,7 +2529,7 @@ def enrich_sp_fixtures(fixture_rows, teams=None, log=log):
                         return None
                 h_, d_, a_ = _pv(pct.get("home")), _pv(pct.get("draw")), _pv(pct.get("away"))
                 if h_ is not None:
-                    f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": (pred.get("advice") or "")[:60]}
+                    f["afp"] = {"h": h_, "d": d_, "a": a_, "adv": translate_advice(pred.get("advice"), f, teams)}
         except Exception:
             pass
         try:

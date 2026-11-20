@@ -5510,7 +5510,10 @@ function renderInsight(m){
     };
     const hStyle = styleOf(hav), aStyle = styleOf(aav);
     let t = "";
-    if(lh && la && lh.f && la.f) t += `参考阵型：${hn} ${lh.f}，${an} ${la.f}。`;
+    const afL = m.afL || null;
+    const hForm = (lh && lh.f) || (afL && afL.h && afL.h.f) || "";
+    const aForm = (la && la.f) || (afL && afL.a && afL.a.f) || "";
+    if(hForm && aForm) t += `参考阵型：${hn} ${hForm}，${an} ${aForm}。`;
     if(hStyle.length || aStyle.length){
       t += `打法上，${hn}${hStyle.slice(0, 2).join("、") || "风格不明显"}；${an}${aStyle.slice(0, 2).join("、") || "风格不明显"}。`;
     }
@@ -5523,6 +5526,9 @@ function renderInsight(m){
           : "双方控球思路接近，中场逼抢和转换效率会决定比赛节奏。";
     } else if(lh && la && lh.f && la.f){
       t += "两队阵型结构不同，边路对位和中场人数优势会是关键。";
+    }
+    if(m.afp && m.afp.adv){
+      t += `参考预测：${m.afp.adv}。`;
     }
     if(t) bullets.push({ k: "战术阵容", t });
   } else if(m.stats){
@@ -5642,7 +5648,17 @@ function renderInsight(m){
       if(asx.length) t += `${hsx.length ? "；" : ""}${an} ${asx.slice(0, 3).join("、")}`;
       t += "。";
     }
-    t += "伤停方面，部分比赛暂未获取到确切缺阵原因与名单；临场若有核心球员缺阵，可参考下方「核心球员」判断进攻端的变化。";
+    const injH = (m.inj && m.inj.h) || [], injA = (m.inj && m.inj.a) || [];
+    if(injH.length || injA.length){
+      const fmtInj = arr => arr.slice(0, 4).map(x => `${x.n}${x.r ? `（${x.r}）` : ""}`).join("、");
+      t += "伤停方面：";
+      if(injH.length) t += `${hn} ${injH.length} 人缺阵（${fmtInj(injH)}${injH.length > 4 ? " 等" : ""}）`;
+      if(injH.length && injA.length) t += "；";
+      if(injA.length) t += `${an} ${injA.length} 人缺阵（${fmtInj(injA)}${injA.length > 4 ? " 等" : ""}）`;
+      t += "。";
+    } else {
+      t += "伤停方面，目前没有明确的缺阵名单。";
+    }
     bullets.push({ k: "战术推演", t });
     // 核心球员（名单数据加载后才有）
     const rp = rosterOf(h.id);
