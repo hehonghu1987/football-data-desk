@@ -300,7 +300,7 @@ def main():
   <a class="chip" href="/#/">今日赛程与模型预测</a>
 </div>
 <div class="foot">
-  数据来源 ESPN 公开接口，最后更新 {now.strftime('%Y-%m-%d %H:%M')}（北京时间）。<br>
+  数据每 30 分钟自动更新。<br>
   技术统计为每场单队数据；「—」表示该场暂无统计。模型预测基于近三个赛季攻防数据，不代表确定结果。
 </div>"""
 
@@ -420,7 +420,7 @@ def main():
                  f'<a class="chip" href="../teams/{team_paths.get(str(away), "")}">{aname} 球队页</a>'
                  f'<a class="chip" href="/#/match/{esc(m.get("id"))}">在数据台查看</a>'
                  '<a class="chip" href="index.html">全部比赛</a></div>')
-        body += (f'<div class="foot">数据来源 ESPN 公开接口，最后更新 '
+        body += (f'<div class="foot">数据每 30 分钟自动更新，最后更新 '
                  f'{now.strftime("%Y-%m-%d %H:%M")}（北京时间）。预测不代表确定结果。</div>')
         ld = json.dumps({
             "@context": "https://schema.org", "@type": "SportsEvent",
@@ -494,7 +494,7 @@ def main():
     ibody = f"""<h1>球队索引</h1>
 <p class="sub">共 {len(pages)} 支球队 · 点击查看近期战绩与逐场技术统计</p>
 {''.join(idx)}
-<div class="foot">比分每 30 分钟自动更新。技术统计与比分来自 ESPN 公开接口。</div>"""
+<div class="foot">比分每 30 分钟自动更新。</div>"""
     with open(os.path.join(teams_dir, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(page(f"{BRAND} · 球队索引", f"{BRAND}收录 {len(pages)} 支球队的近期战绩、逐场技术统计与模型预测。",
                       ibody, f"{SITE}/teams/index.html"))

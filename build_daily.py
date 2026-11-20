@@ -360,7 +360,7 @@ def main():
     title = f"{target}（周{weekday}）足球简报 · {len(day_fixtures)} 场 · {BRAND}"
     desc = (f"{target} 共 {len(day_fixtures)} 场收录比赛，覆盖 "
             + "、".join(league_keys[:6]) + "。含模型胜平负概率、预期进球、"
-            f"大小球与盘口异动。数据来自 ESPN，赔率来自指定机构（平博/威廉希尔/立博等）。")
+            f"大小球与盘口异动。赔率来自多家机构。")
     body = f"""<h1>{target}（周{weekday}）赛事简报</h1>
 <p class="sub">共 {len(day_fixtures)} 场 · {len(league_keys)} 项赛事 · 生成于 {now.strftime('%Y-%m-%d %H:%M')}（北京时间）</p>
 <h2>今日赛程与模型预测</h2>
@@ -371,7 +371,7 @@ def main():
 <div class="sub" style="margin-top:14px">概率为纯数据模型输出（泊松 + Dixon-Coles 修正，基于近三个赛季攻防数据）；
 大小球方向判别力有限，请以胜平负为主参考。预测不代表确定结果。</div>
 <div class="foot">
-  数据来源 ESPN 公开接口，赔率来自指定机构（平博/威廉希尔/立博/Unibet/Tipico/Winamax/1xBet 等）。<br>
+  赔率来自多家机构，数据每 30 分钟自动更新。<br>
   在 <a href="/">智球实验室</a> 查看逐场技术统计、球队近况与校准曲线。<br>
   <a href="index.html">往期简报</a>
 </div>"""
@@ -382,7 +382,7 @@ def main():
 
     md = [f"# {target}（周{weekday}）足球简报", "",
           f"共 {len(day_fixtures)} 场 · {len(league_keys)} 项赛事 · {BRAND}", ""] + md_lines
-    md += ["", "---", "数据来源 ESPN，赔率来自指定机构。预测不代表确定结果，仅供参考。",
+    md += ["", "---", "赔率来自多家机构。预测不代表确定结果，仅供参考。",
            f"完整数据：{SITE}/"]
     with open(os.path.join(OUT, f"{target}.md"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(md))

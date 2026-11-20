@@ -1165,7 +1165,7 @@ main:focus{outline:none}
 .books .row-open td{background:var(--surface-2)}
 .books .row-open td{color:var(--muted)}
 
-/* 外部模型参考 */
+/* 参考预测 */
 .af-pred{margin-top:10px;font-size:11.5px;color:var(--muted);background:var(--surface-2);border:1px dashed var(--line);border-radius:8px;padding:6px 10px}
 
 /* 伤停名单 */
@@ -1387,7 +1387,7 @@ td.gsep{border-left:1px solid var(--line)}
 .deep-dir .d .v{font-size:13px;font-weight:600;margin-top:2px;line-height:1.5}
 @media(max-width:760px){.deep-grid{grid-template-columns:1fr}.deep-dir{grid-template-columns:1fr}}
 
-/* 数据来源标签 */
+/* 赔率说明标签 */
 .tag-jc{background:color-mix(in srgb, var(--accent) 14%, transparent);color:var(--accent)}
 .tag-bj{background:color-mix(in srgb, var(--draw) 16%, transparent);color:var(--draw)}
 .src-seg{margin:0 0 10px}
@@ -1547,7 +1547,7 @@ td.gsep{border-left:1px solid var(--line)}
     <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
     <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
     <p><a href="/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
-    <p>数据来源 ESPN 公开接口，赔率来自指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365），每 30 分钟自动更新。</p>
+    <p>赔率来自多家机构，每 30 分钟自动更新。</p>
   </div>
 </noscript>
 <header class="topbar">
@@ -1626,7 +1626,7 @@ td.gsep{border-left:1px solid var(--line)}
         <button class="chip-btn export-btn" id="export-daily" type="button">导出赛程卡片</button>
         <span class="section-note" id="fixtures-note">时间为本地时区 · 未来 5 个比赛日</span>
       </div>
-      <div class="seg src-seg" id="src-seg" role="group" aria-label="数据来源筛选">
+      <div class="seg src-seg" id="src-seg" role="group" aria-label="彩票类型筛选">
         <button type="button" data-src="all" aria-pressed="true">全部</button>
         <button type="button" data-src="jc" aria-pressed="false">竞彩在售</button>
       </div>
@@ -1707,7 +1707,7 @@ td.gsep{border-left:1px solid var(--line)}
           <tbody id="perf-split-body"></tbody>
         </table>
       </div>
-      <div class="table-hint" id="perf-mkt-note" hidden>用 football-data.co.uk 的多机构收盘价回测：模型概率取开赛前滚动数据（无未来信息），市场概率取收盘去水。技能分 = 1 − 模型 Brier / 收盘 Brier，为负说明模型目前还不如收盘线；「分歧 ≥3pp」按收盘价平注的 ROI 用于检验偏差能否下注，为负就说明不能。</div>
+      <div class="table-hint" id="perf-mkt-note" hidden>用多机构收盘价回测：模型概率取开赛前滚动数据（无未来信息），市场概率取收盘去水。技能分 = 1 − 模型 Brier / 收盘 Brier，为负说明模型目前还不如收盘线；「分歧 ≥3pp」按收盘价平注的 ROI 用于检验偏差能否下注，为负就说明不能。</div>
       <h3 class="subhead" id="perf-cal-head" hidden>校准曲线</h3>
       <div class="sum-grid" id="perf-cal-summary" hidden></div>
       <div class="cal-wrap" id="perf-cal" hidden></div>
@@ -1748,18 +1748,18 @@ td.gsep{border-left:1px solid var(--line)}
       </div>
       <div class="panel cov-panel">
         <table class="cov-table">
-          <thead><tr><th>数据类型</th><th>来源</th><th>覆盖范围</th><th>稳定性</th></tr></thead>
+          <thead><tr><th>数据类型</th><th>覆盖范围</th><th>稳定性</th></tr></thead>
           <tbody>
-            <tr><td>多机构欧赔 / 亚盘 / 大小球</td><td>The Odds API</td><td>英超、西甲、意甲、德甲、法甲、欧冠、欧联、欧国联</td><td><b class="ok">稳定 10–15 家</b></td></tr>
-            <tr><td>补充欧赔（h2h）</td><td>The Odds API</td><td>英冠、荷甲、葡超、巴西甲、苏超、德乙、意乙、西乙、土超、比甲、奥甲、希腊超、丹超、瑞士超、波兰超、挪超、瑞典超、日职联、美职联、阿甲、法国杯、国王杯、德国杯、英联杯、法乙、德国丙</td><td><b class="ok">开赛前 7 天内分批补 1–9 家</b></td></tr>
-            <tr><td>DraftKings / Bet365</td><td>ESPN</td><td>有盘口的俱乐部比赛</td><td><b class="ok">稳定</b></td></tr>
-            <tr><td>竞彩官方（胜平负 / 让球 / 总进球→大小球）</td><td>中国体彩公开接口</td><td>竞彩在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
-            <tr><td>模型公平赔率 / 大小球 / 亚盘</td><td>本站模型</td><td>所有有模型预测的比赛</td><td><b class="ok">兜底显示，不会空白</b></td></tr>
-            <tr><td>多机构赔率（友谊赛 / 世预赛等）</td><td>—</td><td>免费数据源不提供</td><td><b class="warn">不会有（仅竞彩/模型）</b></td></tr>
-            <tr><td>伤停名单、伤缺原因</td><td>—</td><td>ESPN 不提供足球伤停</td><td><b class="warn">不会有</b></td></tr>
+            <tr><td>多机构欧赔 / 亚盘 / 大小球</td><td>英超、西甲、意甲、德甲、法甲、欧冠、欧联、欧国联</td><td><b class="ok">稳定 10–15 家</b></td></tr>
+            <tr><td>补充欧赔</td><td>英冠、荷甲、葡超、巴西甲、苏超、德乙、意乙、西乙、土超、比甲、奥甲、希腊超、丹超、瑞士超、波兰超、挪超、瑞典超、日职联、美职联、阿甲、法国杯、国王杯、德国杯、英联杯、法乙、德国丙</td><td><b class="ok">开赛前 7 天内分批补 1–9 家</b></td></tr>
+            <tr><td>部分机构赔率</td><td>有盘口的俱乐部比赛</td><td><b class="ok">稳定</b></td></tr>
+            <tr><td>竞彩（胜平负 / 让球 / 总进球→大小球）</td><td>竞彩在售场次</td><td><b class="ok">在售期间稳定</b></td></tr>
+            <tr><td>模型公平赔率 / 大小球 / 亚盘</td><td>所有有模型预测的比赛</td><td><b class="ok">兜底显示，不会空白</b></td></tr>
+            <tr><td>多机构赔率（友谊赛 / 世预赛等）</td><td>部分场次暂未覆盖</td><td><b class="warn">仅竞彩/模型</b></td></tr>
+            <tr><td>伤停名单、伤缺原因</td><td>部分热门比赛</td><td><b class="warn">赛前更新</b></td></tr>
           </tbody>
         </table>
-        <p class="cov-note">机构报价一旦抓到，36 小时内即使接口本轮没返回也会保留（数值可能略旧）；Odds API 快照会合并保留，不会因某轮窗口变化而丢失。空白场次会显示模型兜底数据。</p>
+        <p class="cov-note">机构报价会保留 36 小时，避免因单轮波动丢失；空白场次会显示模型兜底数据。</p>
       </div>
     </section>
   </section>
@@ -1868,12 +1868,12 @@ td.gsep{border-left:1px solid var(--line)}
     <section class="section" id="team-squad-sec" hidden>
       <div class="section-head">
         <h2 class="section-title">阵容与球员</h2>
-        <span class="section-note">本赛季出场/进球/助攻（ESPN）</span>
+        <span class="section-note">本赛季出场/进球/助攻</span>
       </div>
       <div class="panel" id="team-squad"></div>
     </section>
 
-    <div class="table-hint">阵容名单按出场次数排序，数据来自 ESPN，每次构建更新。</div>
+    <div class="table-hint">阵容名单按出场次数排序，每次更新时同步。</div>
 
   </section>
 
@@ -1993,7 +1993,7 @@ td.gsep{border-left:1px solid var(--line)}
     <section class="section" id="af-inj" hidden>
       <div class="section-head">
         <h2 class="section-title">伤停名单</h2>
-        <span class="section-note" id="af-inj-note">API-Football · 赛前更新</span>
+        <span class="section-note" id="af-inj-note">赛前更新</span>
       </div>
       <div class="inj-grid" id="af-inj-panel"></div>
     </section>
@@ -2014,7 +2014,7 @@ td.gsep{border-left:1px solid var(--line)}
 
 <footer class="footer">
   <div class="row">
-    <span>数据来源：ESPN 公开接口 · 赔率来自平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 · 缺失项以 — 表示</span>
+    <span>赔率来自多家机构 · 缺失项以 — 表示</span>
     <span>覆盖：五大联赛 · 欧冠 · 欧联杯 · 足总杯/英联杯/国王杯/意大利杯/德国杯/法国杯 · 英冠 · 巴西甲 · 巴西杯</span>
   </div>
   <div class="row">
@@ -2123,7 +2123,7 @@ function badge(t, cls){
   const fg = contrast(bg);
   const ab = (t.abbr || t.cn || "").slice(0,3);
   const name = t.cn || t.name || "";
-  // 三级回落：仓库内 96px 缩图 → ESPN 原始地址 → 色块+缩写。
+  // 三级回落：仓库内 96px 缩图 → 远程原始地址 → 色块+缩写。
   // hasLogo === false 表示构建期已确认两个来源都没有素材，直接画色块，避免 404 噪音。
   const hasLogo = t.hasLogo !== false;
   const localSrc = `logos/${encodeURIComponent(String(t.id))}.png`;
@@ -2320,7 +2320,7 @@ function loadRoster(tid){
     .then(h => (h && h.players) || [])
     .then(pl => {
       if(pl.length) return pl;
-      // ESPN 没名单的球队（国家队/小联赛），用 API-Football 名单兜底
+      // 名单为空时用备用球员库兜底
       return loadAfRosters().then(m => (m && m[id]) || []);
     })
     .then(pl => { ROSTER_CACHE.set(id, pl); ROSTER_PENDING.delete(id); return pl; });
@@ -2930,9 +2930,9 @@ async function exportMatchCard(m){
   }
 
   cFootNote(ctx, [
-    "数据来源 ESPN · 赔率来自多家机构 · 模型基于近三个赛季攻防数据",
+    "赔率来自多家机构 · 模型基于近三个赛季攻防数据",
     "预测仅供参考，不代表确定结果",
-    "hehonghu1987.github.io/football-data-desk"
+    "zhiqiulab.com"
   ]);
 
   const safe = (hn + "-vs-" + an).replace(/[^\w\u4e00-\u9fa5-]+/g, "");
@@ -2999,9 +2999,9 @@ async function exportDailyCard(){
   });
 
   cFootNote(ctx, [
-    "数据来源 ESPN · 模型基于近三个赛季攻防数据",
+    "模型基于近三个赛季攻防数据",
     "大小球方向判别力有限，请以胜平负为主参考",
-    "hehonghu1987.github.io/football-data-desk"
+    "zhiqiulab.com"
   ]);
 
   const d = new Date();
@@ -5012,7 +5012,7 @@ function renderPreMatch(m){
           <div><div class="k">平</div><div class="o">${(1 / ipc[1]).toFixed(2)}</div><div class="p">${pct(ipc[1])}</div></div>
           <div><div class="k">客胜</div><div class="o">${(1 / ipc[2]).toFixed(2)}</div><div class="p">${pct(ipc[2])}</div></div>
         </div>
-        <div class="odds-src">多家机构去水共识 · 小数赔率${books.length < 3 ? ` · 免费数据源本场仅 ${books.length} 家机构` : ""}</div>
+        <div class="odds-src">多家机构去水共识 · 小数赔率${books.length < 3 ? ` · 本场仅 ${books.length} 家机构` : ""}</div>
         ${(m.sp && m.sp.had) ? `<div class="odds-src sp-line">竞彩官方：${m.sp.had.map(v => Number(v).toFixed(2)).join(" / ")}${(m.sp.hhad && m.sp.hhad.line != null) ? ` · 让球 ${m.sp.hhad.line > 0 ? "主受让" : (m.sp.hhad.line < 0 ? "主让" : "平手")}${Math.abs(m.sp.hhad.line)} 球 ${m.sp.hhad.h} / ${m.sp.hhad.d} / ${m.sp.hhad.a}` : ""}</div>` : ""}
       </div>`);
       const ahc = consensusLine(m, "ah");
@@ -5117,7 +5117,7 @@ function renderPreMatch(m){
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
-        <div class="odds-src" style="padding:6px 2px 2px">「—」表示该机构未开此盘口或数据源未提供；不同机构覆盖范围不同属正常（Bet365/平博/DraftKings/1xBet 通常最全）。</div>
+        <div class="odds-src" style="padding:6px 2px 2px">「—」表示该机构未开此盘口；不同机构覆盖范围不同属正常（Bet365/平博/DraftKings/1xBet 通常最全）。</div>
       </div>`);
     } else if(odds){
       cells.push(`<div class="odds-cell">
@@ -5159,7 +5159,7 @@ function renderPreMatch(m){
       }
     }
   }
-  // 已结束比赛：用 football-data 的收盘盘口补「赛前数据」，而不是只显示模型
+  // 已结束比赛：用收盘盘口补「赛前数据」，而不是只显示模型
   if(!isUpcoming && !cells.length){
     const fdcl = (typeof FDCO !== "undefined" && FDCO) ? FDCO[String(m.id)] : null;
     if(fdcl && (fdcl.bo || fdcl.closeAh || fdcl.closeOu)){
@@ -5173,7 +5173,7 @@ function renderPreMatch(m){
             <div><div class="k">平</div><div class="o">${Number(o[1]).toFixed(2)}</div></div>
             <div><div class="k">客胜</div><div class="o">${Number(o[2]).toFixed(2)}</div></div>
           </div>
-          <div class="odds-src">football-data 收盘均值</div>
+          <div class="odds-src">收盘均值</div>
         </div>`);
       }
       const cah = fdcl.closeAh || fdcl.ah;
@@ -5642,7 +5642,7 @@ function renderInsight(m){
       if(asx.length) t += `${hsx.length ? "；" : ""}${an} ${asx.slice(0, 3).join("、")}`;
       t += "。";
     }
-    t += "伤停方面，ESPN 公开接口暂不提供足球伤停明细，暂无法给出确切缺阵原因与名单；临场若有核心球员缺阵，可参考下方「核心球员」判断进攻端的变化。";
+    t += "伤停方面，部分比赛暂未获取到确切缺阵原因与名单；临场若有核心球员缺阵，可参考下方「核心球员」判断进攻端的变化。";
     bullets.push({ k: "战术推演", t });
     // 核心球员（名单数据加载后才有）
     const rp = rosterOf(h.id);
@@ -5713,10 +5713,10 @@ function renderInsight(m){
   }
 
   $("#insight-lead").textContent = lead;
-  // 外部模型（API-Football）参考，独立于本站模型
+  // 参考预测，独立于本站模型
   const _af = m.afp;
   if(_af && _af.h != null){
-    $("#insight-lead").insertAdjacentHTML("beforeend", `<div class="af-pred">外部模型（API-Football）：主胜 ${pct(_af.h)} · 平 ${pct(_af.d)} · 客胜 ${pct(_af.a)}${_af.adv ? ` · 建议：${esc(_af.adv)}` : ""}</div>`);
+    $("#insight-lead").insertAdjacentHTML("beforeend", `<div class="af-pred">参考预测：主胜 ${pct(_af.h)} · 平 ${pct(_af.d)} · 客胜 ${pct(_af.a)}${_af.adv ? ` · 建议：${esc(_af.adv)}` : ""}</div>`);
   }
 
   // 结论卡：把「胜负 / 进球 / 让球」三个最关键结论提到最上面
@@ -5839,7 +5839,7 @@ function renderMatch(id){
   setShareMeta(`${h.cn || h.name} vs ${a.cn || a.name} · 智球实验室`);
 
   const live = m.state === "in";          // 比分板标记进行中
-  const pre = m.state === "pre";          // 明确未开赛（ESPN 占位 0:0 不算比分）
+  const pre = m.state === "pre";          // 明确未开赛（占位 0:0 不算比分）
   const hasScore = !pre && m.hs != null && m.as != null;
   const done = !live && hasScore && (m.state === "post" || m.state === undefined);
   const score = hasScore ? `${m.hs}–${m.as}` : "VS";
@@ -6185,7 +6185,7 @@ function renderDeep(m){
       ${perTeam(hn, luH, xiH, keyPlayers(h.id), roster(h.id))}
       ${perTeam(an, luA, xiA, keyPlayers(a.id), roster(a.id))}
     </div>
-    <p class="deep-foot">预计首发按最近一场比赛首发推断，非官方名单；ESPN 暂不提供足球伤停明细，实际缺阵以官方为准。</p>
+    <p class="deep-foot">预计首发按最近一场比赛首发推断，非官方名单；实际缺阵以官方为准。</p>
   </div>`;
 
   /* ---------- 赛后复盘 ---------- */
@@ -6206,7 +6206,7 @@ function renderDeep(m){
      </details>` + postCard;
 }
 
-/* ---------- 多机构赛前盘口（football-data.co.uk，按需加载） ---------- */
+/* ---------- 多机构赛前盘口（按需加载） ---------- */
 let FDCO = null, fdcoLoading = null;
 /* 轻量半场比分（data/ht.json），给「近期进失球上下半场拆分」用，避免拉 4MB 全量盘口 */
 let HT_MAP = null, HT_LOADING = null;
@@ -6283,13 +6283,13 @@ function fdcoCard(fd, m){
   return `<section class="section">
     <div class="section-head">
       <h2 class="section-title">赛前盘口 · 多机构</h2>
-      <span class="section-note">football-data.co.uk · 收盘价</span>
+      <span class="section-note">收盘价</span>
     </div>
     <div class="fd-card">
       ${chips ? `<div class="mk-corner">${chips}</div>` : ""}
       <table class="mk-tbl"><thead><tr><th>机构</th><th>主胜</th><th>平</th><th>客胜</th></tr></thead><tbody>${rows}${consRow}</tbody></table>
       ${vs}${ah}${ou}${closing}${xg}${ht}
-      <div class="fd-note">多机构盘口来自 football-data.co.uk（免费公开数据，覆盖五大联赛/英冠/荷甲/葡超/比甲/土超/希腊超/苏超的历史收盘价）。返还率越接近 100% 水位越低；离散度越大说明机构分歧越大；凯利指数 = 最高赔率 × 共识概率，>1 表示相对共识有溢价。</div>
+      <div class="fd-note">多机构盘口来自公开历史收盘数据（覆盖五大联赛/英冠/荷甲/葡超/比甲/土超/希腊超/苏超的历史收盘价）。返还率越接近 100% 水位越低；离散度越大说明机构分歧越大；凯利指数 = 最高赔率 × 共识概率，>1 表示相对共识有溢价。</div>
     </div>
   </section>`;
 }
