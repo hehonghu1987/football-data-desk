@@ -5705,8 +5705,10 @@ function renderInsight(m){
       const favName = fav === "home" ? hn : fav === "away" ? an : null;
       const segs = [];
       // ① 概率与预期进球
-      let p1 = `模型：${hn} ${pct(final[0])} · 平 ${pct(final[1])} · ${an} ${pct(final[2])}，预期进球 ${xh.toFixed(2)}–${xa.toFixed(2)}（合计 ${(xh + xa).toFixed(2)}）`;
-      if(ip) p1 += `；市场：${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}`;
+      let p1 = ip
+        ? `综合概率（市场 70% + 模型 30%）：${hn} ${pct(final[0])} · 平 ${pct(final[1])} · ${an} ${pct(final[2])}；市场：${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}`
+        : `模型：${hn} ${pct(final[0])} · 平 ${pct(final[1])} · ${an} ${pct(final[2])}`;
+      p1 += `；预期进球 ${xh.toFixed(2)}–${xa.toFixed(2)}（合计 ${(xh + xa).toFixed(2)}）`;
       segs.push(p1 + "。");
       // ② 模型与市场分歧（找最大差值）
       if(ip && mp && mp.every(v => v != null)){
@@ -5717,7 +5719,7 @@ function renderInsight(m){
         }
         const g = (mp[maxI] || 0) - (ip[maxI] || 0);
         if(maxAbs >= 0.03){
-          segs.push(`分歧最大的是${NN[maxI]}：模型 ${pct(mp[maxI])}、市场 ${pct(ip[maxI])}，相差 ${(maxAbs * 100).toFixed(1)} 个百分点，模型${g > 0 ? "更看好" : "更看淡"}${NN[maxI]}。`);
+          segs.push(`分歧最大的是${NN[maxI]}：纯模型 ${pct(mp[maxI])}、市场 ${pct(ip[maxI])}，相差 ${(maxAbs * 100).toFixed(1)} 个百分点，模型${g > 0 ? "更看好" : "更看淡"}${NN[maxI]}。`);
         } else {
           segs.push("模型与市场基本一致，胜负方向没有明显价值点。");
         }
