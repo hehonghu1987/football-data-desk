@@ -2918,8 +2918,8 @@ function cardAnalysis(m, hn, an, h, a){
   if(upcoming){
     const ahc = (m.books && m.books.length) ? consensusLine(m, "ah") : null;
     if(ahc) parts.push(`让球盘：市场主盘 ${ahText(ahc.line)}，主队 ${ahc.h ? ahc.h.toFixed(2) : "—"}、客队 ${ahc.a ? ahc.a.toFixed(2) : "—"}。`);
-    const ouc = (m.books && m.books.length) ? consensusLine(m, "ou") : null;
-    if(ouc) parts.push(`大小球盘：市场主盘 ${Number(ouc.line).toFixed(1)} 球，大 ${ouc.over ? ouc.over.toFixed(2) : "—"}、小 ${ouc.under ? ouc.under.toFixed(2) : "—"}。`);
+    const ouc = mainOu(m);
+    if(ouc && ouc.over != null) parts.push(`大小球盘：市场主盘 ${ouc.line} 球，大 ${Number(ouc.over).toFixed(2)}、小 ${Number(ouc.under).toFixed(2)}。`);
     if(m.pred && m.pred.btts != null) parts.push(`双方进球概率 ${pct(m.pred.btts)}。`);
   }
   if(upcoming){
@@ -6485,13 +6485,13 @@ function renderDeep(m){
     }
   }
   if(pd && pd.lines && market){
-    const ouc = consensusLine(m, "ou");
-    if(ouc){
-      const key = _closestKey(pd.lines, ouc.line);
+    const ouc = mainOu(m);
+    if(ouc && ouc.over != null){
+      const pmod = modelOverAt(m, ouc.line);
       const pm = _devig2(ouc.over, ouc.under);
-      if(key != null && pm != null){
-        const d = Number(pd.lines[key]) - pm;
-        dirs.push({ k: "大小球", v: Math.abs(d) >= 0.05 ? (d > 0 ? `模型偏大 ${Number(ouc.line).toFixed(1)}` : `模型偏小 ${Number(ouc.line).toFixed(1)}`) : "模型与市场接近" });
+      if(pmod != null && pm != null){
+        const d = pmod - pm;
+        dirs.push({ k: "大小球", v: Math.abs(d) >= 0.05 ? (d > 0 ? `模型偏大 ${ouc.line}` : `模型偏小 ${ouc.line}`) : "模型与市场接近" });
       }
     }
   }
@@ -6525,13 +6525,13 @@ function renderDeep(m){
         marketBody += `<p><span class="deep-tag">让球 ${ahText(ahc.line)}</span>模型赢盘 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.03 ? (d > 0 ? "，方向偏向让球方" : "，方向偏向受让方") : "，分歧不大"}。</p>`;
       }
     }
-    const ouc = pd && pd.lines ? consensusLine(m, "ou") : null;
-    if(ouc){
-      const key = _closestKey(pd.lines, ouc.line);
+    const ouc = (pd && pd.lines) ? mainOu(m) : null;
+    if(ouc && ouc.over != null){
+      const pmod = modelOverAt(m, ouc.line);
       const pm = _devig2(ouc.over, ouc.under);
-      if(key != null && pm != null){
-        const pmod = Number(pd.lines[key]), d = pmod - pm;
-        marketBody += `<p><span class="deep-tag">大小球 ${Number(ouc.line).toFixed(1)}</span>模型大球 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.05 ? (d > 0 ? "，模型更偏大球" : "，模型更偏小球") : "，与市场接近"}。</p>`;
+      if(pmod != null && pm != null){
+        const d = pmod - pm;
+        marketBody += `<p><span class="deep-tag">大小球 ${ouc.line}</span>模型大球 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.05 ? (d > 0 ? "，模型更偏大球" : "，模型更偏小球") : "，与市场接近"}。</p>`;
       }
     }
     const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}`;
