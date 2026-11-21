@@ -5354,22 +5354,26 @@ function renderPreMatch(m){
         <div class="odds-line"><b>—</b></div>
         <div class="odds-src">该场暂无亚盘数据${m.sp ? "（可参考下方官方让球盘）" : "（机构未提供让球盘）"}</div>
       </div>`);
-      const ouc = consensusLine(m, "ou");
+      const ouc = mainOu(m);
+      const ouLineTxt = v => {
+        const n = Math.round(Number(v) * 100) / 100;
+        return String(n);
+      };
       if(ipc) cells.push(ouc ? `<div class="odds-cell">
-        <div class="l">大小球 · ${isUpcoming ? "共识" : "收盘共识"}（${ouc.n} 家同线）</div>
-        <div class="odds-line"><b>${Number(ouc.line).toFixed(1)} 球</b></div>
+        <div class="l">大小球 · ${isUpcoming ? "共识" : "收盘共识"}（${ouc.n || 0} 家同线）</div>
+        <div class="odds-line"><b>${ouLineTxt(ouc.line)} 球</b></div>
         <div class="odds-two">
-          <div><div class="k">大球</div><div class="o">${ouc.over ? ouc.over.toFixed(2) : "—"}</div></div>
-          <div><div class="k">小球</div><div class="o">${ouc.under ? ouc.under.toFixed(2) : "—"}</div></div>
+          <div><div class="k">大球</div><div class="o">${ouc.over ? Number(ouc.over).toFixed(2) : "—"}</div></div>
+          <div><div class="k">小球</div><div class="o">${ouc.under ? Number(ouc.under).toFixed(2) : "—"}</div></div>
         </div>
-        <div class="odds-src">盘口线 ${Number(ouc.line).toFixed(1)}</div>
+        <div class="odds-src">盘口线 ${ouLineTxt(ouc.line)}${ouc.market === false ? "（模型参考线）" : ""}</div>
       </div>` : `<div class="odds-cell empty">
         <div class="l">大小球</div>
         <div class="odds-line"><b>—</b></div>
         <div class="odds-src">该场暂无大小球数据（机构未提供）</div>
       </div>`);
       const qv = v => (v == null ? "—" : Number(v).toFixed(2));
-      const ql = v => (v == null ? "—" : Number(v).toFixed(1));
+      const ql = v => { if(v == null) return "—"; const n = Math.round(Number(v) * 100) / 100; return String(n); };
       // 涨跌着色：红=涨、绿=降（无变化/无初赔则灰色）
       const mvCell = (cur, prev, fmt) => {
         const c = (fmt || qv)(cur), p = (fmt || qv)(prev);
