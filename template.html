@@ -2905,6 +2905,20 @@ function cardAnalysis(m, hn, an, h, a){
     const rf = r => `${r.w}胜${r.d}平${r.l}负`;
     parts.push(`状态：${hn}近 5 场 ${rf(h5.rec)}${h5.gf != null ? `，场均进 ${h5.gf.toFixed(1)}、失 ${h5.ga.toFixed(1)}` : ""}；${an}近 5 场 ${rf(a5.rec)}${a5.gf != null ? `，场均进 ${a5.gf.toFixed(1)}、失 ${a5.ga.toFixed(1)}` : ""}。`);
   }
+  if(upcoming){
+    const ahc = (m.books && m.books.length) ? consensusLine(m, "ah") : null;
+    if(ahc) parts.push(`让球盘：市场主盘 ${ahText(ahc.line)}，主队 ${ahc.h ? ahc.h.toFixed(2) : "—"}、客队 ${ahc.a ? ahc.a.toFixed(2) : "—"}。`);
+    const ouc = (m.books && m.books.length) ? consensusLine(m, "ou") : null;
+    if(ouc) parts.push(`大小球盘：市场主盘 ${Number(ouc.line).toFixed(1)} 球，大 ${ouc.over ? ouc.over.toFixed(2) : "—"}、小 ${ouc.under ? ouc.under.toFixed(2) : "—"}。`);
+    if(m.pred && m.pred.btts != null) parts.push(`双方进球概率 ${pct(m.pred.btts)}。`);
+  }
+  if(upcoming){
+    const hhForm = sideForm(h.id, "home", 6), aaForm = sideForm(a.id, "away", 6);
+    if(hhForm.ms.length && aaForm.ms.length){
+      parts.push(`主客场：${hn}近 6 个主场 ${hhForm.rec.w}胜${hhForm.rec.d}平${hhForm.rec.l}负${hhForm.gf != null ? `（场均进 ${hhForm.gf.toFixed(1)} 失 ${hhForm.ga.toFixed(1)}）` : ""}；${an}近 6 个客场 ${aaForm.rec.w}胜${aaForm.rec.d}平${aaForm.rec.l}负${aaForm.gf != null ? `（场均进 ${aaForm.gf.toFixed(1)} 失 ${aaForm.ga.toFixed(1)}）` : ""}。`);
+    }
+  }
+  parts.push("风险提示：模型基于近三个赛季攻防数据推算，阵容轮换、临场伤停与跨联赛比赛会降低可靠性。");
   const h2h = h2hMatches(h.id, a.id, m.id);
   if(h2h.length >= 2){
     const rec = recordOf(h2h.slice(0, 6), h.id);
@@ -3110,10 +3124,13 @@ async function exportMatchCard(m){
   const innerTop = cardY + 94;
   const lineH = 36;
   const conclH = conclLines.length ? (conclLines.length * 34 + 34) : 0;
-  const avail = cardH - 94 - 32 - conclH - (conclLines.length ? 16 : 0);
+  const conclGap = conclLines.length ? 22 : 0;
+  const avail = cardH - 94 - 40 - conclH - conclGap;
   const maxLines = Math.max(2, Math.floor(avail / lineH));
   const shown = bodyLines.slice(0, maxLines);
-  let ty = innerTop;
+  const contentH = shown.length * lineH + conclGap + conclH;
+  const topOffset = Math.max(0, Math.floor((cardH - 94 - 40 - contentH) / 2));
+  let ty = innerTop + topOffset;
   cFont(ctx, 22, 400); ctx.fillStyle = ink2;
   shown.forEach((line, i) => {
     if(i === shown.length - 1 && bodyLines.length > shown.length){
@@ -3125,7 +3142,7 @@ async function exportMatchCard(m){
     ty += lineH;
   });
   if(conclLines.length){
-    const cy = cardY + cardH - conclH - 40;
+    const cy = ty + conclGap - 12;
     cRound(ctx, cardX + 40, cy, cardW - 80, conclH, 16);
     ctx.fillStyle = CK.soft; ctx.fill();
     cFont(ctx, 22, 700); ctx.fillStyle = CK.accent;
