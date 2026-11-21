@@ -3161,7 +3161,7 @@ async function exportMatchCard(m){
 
   const bodyW = W - 96;
   const _refTxt = (noteText || dirLabel)
-    ? "以上为数据参考，最终判断见上方「我的判断」。"
+    ? "以上为数据参考，最终判断见上方。"
     : (userConcl ? "以上为数据参考，最终判断见下方。" : "以上为数据参考。");
   cFont(ctx, 19, 400);
   let shortLines = cWrap(ctx, cardShortSummary(m, hn, an, h, a) + _refTxt, bodyW);
@@ -3205,7 +3205,7 @@ async function exportMatchCard(m){
   const available = BOTTOM - TOP;
   const maxAnalysisH = available - hModel - hMarket - 2 * 40;
   // 极端长文：先按最大可用高度压缩我的判断
-  let noteBoxH = hasNote ? 46 + noteTextH + 22 : 0;
+  let noteBoxH = hasNote ? noteTextH + 40 : 0;
   let analysisContentH = TITLE_H + noteBoxH + 18 + dataH + (conclLines.length ? 20 + conclBoxH : 0) + 34;
   if(analysisContentH > maxAnalysisH){
     let budget = maxAnalysisH - TITLE_H - 18 - dataH - (conclLines.length ? 20 + conclBoxH : 0) - 34 - 46;
@@ -3216,7 +3216,7 @@ async function exportMatchCard(m){
     while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
     noteLines[noteLines.length - 1] = (last || "") + "…";
     noteTextH = noteLines.reduce((n, l) => n + (l ? 34 : 17), 0);
-    noteBoxH = hasNote ? 46 + noteTextH + 22 : 0;
+    noteBoxH = hasNote ? noteTextH + 40 : 0;
     analysisContentH = TITLE_H + noteBoxH + 18 + dataH + (conclLines.length ? 20 + conclBoxH : 0) + 34;
   }
   // 整版垂直居中 + 均匀间距：不留大片空白
@@ -3295,8 +3295,6 @@ async function exportMatchCard(m){
     const nx = MX + 40, nw = W - 80;
     cRound(ctx, nx, cy, nw, noteBoxH, 16);
     ctx.fillStyle = "#F2F8F3"; ctx.fill();
-    cFont(ctx, 19, 700); ctx.fillStyle = CK.accent;
-    ctx.fillText("我的判断", nx + 22, cy + 16);
     if(dirLabel){
       cFont(ctx, 16, 600);
       const tag = `倾向${dirLabel}`;
@@ -3307,7 +3305,7 @@ async function exportMatchCard(m){
       ctx.fillText(tag, nx + nw - tw - 7, cy + 18);
     }
     cFont(ctx, 22, 400); ctx.fillStyle = ink2;
-    let nyy = cy + 46;
+    let nyy = cy + 20;
     noteLines.forEach(line => {
       if(line) ctx.fillText(line, nx + 22, nyy);
       nyy += line ? 34 : 17;
