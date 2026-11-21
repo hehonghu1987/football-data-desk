@@ -1156,7 +1156,7 @@ main:focus{outline:none}
 }
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
-/* 分析要点结论卡 */
+/* 赛前研判结论卡 */
 .verdict-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:2px 0 10px}
 .v-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .v-k{font-size:10.5px;color:var(--muted);letter-spacing:.04em}
@@ -2005,7 +2005,7 @@ td.gsep{border-left:1px solid var(--line)}
 
     <section class="section insight" id="insight" hidden>
       <div class="section-head">
-        <h2 class="section-title">分析要点</h2>
+        <h2 class="section-title">赛前研判</h2>
         <span class="section-note">基于本站数据与模型自动生成</span>
       </div>
       <div class="verdict-grid" id="insight-verdict"></div>
@@ -2917,14 +2917,14 @@ function cChip(ctx, x, y, text){
   return w;
 }
 
-/* 海报用简短数据摘要：只保留最关键 2–4 句，把版面留给「我的判断」 */
+/* 海报用极简数据摘要：最多 3 行，只做参考解释，判断以用户结论为准 */
 function cardShortSummary(m, hn, an, h, a){
   const pred = m.pred;
   const parts = [];
   if(pred && pred.ph != null){
     const ip = (m.odds || (m.books && m.books.length)) ? marketProbs(m) : null;
-    let s = `模型 ${pct(pred.ph)} / ${pct(pred.pd)} / ${pct(pred.pa)}`;
-    if(ip) s += `（市场 ${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}）`;
+    let s = `模型 ${pct(pred.ph)}/${pct(pred.pd)}/${pct(pred.pa)}`;
+    if(ip) s += `（市场 ${pct(ip[0])}/${pct(ip[1])}/${pct(ip[2])}）`;
     s += `，预期进球 ${Number(pred.xgH).toFixed(2)}–${Number(pred.xgA).toFixed(2)}。`;
     parts.push(s);
     const ou = mainOu(m);
@@ -2932,16 +2932,10 @@ function cardShortSummary(m, hn, an, h, a){
     const po = modelOverAt(m, ln);
     if(po != null){
       const pm = marketOverAt(ou);
-      parts.push(`主盘 ${ln} 球：模型大球 ${pct(po)}${pm != null ? `、市场 ${pct(pm)}` : ""}${po >= 0.56 ? "，模型偏大球。" : (po <= 0.44 ? "，模型偏小球。" : "。")}`);
+      parts.push(`机构主盘 ${ln} 球：模型大球 ${pct(po)}${pm != null ? `、市场 ${pct(pm)}` : ""}${po >= 0.56 ? "，模型偏大球。" : (po <= 0.44 ? "，模型偏小球。" : "。")}`);
     }
   }
-  const h2h = h2hMatches(h.id, a.id, m.id);
-  if(h2h.length >= 2){
-    const rec = recordOf(h2h.slice(0, 6), h.id);
-    parts.push(`近 ${Math.min(6, h2h.length)} 次交锋 ${hn} ${rec.w}胜${rec.d}平${rec.l}负。`);
-  }
-  const injH = (m.inj && m.inj.h) || [], injA = (m.inj && m.inj.a) || [];
-  if(injH.length || injA.length) parts.push(`伤停：${hn} ${injH.length} 人、${an} ${injA.length} 人。`);
+  parts.push("以上为数据参考，最终判断见上方「我的判断」。");
   return parts.join("");
 }
 
@@ -3025,6 +3019,20 @@ function cardAnalysis(m, hn, an, h, a){
     }
   }
   return { parts, conclusion };
+}
+
+function pickUserConclusion(text){
+  const t = String(text || "").trim();
+  if(!t) return "";
+  const sentences = t.split(/(?<=[。！？!?])/).map(x => x.trim()).filter(Boolean);
+  let ans = "";
+  for(const s of sentences){
+    if(/(综合来看|综合判断|综合|结论|所以|因此|倾向于|倾向|个人认为|我认为|建议)/.test(s)) ans = s;
+  }
+  if(!ans && sentences.length) ans = sentences[sentences.length - 1];
+  ans = ans.replace(/^[，,。；;\s]+/, "");
+  if(ans.length > 90) ans = ans.slice(0, 90) + "…";
+  return ans;
 }
 
 async function exportMatchCard(m){
@@ -3194,7 +3202,7 @@ async function exportMatchCard(m){
     y += hh + GAP;
   }
 
-  // ===== 分析要点（数据结论 + 用户补充观点） =====
+  // ===== 赛前研判（我的判断 + 数据参考 + 综合判断） =====
   const analysis = cardAnalysis(m, hn, an, h, a);
   const note = readMatchNote(m.id);
   const noteText = String(note.text || "").trim();
@@ -3204,7 +3212,10 @@ async function exportMatchCard(m){
   const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
   const dirLabel = DIR_LABEL[note.dir] || "";
   let conclusion = analysis.conclusion || "";
-  if(dirLabel && pred && pred.ph != null){
+  const userAns = noteText ? pickUserConclusion(noteText) : "";
+  if(userAns){
+    conclusion = `综合判断：${userAns}${dirLabel ? `（我的倾向：${dirLabel}）` : ""}`;
+  } else if(dirLabel && pred && pred.ph != null){
     let same = null;
     if(note.dir === "home" || note.dir === "draw" || note.dir === "away"){
       const mp = [pred.ph, pred.pd, pred.pa];
@@ -3225,13 +3236,19 @@ async function exportMatchCard(m){
   const cardY = y;
   const cardH = (CARD_H - 190) - cardY;
   card(cardX, cardY, cardW, cardH);
-  titleAt("分析要点", cardX + 40, cardY + 32);
+  titleAt("赛前研判", cardX + 40, cardY + 32);
 
   const bodyW = cardW - 96;
   // 先算数据摘要与结论高度，剩余空间全部给「我的判断」
   const shortTxt = cardShortSummary(m, hn, an, h, a);
   cFont(ctx, 21, 400);
-  const shortLines = cWrap(ctx, shortTxt, bodyW);
+  let shortLines = cWrap(ctx, shortTxt, bodyW);
+  if(shortLines.length > 3){
+    shortLines = shortLines.slice(0, 3);
+    let last = shortLines[2];
+    while(last.length > 1 && ctx.measureText(last + "…").width > bodyW) last = last.slice(0, -1);
+    shortLines[2] = last + "…";
+  }
   const shortH = shortLines.length * 34;
   cFont(ctx, 22, 700);
   const conclLines = conclusion ? cWrap(ctx, conclusion, bodyW - 48) : [];
@@ -3242,7 +3259,14 @@ async function exportMatchCard(m){
   let noteH = 0, noteLines = [];
   if(noteText || dirLabel){
     cFont(ctx, 19, 400);
-    noteLines = noteText ? cWrap(ctx, noteText, bodyW - 64) : [];
+    if(noteText){
+      noteLines = [];
+      const paras = noteText.split(/\n+/).map(x => x.trim()).filter(Boolean);
+      paras.forEach((para, pi) => {
+        if(pi > 0) noteLines.push("");
+        cWrap(ctx, para, bodyW - 64).forEach(l => noteLines.push(l));
+      });
+    } else noteLines = [];
     const maxNoteLines = Math.max(1, Math.floor((noteCapH - 46 + 8) / 26));
     if(noteLines.length > maxNoteLines){
       noteLines = noteLines.slice(0, maxNoteLines);
