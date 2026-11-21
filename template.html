@@ -3125,23 +3125,26 @@ async function exportMatchCard(m){
   ctx.fillStyle = CK.accent;
   ctx.fillText(chipTxt, (CARD_W - chipW) / 2 + 18, chipY + 10);
 
-  // ===== 对阵（居中大字） =====
+  // ===== 对阵（严格居中：VS 在画布中线，两队对称排开） =====
   const teamY = 312;
-  cFont(ctx, 62, 700);
-  const hnW = ctx.measureText(cFit(ctx, hn, 420)).width, anW = ctx.measureText(cFit(ctx, an, 420)).width;
+  const CXD = CARD_W / 2;
   cFont(ctx, 40, 600);
   const vsW = ctx.measureText("VS").width;
-  const gap = 46;
-  const totalW = hnW + gap + vsW + gap + anW;
-  let tx = (CARD_W - totalW) / 2;
-  cFont(ctx, 62, 700); ctx.fillStyle = ink;
-  ctx.fillText(cFit(ctx, hn, 420), tx, teamY);
-  tx += hnW + gap;
+  const gap2 = 46;
+  const sideGap = vsW / 2 + gap2;
+  cFont(ctx, 62, 700);
+  const homeMaxW = CXD - sideGap - 96;
+  const awayMaxW = CARD_W - CXD - sideGap - 96;
+  ctx.textAlign = "right";
+  ctx.fillStyle = ink;
+  ctx.fillText(cFit(ctx, hn, homeMaxW), CXD - sideGap, teamY);
+  ctx.textAlign = "center";
   cFont(ctx, 40, 600); ctx.fillStyle = "#9AAEA0";
-  ctx.fillText("VS", tx, teamY + 18);
-  tx += vsW + gap;
+  ctx.fillText("VS", CXD, teamY + 18);
+  ctx.textAlign = "left";
   cFont(ctx, 62, 700); ctx.fillStyle = ink;
-  ctx.fillText(cFit(ctx, an, 420), tx, teamY);
+  ctx.fillText(cFit(ctx, an, awayMaxW), CXD + sideGap, teamY);
+  ctx.textAlign = "left";
 
   // ================= 版式计算 =================
   const TOP = 440, BOTTOM = CARD_H - 186, GAP0 = 46;
