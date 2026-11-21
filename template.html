@@ -2916,8 +2916,8 @@ function cardAnalysis(m, hn, an, h, a){
     parts.push(`状态：${hn}近 5 场 ${rf(h5.rec)}${h5.gf != null ? `，场均进 ${h5.gf.toFixed(1)}、失 ${h5.ga.toFixed(1)}` : ""}；${an}近 5 场 ${rf(a5.rec)}${a5.gf != null ? `，场均进 ${a5.gf.toFixed(1)}、失 ${a5.ga.toFixed(1)}` : ""}。`);
   }
   if(upcoming){
-    const ahc = (m.books && m.books.length) ? consensusLine(m, "ah") : null;
-    if(ahc) parts.push(`让球盘：市场主盘 ${ahText(ahc.line)}，主队 ${ahc.h ? ahc.h.toFixed(2) : "—"}、客队 ${ahc.a ? ahc.a.toFixed(2) : "—"}。`);
+    const ahc = mainAh(m);
+    if(ahc && ahc.h != null) parts.push(`让球盘：市场主盘 ${ahText(ahc.line)}，主队 ${Number(ahc.h).toFixed(2)}、客队 ${Number(ahc.a).toFixed(2)}。`);
     const ouc = mainOu(m);
     if(ouc && ouc.over != null) parts.push(`大小球盘：市场主盘 ${ouc.line} 球，大 ${Number(ouc.over).toFixed(2)}、小 ${Number(ouc.under).toFixed(2)}。`);
     if(m.pred && m.pred.btts != null) parts.push(`双方进球概率 ${pct(m.pred.btts)}。`);
@@ -3564,6 +3564,45 @@ function marketOverAt(ou){
   if(!ou || ou.over == null || ou.under == null) return null;
   return _devig2(ou.over, ou.under);
 }
+function modelAhAt(m, line){
+  const A = (m && m.pred && m.pred.ah) || null;
+  if(!A || line == null) return null;
+  const pv = l => {
+    const k = String(Number(l));
+    if(A[k] != null) return A[k];
+    const k2 = Number(l).toFixed(1);
+    return A[k2] != null ? A[k2] : null;
+  };
+  const frac = Math.abs(Number(line)) % 1;
+  if(Math.abs(frac - 0.25) < 1e-9 || Math.abs(frac - 0.75) < 1e-9){
+    const a = pv(Number(line) - 0.25), b = pv(Number(line) + 0.25);
+    return (a != null && b != null) ? 0.5 * (a + b) : null;
+  }
+  return pv(line);
+}
+function mainAh(m){
+  const books = ((m && m.books) || []).filter(b => b.ah && b.ah.line != null && b.ah.h != null && b.ah.a != null);
+  if(!books.length) return null;
+  const weight = new Map();
+  for(const b of books){
+    const h = Number(b.ah.h), a = Number(b.ah.a), line = Number(b.ah.line);
+    if(!isFinite(h) || !isFinite(a) || !isFinite(line)) continue;
+    if(!(1.3 <= h <= 4.5 && 1.3 <= a <= 4.5)) continue;
+    weight.set(line, (weight.get(line) || 0) + 1 / (0.2 + Math.abs(h - a)));
+  }
+  let bestLine = null, bestW = -1;
+  for(const [ln, w] of weight) if(w > bestW){ bestW = w; bestLine = ln; }
+  if(bestLine == null) return null;
+  let h = 0, hn = 0, a = 0, an = 0, n = 0;
+  for(const b of books){
+    if(Number(b.ah.line) !== bestLine) continue;
+    n++;
+    if(b.ah.h != null){ h += Number(b.ah.h); hn++; }
+    if(b.ah.a != null){ a += Number(b.ah.a); an++; }
+  }
+  return { line: bestLine, h: hn ? h / hn : null, a: an ? a / an : null, n };
+}
+
 
 function fixtureStatus(f){
   const m = MATCH_BY_ID.get(String(f.id));
@@ -5340,7 +5379,7 @@ function renderPreMatch(m){
         <div class="odds-src">多家机构去水共识 · 小数赔率${books.length < 3 ? ` · 本场仅 ${books.length} 家机构` : ""}</div>
         ${(m.sp && m.sp.had) ? `<div class="odds-src sp-line">竞彩官方：${m.sp.had.map(v => Number(v).toFixed(2)).join(" / ")}${(m.sp.hhad && m.sp.hhad.line != null) ? ` · 让球 ${m.sp.hhad.line > 0 ? "主受让" : (m.sp.hhad.line < 0 ? "主让" : "平手")}${Math.abs(m.sp.hhad.line)} 球 ${m.sp.hhad.h} / ${m.sp.hhad.d} / ${m.sp.hhad.a}` : ""}</div>` : ""}
       </div>`);
-      const ahc = consensusLine(m, "ah");
+      const ahc = mainAh(m);
       if(ipc) cells.push(ahc ? `<div class="odds-cell">
         <div class="l">亚盘 · ${isUpcoming ? "共识" : "收盘共识"}（${ahc.n} 家同线）</div>
         <div class="odds-line"><b>${ahText(ahc.line)}</b></div>
@@ -6181,15 +6220,14 @@ function renderInsight(m){
         vcards.push(`<div class="v-card"><div class="v-k">进球倾向</div><div class="v-v">${over ? "大" : "小"} ${_ln} 球</div><div class="v-s">${esc(sub)}</div></div>`);
       }
       let ahMain = "暂无亚盘", ahSub = "";
-      const ahc = (m.books && m.books.length) ? consensusLine(m, "ah") : null;
+      const ahc = (m.books && m.books.length) ? mainAh(m) : null;
       if(ahc && m.pred && m.pred.ah){
-        const key = _closestKey(m.pred.ah, ahc.line);
+        const pmod = modelAhAt(m, ahc.line);
         const pm = _devig2(ahc.h, ahc.a);
-        if(key != null && pm != null){
-          const pmod = Number(m.pred.ah[key]);
+        if(pmod != null && pm != null){
           const d = pmod - pm;
           ahMain = Math.abs(d) >= 0.03 ? (d > 0 ? "主队让球方占优" : "客队受让方占优") : "盘口分歧不大";
-          ahSub = `模型 ${pct(pmod)} · 市场 ${pct(pm)}`;
+          ahSub = `模型 ${pct(pmod)} · 市场 ${pct(pm)} · 盘口 ${ahText(ahc.line)}`;
         }
       } else if(m.sp && m.sp.hhad && m.sp.hhad.line != null){
         ahMain = "参考竞彩让球";
@@ -6474,12 +6512,12 @@ function renderDeep(m){
     }
   }
   if(pd && pd.ah && market){
-    const ahc = consensusLine(m, "ah");
+    const ahc = mainAh(m);
     if(ahc){
-      const key = _closestKey(pd.ah, ahc.line);
+      const pmod = modelAhAt(m, ahc.line);
       const pm = _devig2(ahc.h, ahc.a);
-      if(key != null && pm != null){
-        const d = Number(pd.ah[key]) - pm;
+      if(pmod != null && pm != null){
+        const d = pmod - pm;
         dirs.push({ k: "让球", v: Math.abs(d) >= 0.03 ? (d > 0 ? `模型偏向主队让球（${ahText(ahc.line)}）` : `模型偏向客队受让（${ahText(ahc.line)}）`) : "模型与市场基本一致" });
       }
     }
@@ -6516,12 +6554,12 @@ function renderDeep(m){
       marketBody += `<tr><td>${names[i]}</td><td>${pct(model[i])}</td><td>${pct(market[i])}</td><td>${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)}</td><td>${best[i] ? best[i].toFixed(2) : "—"}</td></tr>`;
     }
     marketBody += `</tbody></table>`;
-    const ahc = pd && pd.ah ? consensusLine(m, "ah") : null;
+    const ahc = (pd && pd.ah) ? mainAh(m) : null;
     if(ahc){
-      const key = _closestKey(pd.ah, ahc.line);
+      const pmod = modelAhAt(m, ahc.line);
       const pm = _devig2(ahc.h, ahc.a);
-      if(key != null && pm != null){
-        const pmod = Number(pd.ah[key]), d = pmod - pm;
+      if(pmod != null && pm != null){
+        const d = pmod - pm;
         marketBody += `<p><span class="deep-tag">让球 ${ahText(ahc.line)}</span>模型赢盘 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.03 ? (d > 0 ? "，方向偏向让球方" : "，方向偏向受让方") : "，分歧不大"}。</p>`;
       }
     }
