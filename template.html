@@ -1191,6 +1191,7 @@ main:focus{outline:none}
 
 /* 新版本提示条 */
 
+.tscore .ht{display:block;font-size:10px;color:var(--muted);margin-top:2px;font-weight:400}
 /* 历史交锋：整列为空时隐藏 */
 #match-h2h table.h2h-no-shots th:nth-child(6),#match-h2h table.h2h-no-shots td:nth-child(6){display:none}
 #match-h2h table.h2h-no-sot th:nth-child(7),#match-h2h table.h2h-no-sot td:nth-child(7){display:none}
@@ -4363,6 +4364,10 @@ function rowHtml(m, tid, inlineH2H){
   const cls = o === "W" ? "r-w" : o === "D" ? "r-d" : o === "L" ? "r-l" : "";
   const so = m.so && m.so[0] != null && m.so[1] != null
     ? `<span class="so">点球 ${m.so[0]}–${m.so[1]}</span>` : "";
+  const _htRaw = (typeof HT_MAP !== "undefined" && HT_MAP && HT_MAP[String(m.id)])
+    || (typeof FDCO !== "undefined" && FDCO && FDCO[String(m.id)] && FDCO[String(m.id)].ht) || null;
+  const _ht = Array.isArray(_htRaw) && _htRaw[0] != null && _htRaw[1] != null ? _htRaw : null;
+  const htEl = _ht ? `<span class="ht">半 ${_ht[0]}–${_ht[1]}</span>` : "";
   const s = m.stats;
   const dv = (k) => s && s.home && s.away ? [s.home[k], s.away[k]] : [null, null];
   const [foulH, foulA] = dv("fouls");
@@ -4372,7 +4377,7 @@ function rowHtml(m, tid, inlineH2H){
     <td><span class="chev">▾</span> <span class="tdate">${fmtDate(m.date)}</span></td>
     <td>${leagueChip(m.league)}</td>
     <td class="tteam ${String(m.home) === String(tid) ? "me" : ""}"><span title="${esc(h.name)}">${esc(h.cn || h.name)}</span></td>
-    <td class="tscore">${scoreEl}${so}</td>
+    <td class="tscore">${scoreEl}${so}${htEl}</td>
     <td class="tteam ${String(m.away) === String(tid) ? "me" : ""}"><span title="${esc(a.name)}">${esc(a.cn || a.name)}</span></td>
     <td>${pairCell(m, "shots", tid)}</td>
     <td>${pairCell(m, "sot", tid)}</td>
@@ -4529,9 +4534,8 @@ function renderH2H(){
   $("#team-h2h-count").textContent = `${list.length} / ${all.length} 场`;
 
   $("#team-h2h-summary").innerHTML = list.length ? [
-    `<div class="sum-tile wide"><div class="l">历史交锋</div><div class="v">${all.length} 场</div><div class="s">当前筛选 ${filtered.length} 场${filtered.length > list.length ? ` · 显示最近 ${list.length} 场` : ""}</div></div>`,
-    `<div class="sum-tile"><div class="l">${esc(t.cn || t.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`,
-    `<div class="sum-tile"><div class="l">最近一次交锋</div><div class="v">${last ? fmtDate(last.date) : "—"}</div><div class="s">${last ? `${last.hs}–${last.as} · ${esc(last.league)}` : "暂无"}</div></div>`
+    `<div class="sum-tile"><div class="l">历史交锋</div><div class="v">${all.length} 场</div><div class="s">当前筛选 ${filtered.length} 场${filtered.length > list.length ? ` · 显示最近 ${list.length} 场` : ""}</div></div>`,
+    `<div class="sum-tile"><div class="l">${esc(t.cn || t.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`
   ].join("") : "";
 
   $("#team-h2h-body").innerHTML = list.length
@@ -4540,6 +4544,8 @@ function renderH2H(){
 
   $$("#h2h-side-seg [data-hside]").forEach(b => b.setAttribute("aria-pressed", b.dataset.hside === state.h2hSide ? "true" : "false"));
   $$("#h2h-comp-filters [data-hcomp]").forEach(b => b.setAttribute("aria-pressed", b.dataset.hcomp === state.h2hComp ? "true" : "false"));
+  if(!HT_MAP) loadHT().then(() => { if(state.h2hOpen) renderH2H(); });
+  if(typeof loadFdco === "function" && !FDCO) loadFdco().then(() => { if(state.h2hOpen) renderH2H(); });
 }
 
 function openH2H(oppId){
@@ -6734,9 +6740,8 @@ function renderMatchH2H(h, a, m){
     : (all.length ? `该筛选下暂无交锋` : "暂无交锋记录");
 
   $("#h2h-summary").innerHTML = list.length ? [
-    `<div class="sum-tile wide"><div class="l">历史交锋${side === "all" ? "" : " · " + sideLabel}</div><div class="v">${sideFiltered.length} 场</div><div class="s">不含本场 · 显示最近 ${list.length} 场</div></div>`,
-    `<div class="sum-tile"><div class="l">${esc(h.cn || h.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`,
-    `<div class="sum-tile"><div class="l">最近一次交锋</div><div class="v">${last ? `${fmtDate(last.date).slice(5)}` : "—"}</div><div class="s">${last ? `${TEAMS.get(String(last.home)) ? (TEAMS.get(String(last.home)).cn || TEAMS.get(String(last.home)).name) : ""} ${last.hs}–${last.as} ${TEAMS.get(String(last.away)) ? (TEAMS.get(String(last.away)).cn || TEAMS.get(String(last.away)).name) : ""}` : "暂无"}</div></div>`
+    `<div class="sum-tile"><div class="l">历史交锋${side === "all" ? "" : " · " + sideLabel}</div><div class="v">${sideFiltered.length} 场</div><div class="s">不含本场 · 显示最近 ${list.length} 场</div></div>`,
+    `<div class="sum-tile"><div class="l">${esc(h.cn || h.name)} 视角</div><div class="v"><span class="rec-w">${rec.w}</span>胜 <span class="rec-d">${rec.d}</span>平 <span class="rec-l">${rec.l}</span>负</div><div class="s">进球 ${goalsH} · 失球 ${goalsA}</div></div>`
   ].join("") : "";
 
   // 技术统计列自适应：整列都没有数据时隐藏，避免满屏「—」
@@ -6754,6 +6759,8 @@ function renderMatchH2H(h, a, m){
     ? list.map(x => rowHtml(x, h.id)).join("")
     : `<tr><td colspan="12"><div class="h2h-empty" style="margin:18px 0">${all.length ? "该主客场筛选下没有交锋记录，可切回「全部」。" : "本站尚未收录两队的历史交锋。每队仅保留最近 30 场，若两队近年未相遇则不会出现在这里。"}</div></td></tr>`;
   $("#match-view").querySelector(".table-wrap").hidden = !list.length;
+  if(!HT_MAP) loadHT().then(() => { if(String(state.matchId) === String(m.id)) renderMatchH2H(h, a, m); });
+  if(typeof loadFdco === "function" && !FDCO) loadFdco().then(() => { if(String(state.matchId) === String(m.id)) renderMatchH2H(h, a, m); });
 }
 
 function recTextFor(m, tid){
