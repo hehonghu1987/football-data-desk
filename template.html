@@ -1567,6 +1567,20 @@ td.gsep{border-left:1px solid var(--line)}
   .deep-card{padding:14px 14px}
   .odds-cell{padding:14px}
 }
+
+/* 导出前的观点补充弹窗 */
+.note-mask{position:fixed;inset:0;background:rgba(18,33,26,.45);z-index:120;display:flex;align-items:center;justify-content:center;padding:16px}
+.note-mask[hidden]{display:none}
+.note-box{width:min(560px,100%);background:var(--surface);border-radius:14px;padding:18px 18px 14px;box-shadow:0 20px 60px rgba(18,33,26,.25)}
+.note-title{font-size:15px;font-weight:700;margin:0 0 4px}
+.note-sub{font-size:11.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}
+.note-ta{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:13px;line-height:1.6;background:var(--surface-2);color:var(--ink)}
+.note-dirs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+.note-dirs button{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:11.5px;background:var(--surface);color:var(--ink-2)}
+.note-dirs button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.note-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+.note-actions .primary{background:var(--accent);color:#fff;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600}
+.note-actions .ghost{border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--ink-2)}
 </style>
 </head>
 <body>
@@ -2052,6 +2066,26 @@ td.gsep{border-left:1px solid var(--line)}
     <span></span>
   </div>
 </footer>
+
+<div class="note-mask" id="note-mask" hidden>
+  <div class="note-box" role="dialog" aria-modal="true" aria-labelledby="note-title">
+    <p class="note-title" id="note-title">导出前的补充判断（可选）</p>
+    <p class="note-sub">写下你的观点/思考方向，会和数据一起生成到分享图的分析里（每场比赛单独保存）</p>
+    <textarea class="note-ta" id="note-text" maxlength="300" placeholder="例如：曼城主场强攻、富勒姆客场防守差，倾向大球；但曼城后防有伤停，要防客队反击"></textarea>
+    <div class="note-dirs" id="note-dirs" role="group" aria-label="倾向选择">
+      <button type="button" data-note-dir="home" aria-pressed="false">倾向主胜</button>
+      <button type="button" data-note-dir="draw" aria-pressed="false">倾向平局</button>
+      <button type="button" data-note-dir="away" aria-pressed="false">倾向客胜</button>
+      <button type="button" data-note-dir="over" aria-pressed="false">倾向大球</button>
+      <button type="button" data-note-dir="under" aria-pressed="false">倾向小球</button>
+    </div>
+    <div class="note-actions">
+      <button type="button" class="ghost" id="note-cancel">取消</button>
+      <button type="button" class="ghost" id="note-skip">直接导出</button>
+      <button type="button" class="primary" id="note-export">保存并导出</button>
+    </div>
+  </div>
+</div>
 
 <script>const DATA = __DATA_JSON__;</script>
 <script>
@@ -3125,8 +3159,30 @@ async function exportMatchCard(m){
     y += hh + GAP;
   }
 
-  // ===== 智能分析（填满剩余空间） =====
+  // ===== 智能分析（数据结论 + 用户补充观点） =====
   const analysis = cardAnalysis(m, hn, an, h, a);
+  const note = readMatchNote(m.id);
+  const noteText = String(note.text || "").trim();
+  const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
+  const dirLabel = DIR_LABEL[note.dir] || "";
+  let conclusion = analysis.conclusion || "";
+  if(dirLabel && pred && pred.ph != null){
+    let same = null;
+    if(note.dir === "home" || note.dir === "draw" || note.dir === "away"){
+      const mp = [pred.ph, pred.pd, pred.pa];
+      const f = ip ? mp.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : mp;
+      const idx = { home: 0, draw: 1, away: 2 }[note.dir];
+      const favIdx = f.indexOf(Math.max(...f));
+      same = favIdx === idx;
+    } else {
+      const ou = mainOu(m);
+      const ln = ou ? ou.line : 2.5;
+      const po = modelOverAt(m, ln) != null ? modelOverAt(m, ln) : (pred.o25 || 0.5);
+      same = note.dir === "over" ? po >= 0.5 : po < 0.5;
+    }
+    if(same !== null) conclusion += ` 你倾向${dirLabel}，与模型方向${same ? "一致" : "不一致，可作为分歧点重点观察"}。`;
+  }
+
   const cardX = MX, cardW = W;
   const cardY = y;
   const cardH = (CARD_H - 190) - cardY;
@@ -3134,20 +3190,45 @@ async function exportMatchCard(m){
   titleAt("智能分析", cardX + 40, cardY + 32);
 
   const bodyW = cardW - 96;
-  cFont(ctx, 22, 400);
-  const bodyLines = cWrap(ctx, analysis.parts.join(""), bodyW);
+  let noteH = 0, noteLines = [];
+  if(noteText || dirLabel){
+    cFont(ctx, 21, 400);
+    noteLines = noteText ? cWrap(ctx, noteText, bodyW - 64) : [];
+    const innerNoteH = 30 + noteLines.length * 31 + 20;
+    noteH = innerNoteH + 14;
+    const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
+    cRound(ctx, nx, ny, nw, innerNoteH, 14);
+    ctx.fillStyle = "#F3F8F2"; ctx.fill();
+    ctx.fillStyle = CK.accent;
+    cRound(ctx, nx, ny, 6, innerNoteH, 3); ctx.fill();
+    cFont(ctx, 18, 700); ctx.fillStyle = CK.accent;
+    ctx.fillText("我的判断", nx + 20, ny + 14);
+    if(dirLabel){
+      cFont(ctx, 16, 600);
+      const tag = `倾向${dirLabel}`;
+      const tw = ctx.measureText(tag).width + 20;
+      cRound(ctx, nx + nw - tw - 16, ny + 10, tw, 26, 13);
+      ctx.fillStyle = "#DCEFE3"; ctx.fill();
+      ctx.fillStyle = CK.accent;
+      ctx.fillText(tag, nx + nw - tw - 6, ny + 16);
+    }
+    cFont(ctx, 21, 400); ctx.fillStyle = ink2;
+    noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 46 + i * 31));
+  }
+
+  const topStart = cardY + 94 + noteH;
   cFont(ctx, 22, 700);
-  const conclLines = analysis.conclusion ? cWrap(ctx, analysis.conclusion, bodyW - 48) : [];
-  const innerTop = cardY + 94;
-  const lineH = 36;
+  const conclLines = conclusion ? cWrap(ctx, conclusion, bodyW - 48) : [];
   const conclH = conclLines.length ? (conclLines.length * 34 + 34) : 0;
   const conclGap = conclLines.length ? 22 : 0;
-  const avail = cardH - 94 - 40 - conclH - conclGap;
-  const maxLines = Math.max(2, Math.floor(avail / lineH));
+  cFont(ctx, 22, 400);
+  const bodyLines = cWrap(ctx, analysis.parts.join(""), bodyW);
+  const avail = cardH - 94 - noteH - 40 - conclH - conclGap;
+  const maxLines = Math.max(2, Math.floor(avail / 34));
   const shown = bodyLines.slice(0, maxLines);
-  const innerSpace = cardH - 94 - 40 - conclH - conclGap;
-  const dynLH = Math.min(52, Math.max(34, Math.floor(innerSpace / Math.max(1, shown.length))));
-  let ty = cardY + 96;
+  const innerSpace = cardH - 94 - noteH - 40 - conclH - conclGap;
+  const dynLH = Math.min(50, Math.max(31, Math.floor(innerSpace / Math.max(1, shown.length))));
+  let ty = topStart;
   cFont(ctx, 22, 400); ctx.fillStyle = ink2;
   shown.forEach((line, i) => {
     if(i === shown.length - 1 && bodyLines.length > shown.length){
@@ -3159,7 +3240,7 @@ async function exportMatchCard(m){
     ty += dynLH;
   });
   if(conclLines.length){
-    const cy = ty + conclGap - 12;
+    const cy = Math.min(ty + conclGap - 12, cardY + cardH - conclH - 36);
     cRound(ctx, cardX + 40, cy, cardW - 80, conclH, 16);
     ctx.fillStyle = CK.soft; ctx.fill();
     cFont(ctx, 22, 700); ctx.fillStyle = CK.accent;
@@ -4519,9 +4600,59 @@ $("#mv-h2h-side")?.addEventListener("click", e => {
   if(h && a) renderMatchH2H(h, a, m);
 });
 
+/* 导出前补充观点（每场比赛单独保存到本地） */
+function readMatchNote(mid){
+  try{ const raw = localStorage.getItem("lg-note-" + String(mid)); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; }
+}
+function writeMatchNote(mid, obj){
+  try{
+    if(obj && (obj.text || obj.dir)) localStorage.setItem("lg-note-" + String(mid), JSON.stringify(obj));
+    else localStorage.removeItem("lg-note-" + String(mid));
+  }catch(e){}
+}
+let noteMatch = null, noteDir = "";
+function syncNoteDirs(){
+  $$("#note-dirs [data-note-dir]").forEach(b => b.setAttribute("aria-pressed", b.dataset.noteDir === noteDir ? "true" : "false"));
+}
+function openNoteModal(m){
+  noteMatch = m;
+  const n = readMatchNote(m.id);
+  noteDir = n.dir || "";
+  const ta = $("#note-text");
+  if(ta) ta.value = n.text || "";
+  syncNoteDirs();
+  const mask = $("#note-mask");
+  if(mask) mask.hidden = false;
+  setTimeout(() => ta && ta.focus(), 30);
+}
 $("#export-match")?.addEventListener("click", () => {
   const m = state.matchId ? MATCH_BY_ID.get(state.matchId) : null;
-  if(m) exportMatchCard(m); else toast("请先打开一场比赛");
+  if(!m){ toast("请先打开一场比赛"); return; }
+  openNoteModal(m);
+});
+$("#note-dirs")?.addEventListener("click", e => {
+  const b = e.target.closest("[data-note-dir]");
+  if(!b) return;
+  noteDir = noteDir === b.dataset.noteDir ? "" : b.dataset.noteDir;
+  syncNoteDirs();
+});
+$("#note-cancel")?.addEventListener("click", () => { const mask = $("#note-mask"); if(mask) mask.hidden = true; });
+$("#note-skip")?.addEventListener("click", () => {
+  const mask = $("#note-mask");
+  if(mask) mask.hidden = true;
+  if(noteMatch) exportMatchCard(noteMatch);
+});
+$("#note-export")?.addEventListener("click", () => {
+  const m = noteMatch;
+  if(!m) return;
+  const ta = $("#note-text");
+  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 300), dir: noteDir });
+  const mask = $("#note-mask");
+  if(mask) mask.hidden = true;
+  exportMatchCard(m);
+});
+$("#note-mask")?.addEventListener("click", e => {
+  if(e.target && e.target.id === "note-mask"){ e.target.hidden = true; }
 });
 
 $("#perf-seg").addEventListener("click", e => {
