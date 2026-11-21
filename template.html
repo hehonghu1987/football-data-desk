@@ -2072,8 +2072,8 @@ td.gsep{border-left:1px solid var(--line)}
   <div class="note-box" role="dialog" aria-modal="true" aria-labelledby="note-title">
     <p class="note-title" id="note-title">导出前的补充判断（可选）</p>
     <p class="note-sub">写下你的观点/思考方向，会和数据一起生成到分享图的分析里（每场比赛单独保存）</p>
-    <textarea class="note-ta" id="note-text" maxlength="500" placeholder="例如：曼城主场强攻、富勒姆客场防守差，倾向大球；但曼城后防有伤停，要防客队反击"></textarea>
-    <div class="note-count" id="note-count">0 / 500</div>
+    <textarea class="note-ta" id="note-text" maxlength="800" placeholder="例如：曼城主场强攻、富勒姆客场防守差，倾向大球；但曼城后防有伤停，要防客队反击"></textarea>
+    <div class="note-count" id="note-count">0 / 800</div>
     <div class="note-dirs" id="note-dirs" role="group" aria-label="倾向选择">
       <button type="button" data-note-dir="home" aria-pressed="false">倾向主胜</button>
       <button type="button" data-note-dir="draw" aria-pressed="false">倾向平局</button>
@@ -2917,6 +2917,34 @@ function cChip(ctx, x, y, text){
   return w;
 }
 
+/* 海报用简短数据摘要：只保留最关键 2–4 句，把版面留给「我的判断」 */
+function cardShortSummary(m, hn, an, h, a){
+  const pred = m.pred;
+  const parts = [];
+  if(pred && pred.ph != null){
+    const ip = (m.odds || (m.books && m.books.length)) ? marketProbs(m) : null;
+    let s = `模型 ${pct(pred.ph)} / ${pct(pred.pd)} / ${pct(pred.pa)}`;
+    if(ip) s += `（市场 ${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}）`;
+    s += `，预期进球 ${Number(pred.xgH).toFixed(2)}–${Number(pred.xgA).toFixed(2)}。`;
+    parts.push(s);
+    const ou = mainOu(m);
+    const ln = ou ? ou.line : 2.5;
+    const po = modelOverAt(m, ln);
+    if(po != null){
+      const pm = marketOverAt(ou);
+      parts.push(`主盘 ${ln} 球：模型大球 ${pct(po)}${pm != null ? `、市场 ${pct(pm)}` : ""}${po >= 0.56 ? "，模型偏大球。" : (po <= 0.44 ? "，模型偏小球。" : "。")}`);
+    }
+  }
+  const h2h = h2hMatches(h.id, a.id, m.id);
+  if(h2h.length >= 2){
+    const rec = recordOf(h2h.slice(0, 6), h.id);
+    parts.push(`近 ${Math.min(6, h2h.length)} 次交锋 ${hn} ${rec.w}胜${rec.d}平${rec.l}负。`);
+  }
+  const injH = (m.inj && m.inj.h) || [], injA = (m.inj && m.inj.a) || [];
+  if(injH.length || injA.length) parts.push(`伤停：${hn} ${injH.length} 人、${an} ${injA.length} 人。`);
+  return parts.join("");
+}
+
 /* 汇总一段可用于海报的分析文字 */
 function cardAnalysis(m, hn, an, h, a){
   const upcoming = m.hs == null && m.as == null;
@@ -3200,15 +3228,27 @@ async function exportMatchCard(m){
   titleAt("分析要点", cardX + 40, cardY + 32);
 
   const bodyW = cardW - 96;
+  // 先算数据摘要与结论高度，剩余空间全部给「我的判断」
+  const shortTxt = cardShortSummary(m, hn, an, h, a);
+  cFont(ctx, 21, 400);
+  const shortLines = cWrap(ctx, shortTxt, bodyW);
+  const shortH = shortLines.length * 34;
+  cFont(ctx, 22, 700);
+  const conclLines = conclusion ? cWrap(ctx, conclusion, bodyW - 48) : [];
+  const conclH = conclLines.length ? (conclLines.length * 34 + 34) : 0;
+  const conclGap = conclLines.length ? 18 : 0;
+  // 标题 74 + 数据 34*行 + 结论 + 间距/底部留白
+  const noteCapH = Math.max(0, cardH - 74 - shortH - 16 - conclH - conclGap - 34);
   let noteH = 0, noteLines = [];
   if(noteText || dirLabel){
     cFont(ctx, 19, 400);
     noteLines = noteText ? cWrap(ctx, noteText, bodyW - 64) : [];
-    if(noteLines.length > 12){
-      noteLines = noteLines.slice(0, 12);
-      let last = noteLines[11];
+    const maxNoteLines = Math.max(1, Math.floor((noteCapH - 46 + 8) / 26));
+    if(noteLines.length > maxNoteLines){
+      noteLines = noteLines.slice(0, maxNoteLines);
+      let last = noteLines[noteLines.length - 1];
       while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
-      noteLines[11] = last + "…";
+      noteLines[noteLines.length - 1] = last + "…";
     }
     const innerNoteH = 30 + noteLines.length * 26 + 16;
     noteH = innerNoteH + 14;
@@ -3232,31 +3272,13 @@ async function exportMatchCard(m){
     noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 44 + i * 26));
   }
 
-  const topStart = cardY + 94 + noteH;
-  cFont(ctx, 22, 700);
-  const conclLines = conclusion ? cWrap(ctx, conclusion, bodyW - 48) : [];
-  const conclH = conclLines.length ? (conclLines.length * 34 + 34) : 0;
-  const conclGap = conclLines.length ? 22 : 0;
-  cFont(ctx, 22, 400);
-  const bodyLines = cWrap(ctx, analysis.parts.join(""), bodyW);
-  const avail = cardH - 94 - noteH - 40 - conclH - conclGap;
-  const maxLines = Math.max(2, Math.floor(avail / 34));
-  const shown = bodyLines.slice(0, maxLines);
-  const innerSpace = cardH - 94 - noteH - 40 - conclH - conclGap;
-  const dynLH = Math.min(50, Math.max(31, Math.floor(innerSpace / Math.max(1, shown.length))));
+  const topStart = cardY + 78 + noteH;
   let ty = topStart;
-  cFont(ctx, 22, 400); ctx.fillStyle = ink2;
-  shown.forEach((line, i) => {
-    if(i === shown.length - 1 && bodyLines.length > shown.length){
-      let t = line;
-      while(t.length > 1 && ctx.measureText(t + "…").width > bodyW) t = t.slice(0, -1);
-      line = t + "…";
-    }
-    ctx.fillText(line, cardX + 48, ty);
-    ty += dynLH;
-  });
+  cFont(ctx, 21, 400); ctx.fillStyle = ink2;
+  shortLines.forEach(line => { ctx.fillText(line, cardX + 48, ty); ty += 34; });
+  ty += 10;
   if(conclLines.length){
-    const cy = Math.min(ty + conclGap - 12, cardY + cardH - conclH - 36);
+    const cy = Math.max(ty + 4, cardY + cardH - conclH - 30);
     cRound(ctx, cardX + 40, cy, cardW - 80, conclH, 16);
     ctx.fillStyle = CK.soft; ctx.fill();
     cFont(ctx, 22, 700); ctx.fillStyle = CK.accent;
@@ -4635,7 +4657,7 @@ function openNoteModal(m){
   const n = readMatchNote(m.id);
   noteDir = n.dir || "";
   const ta = $("#note-text");
-  if(ta) ta.value = (n.text || "").slice(0, 500);
+  if(ta) ta.value = (n.text || "").slice(0, 800);
   updateNoteCount();
   syncNoteDirs();
   const mask = $("#note-mask");
@@ -4649,7 +4671,7 @@ $("#export-match")?.addEventListener("click", () => {
 });
 function updateNoteCount(){
   const ta = $("#note-text"), c = $("#note-count");
-  if(c && ta) c.textContent = `${ta.value.length} / 500`;
+  if(c && ta) c.textContent = `${ta.value.length} / 800`;
 }
 $("#note-text")?.addEventListener("input", updateNoteCount);
 $("#note-dirs")?.addEventListener("click", e => {
@@ -4668,7 +4690,7 @@ $("#note-export")?.addEventListener("click", () => {
   const m = noteMatch;
   if(!m) return;
   const ta = $("#note-text");
-  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 500), dir: noteDir });
+  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 800), dir: noteDir });
   const mask = $("#note-mask");
   if(mask) mask.hidden = true;
   exportMatchCard(m);
