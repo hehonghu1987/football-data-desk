@@ -3250,7 +3250,9 @@ async function exportMatchCard(m){
       while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
       noteLines[noteLines.length - 1] = last + "…";
     }
-    const innerNoteH = 30 + noteLines.length * 26 + 16;
+    // 观点块尽量占满分配空间：行距自适应，块高至少填满 noteCapH
+    const noteLH = Math.min(34, Math.max(26, Math.floor((noteCapH - 46) / Math.max(1, noteLines.length))));
+    const innerNoteH = Math.max(30 + noteLines.length * noteLH + 16, noteCapH);
     noteH = innerNoteH + 14;
     const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
     cRound(ctx, nx, ny, nw, innerNoteH, 14);
@@ -3269,7 +3271,7 @@ async function exportMatchCard(m){
       ctx.fillText(tag, nx + nw - tw - 6, ny + 16);
     }
     cFont(ctx, 19, 400); ctx.fillStyle = ink2;
-    noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 44 + i * 26));
+    noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 44 + i * noteLH));
   }
 
   const topStart = cardY + 78 + noteH;
