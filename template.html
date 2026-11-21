@@ -3164,10 +3164,10 @@ async function exportMatchCard(m){
     const bl = ip ? ps.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : ps;
     labels.forEach((lb, i) => {
       const col = bx + (bw / 3) * i;
-      cFont(ctx, 16, 400); ctx.fillStyle = muted;
-      ctx.fillText(["主", "平", "客"][i], col, y + 282);
-      cFont(ctx, 24, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(bl[i] * 100) + "%", col, y + 306);
+      cFont(ctx, 17, 400); ctx.fillStyle = muted;
+      ctx.fillText(["主", "平", "客"][i], col, y + 284);
+      cFont(ctx, 32, 700); ctx.fillStyle = ink;
+      ctx.fillText(Math.round(bl[i] * 100) + "%", col, y + 310);
     });
     y += hh + GAP;
   }
