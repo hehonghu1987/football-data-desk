@@ -3047,8 +3047,8 @@ async function exportMatchCard(m){
   cFont(ctx, 62, 700); ctx.fillStyle = ink;
   ctx.fillText(cFit(ctx, an, 420), tx, teamY);
 
-  let y = 452;
-  const GAP = 32;
+  let y = 440;
+  const GAP = 52;
 
   // ===== 模型预测 =====
   if(pred && pred.ph != null){
@@ -3123,8 +3123,7 @@ async function exportMatchCard(m){
   const analysis = cardAnalysis(m, hn, an, h, a);
   const cardX = MX, cardW = W;
   const cardY = y;
-  const footerY = CARD_H - 170;
-  const cardH = footerY - cardY - 24;
+  const cardH = (CARD_H - 190) - cardY;
   card(cardX, cardY, cardW, cardH);
   titleAt("智能分析", cardX + 40, cardY + 32);
 
@@ -3141,7 +3140,7 @@ async function exportMatchCard(m){
   const maxLines = Math.max(2, Math.floor(avail / lineH));
   const shown = bodyLines.slice(0, maxLines);
   const innerSpace = cardH - 94 - 40 - conclH - conclGap;
-  const dynLH = Math.min(50, Math.max(34, Math.floor(innerSpace / Math.max(1, shown.length))));
+  const dynLH = Math.min(52, Math.max(34, Math.floor(innerSpace / Math.max(1, shown.length))));
   let ty = cardY + 96;
   cFont(ctx, 22, 400); ctx.fillStyle = ink2;
   shown.forEach((line, i) => {
@@ -3165,10 +3164,10 @@ async function exportMatchCard(m){
   // ===== 页脚 =====
   ctx.textAlign = "center";
   cFont(ctx, 17, 400); ctx.fillStyle = muted;
-  ctx.fillText("赔率来自多家机构 · 模型基于近三个赛季攻防数据", CARD_W / 2, CARD_H - 116);
-  ctx.fillText("预测仅供参考，不代表确定结果", CARD_W / 2, CARD_H - 86);
+  ctx.fillText("赔率来自多家机构 · 模型基于近三个赛季攻防数据", CARD_W / 2, CARD_H - 129);
+  ctx.fillText("预测仅供参考，不代表确定结果", CARD_W / 2, CARD_H - 102);
   cFont(ctx, 18, 600); ctx.fillStyle = CK.accent;
-  ctx.fillText("zhiqiulab.com", CARD_W / 2, CARD_H - 52);
+  ctx.fillText("zhiqiulab.com", CARD_W / 2, CARD_H - 75);
   ctx.textAlign = "left";
 
   window.__lastCardCanvas = cv;
