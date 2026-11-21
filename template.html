@@ -1775,7 +1775,7 @@ td.gsep{border-left:1px solid var(--line)}
           <tbody id="perf-split-body"></tbody>
         </table>
       </div>
-      <div class="table-hint" id="perf-mkt-note" hidden>用多机构收盘价回测：模型概率取开赛前滚动数据（无未来信息），市场概率取收盘去水。技能分 = 1 − 模型 Brier / 收盘 Brier，为负说明模型目前还不如收盘线；「分歧 ≥3pp」按收盘价平注的 ROI 用于检验偏差能否下注，为负就说明不能。</div>
+      <div class="table-hint" id="perf-mkt-note" hidden>用多机构收盘价回测：模型概率取开赛前滚动数据（无未来信息），市场概率取收盘折算。技能分 = 1 − 模型 Brier / 收盘 Brier，为负说明模型目前还不如收盘线；「分歧 ≥3pp」按收盘价平注的 ROI 用于检验偏差能否下注，为负就说明不能。</div>
       <h3 class="subhead" id="perf-cal-head" hidden>校准曲线</h3>
       <div class="sum-grid" id="perf-cal-summary" hidden></div>
       <div class="cal-wrap" id="perf-cal" hidden></div>
@@ -1787,7 +1787,7 @@ td.gsep{border-left:1px solid var(--line)}
     <section class="section" id="dis-board-sec" hidden>
       <div class="section-head">
         <h2 class="section-title">模型-市场分歧榜 · 近 7 天</h2>
-        <span class="section-note">模型概率 vs 收盘去水概率 · 分歧越大越值得复盘</span>
+        <span class="section-note">模型概率 vs 收盘综合概率 · 分歧越大越值得复盘</span>
       </div>
       <div class="panel" id="dis-board"></div>
     </section>
@@ -2034,7 +2034,7 @@ td.gsep{border-left:1px solid var(--line)}
       <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
       <div class="lineup-compare" id="lineup-compare"></div>
 
-      <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有盘口时，「综合预测」= 市场去水概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+      <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有盘口时，「综合预测」= 市场综合概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
     </section>
 
     <section class="section" id="af-inj" hidden>
@@ -3128,9 +3128,9 @@ async function exportMatchCard(m){
   let y = 440;
   const GAP = 52;
 
-  // ===== 模型预测 =====
+  // ===== 模型预测（含市场综合概率） =====
   if(pred && pred.ph != null){
-    const hh = 250;
+    const hh = 400;
     card(MX, y, W, hh);
     titleAt("模型预测", MX + 40, y + 32);
     cFont(ctx, 20, 400); ctx.fillStyle = muted;
@@ -3138,7 +3138,7 @@ async function exportMatchCard(m){
     ctx.fillText(`预期进球 ${Number(pred.xgH).toFixed(2)} — ${Number(pred.xgA).toFixed(2)}`, MX + W - 40, y + 36);
     ctx.textAlign = "left";
     const ps = [pred.ph, pred.pd, pred.pa];
-    const bx = MX + 40, bw = W - 80, barY = y + 96, barH = 14;
+    const bx = MX + 40, bw = W - 80, barY = y + 92, barH = 16;
     let cx = bx;
     ps.forEach((p, i) => {
       ctx.fillStyle = i === 0 ? CK.accent : (i === 1 ? "#DDE7DE" : "#8FA898");
@@ -3149,9 +3149,22 @@ async function exportMatchCard(m){
     labels.forEach((lb, i) => {
       const col = bx + (bw / 3) * i;
       cFont(ctx, 19, 400); ctx.fillStyle = muted;
-      ctx.fillText(lb, col, y + 150);
+      ctx.fillText(lb, col, y + 144);
       cFont(ctx, 42, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 180);
+      ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 172);
+    });
+    // 分隔线 + 市场综合概率
+    ctx.strokeStyle = "#E3EBE3"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(bx, y + 238); ctx.lineTo(bx + bw, y + 238); ctx.stroke();
+    cFont(ctx, 17, 500); ctx.fillStyle = muted;
+    ctx.fillText("市场综合概率 · 综合预测", bx, y + 258);
+    const bl = ip ? ps.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : ps;
+    labels.forEach((lb, i) => {
+      const col = bx + (bw / 3) * i;
+      cFont(ctx, 16, 400); ctx.fillStyle = muted;
+      ctx.fillText(["主", "平", "客"][i], col, y + 292);
+      cFont(ctx, 40, 700); ctx.fillStyle = ink;
+      ctx.fillText(Math.round(bl[i] * 100) + "%", col, y + 316);
     });
     y += hh + GAP;
   }
@@ -3179,25 +3192,6 @@ async function exportMatchCard(m){
       ctx.fillText(cFit(ctx, it[0], colW - 18), cxx, y + 88);
       cFont(ctx, 34, 700); ctx.fillStyle = ink;
       ctx.fillText(it[1], cxx, y + 116);
-    });
-    y += hh + GAP;
-  }
-
-  // ===== 市场去水概率 · 综合预测 =====
-  if(pred && pred.ph != null){
-    const hh = 210;
-    card(MX, y, W, hh);
-    titleAt("市场去水概率 · 综合预测", MX + 40, y + 32);
-    const ps = [pred.ph, pred.pd, pred.pa];
-    const bl = ip ? ps.map((v, i) => ip[i] * 0.7 + v * 0.3) : ps;
-    const labels = ["主", "平", "客"];
-    const colW = (W - 80) / 3;
-    labels.forEach((lb, i) => {
-      const cxx = MX + 40 + colW * i;
-      cFont(ctx, 20, 400); ctx.fillStyle = muted;
-      ctx.fillText(`${lb}     模型 ${Math.round(ps[i] * 100)}%`, cxx, y + 96);
-      cFont(ctx, 44, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(bl[i] * 100) + "%", cxx, y + 126);
     });
     y += hh + GAP;
   }
@@ -3275,7 +3269,7 @@ async function exportMatchCard(m){
       noteLines[noteLines.length - 1] = last + "…";
     }
     // 观点块尽量占满分配空间：行距自适应，块高至少填满 noteCapH
-    const noteLH = Math.min(34, Math.max(26, Math.floor((noteCapH - 46) / Math.max(1, noteLines.length))));
+    const noteLH = Math.min(36, Math.max(28, Math.floor((noteCapH - 46) / Math.max(1, noteLines.length))));
     const innerNoteH = Math.max(30 + noteLines.length * noteLH + 16, noteCapH);
     noteH = innerNoteH + 14;
     const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
@@ -3294,7 +3288,7 @@ async function exportMatchCard(m){
       ctx.fillStyle = CK.accent;
       ctx.fillText(tag, nx + nw - tw - 6, ny + 16);
     }
-    cFont(ctx, 19, 400); ctx.fillStyle = ink2;
+    cFont(ctx, 21, 400); ctx.fillStyle = ink2;
     noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 44 + i * noteLH));
   }
 
@@ -3615,7 +3609,7 @@ function bookLabel(name){
   return `<span class="bn-cn">${esc(cn)}</span><span class="bn-en">${esc(name || "")}</span>`;
 }
 
-/* 多机构赔率：共识去水概率 / 最集中的盘口线 */
+/* 多机构赔率：共识市场概率 / 最集中的盘口线 */
 function marketProbs(m){
   const books = (m && m.books) || [];
   let sum = null, n = 0;
@@ -5320,7 +5314,7 @@ function ahText(line){
 
 function pct(p){ return Math.round((p || 0) * 100) + "%"; }
 
-/* 两路赔率去水，返回 [主/大, 客/小] 的隐含概率 */
+/* 两路赔率折算，返回 [主/大, 客/小] 的隐含概率 */
 function devig2(o1, o2){
   const a = o1 > 0 ? 1 / o1 : 0;
   const b = o2 > 0 ? 1 / o2 : 0;
@@ -5328,7 +5322,7 @@ function devig2(o1, o2){
   return s ? [a / s, b / s] : null;
 }
 
-/* 盘口对照表：模型概率 vs 同一条线上的市场去水概率，偏差单位为百分点 */
+/* 盘口对照表：模型概率 vs 同一条线上的市场综合概率，偏差单位为百分点 */
 function marketRows(rows, mkLine, mkProbs, fmt){
   return rows.map(r => {
     const isMk = mkProbs && mkLine != null && Math.abs(mkLine - r.line) < 1e-6;
@@ -5445,7 +5439,7 @@ function renderMarkets(m, pred, odds){
     ? `<div class="mk-sub mk-warn">本场为跨联赛对阵，模型向均值收缩后偏向保守，偏差绝对值会系统性偏大，参考性较低。</div>`
     : "";
   box.innerHTML = `<div class="mk-title">盘口对照</div>
-    <div class="mk-sub">模型 = 纯数据模型概率；市场 = 多家机构共识赔率去水后的隐含概率（仅与市场同线时可对照）。偏差 = 模型 − 市场，单位为百分点；仅供参考，不代表存在投注价值。</div>
+    <div class="mk-sub">模型 = 纯数据模型概率；市场 = 多家机构共识赔率折算后的隐含概率（仅与市场同线时可对照）。偏差 = 模型 − 市场，单位为百分点；仅供参考，不代表存在投注价值。</div>
     ${warn}
     <div class="mk-sub">大小球口径的模型判别力有限（「模型表现」里的大小球技能分可查），该部分偏差更适合当作校准参考，不宜直接当作下注边际。</div>
     <div class="mk-wrap">${cards.join("")}</div>`;
@@ -5577,7 +5571,7 @@ function renderPreMatch(m){
           <div><div class="k">平</div><div class="o">${(1 / ipc[1]).toFixed(2)}</div><div class="p">${pct(ipc[1])}</div></div>
           <div><div class="k">客胜</div><div class="o">${(1 / ipc[2]).toFixed(2)}</div><div class="p">${pct(ipc[2])}</div></div>
         </div>
-        <div class="odds-src">多家机构去水共识 · 小数赔率${books.length < 3 ? ` · 本场仅 ${books.length} 家机构` : ""}</div>
+        <div class="odds-src">多家机构综合共识 · 小数赔率${books.length < 3 ? ` · 本场仅 ${books.length} 家机构` : ""}</div>
         ${(m.sp && m.sp.had) ? `<div class="odds-src sp-line">竞彩官方：${m.sp.had.map(v => Number(v).toFixed(2)).join(" / ")}${(m.sp.hhad && m.sp.hhad.line != null) ? ` · 让球 ${m.sp.hhad.line > 0 ? "主受让" : (m.sp.hhad.line < 0 ? "主让" : "平手")}${Math.abs(m.sp.hhad.line)} 球 ${m.sp.hhad.h} / ${m.sp.hhad.d} / ${m.sp.hhad.a}` : ""}</div>` : ""}
       </div>`);
       const ahc = mainAh(m);
@@ -5713,7 +5707,7 @@ function renderPreMatch(m){
           <div><div class="k">平</div><div class="o">${odds.ml.d.toFixed(2)}</div><div class="p">${pct(ip[1])}</div></div>
           <div><div class="k">客胜</div><div class="o">${odds.ml.a.toFixed(2)}</div><div class="p">${pct(ip[2])}</div></div>
         </div>
-        <div class="odds-src">${esc(odds.provider || "")} · 小数赔率 / 去水概率</div>
+        <div class="odds-src">${esc(odds.provider || "")} · 小数赔率 / 综合概率</div>
       </div>`);
       if(odds.ah){
         cells.push(`<div class="odds-cell">
@@ -6039,7 +6033,7 @@ function renderInsight(m){
   } else if(ip){
     const marketFav = ip[0] >= ip[1] && ip[0] >= ip[2] ? "home" : (ip[2] >= ip[1] ? "away" : "even");
     fav = marketFav;
-    bullets.push({ k: "市场倾向", t: `本站模型缺少一方联赛数据，市场去水概率为主胜 ${pct(ip[0])}、平 ${pct(ip[1])}、客胜 ${pct(ip[2])}。` });
+    bullets.push({ k: "市场倾向", t: `本站模型缺少一方联赛数据，市场综合概率为主胜 ${pct(ip[0])}、平 ${pct(ip[1])}、客胜 ${pct(ip[2])}。` });
   }
 
   // 2) 近期状态
@@ -6216,7 +6210,7 @@ function renderInsight(m){
     if(pMain != null){
       t += `按市场主盘 ${_mainLine} 球：模型大球 ${pct(pMain)}（公平赔率 ${(1 / pMain).toFixed(2)}）、小球 ${pct(1 - pMain)}（公平赔率 ${(1 / (1 - pMain)).toFixed(2)}）`;
       const _pm = marketOverAt(_main);
-      if(_pm != null) t += `；市场去水大球 ${pct(_pm)}，模型${pMain >= _pm ? "偏大球" : "偏小球"}（差 ${(Math.abs(pMain - _pm) * 100).toFixed(1)} 个百分点）`;
+      if(_pm != null) t += `；市场大球概率 ${pct(_pm)}，模型${pMain >= _pm ? "偏大球" : "偏小球"}（差 ${(Math.abs(pMain - _pm) * 100).toFixed(1)} 个百分点）`;
     }
     if(p25 != null && Math.abs(_mainLine - 2.5) > 1e-9) t += `${t ? "。" : ""}另：大 2.5 球 ${pct(p25)}（公平赔率 ${(1 / p25).toFixed(2)}）`;
     if(p35 != null && Math.abs(_mainLine - 3.5) > 1e-9) t += `${t ? "；" : ""}大 3.5 球 ${pct(p35)}（公平赔率 ${(1 / p35).toFixed(2)}）`;
@@ -6367,7 +6361,7 @@ function renderInsight(m){
       if(!lead) lead = "该场可用数据有限，以下为基于近期战绩与交锋的简要分析。";
     } else if(ip){
       const favName = fav === "home" ? hn : fav === "away" ? an : "平局";
-      lead = `仅从市场盘口看，更倾向${favName}：去水概率 ${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}。本站模型缺少一方联赛数据，结论参考性有限。`;
+      lead = `仅从市场盘口看，更倾向${favName}：市场概率 ${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}。本站模型缺少一方联赛数据，结论参考性有限。`;
     } else {
       lead = "该场可用数据有限，以下为基于近期战绩与交锋的简要分析。";
     }
@@ -6775,7 +6769,7 @@ function renderDeep(m){
     }
     const srcTags = `${m.sp ? `<span class="deep-tag">竞彩 ${esc(m.sp.num || "")}</span>` : ""}`;
     marketBody = `<div class="deep-kv" style="margin-bottom:10px">${srcTags}</div>` + marketBody +
-      `<p class="deep-foot">「差」为模型概率减市场去水概率，正值表示模型认为市场低估了该结果；「最优价」为该结果在比价机构中的最高小数赔率（机构覆盖场次不同，仅供参考）。模型整体弱于收盘线，方向仅供参考。</p>`;
+      `<p class="deep-foot">「差」为模型概率减市场综合概率，正值表示模型认为市场低估了该结果；「最优价」为该结果在比价机构中的最高小数赔率（机构覆盖场次不同，仅供参考）。模型整体弱于收盘线，方向仅供参考。</p>`;
   } else {
     marketBody = `<p class="deep-foot">该场暂无多机构赔率，无法做模型-市场对比。</p>`;
   }
