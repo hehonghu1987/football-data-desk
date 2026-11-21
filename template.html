@@ -2918,7 +2918,6 @@ function cardAnalysis(m, hn, an, h, a){
       parts.push(`主客场：${hn}近 6 个主场 ${hhForm.rec.w}胜${hhForm.rec.d}平${hhForm.rec.l}负${hhForm.gf != null ? `（场均进 ${hhForm.gf.toFixed(1)} 失 ${hhForm.ga.toFixed(1)}）` : ""}；${an}近 6 个客场 ${aaForm.rec.w}胜${aaForm.rec.d}平${aaForm.rec.l}负${aaForm.gf != null ? `（场均进 ${aaForm.gf.toFixed(1)} 失 ${aaForm.ga.toFixed(1)}）` : ""}。`);
     }
   }
-  parts.push("风险提示：模型基于近三个赛季攻防数据推算，阵容轮换、临场伤停与跨联赛比赛会降低可靠性。");
   const h2h = h2hMatches(h.id, a.id, m.id);
   if(h2h.length >= 2){
     const rec = recordOf(h2h.slice(0, 6), h.id);
@@ -2930,6 +2929,7 @@ function cardAnalysis(m, hn, an, h, a){
     const nm = arr => arr.slice(0, 3).map(x => x.n).join("、");
     parts.push(`伤停：${injH.length ? `${hn} ${injH.length} 人（${nm(injH)}${injH.length > 3 ? " 等" : ""}）` : ""}${injH.length && injA.length ? "；" : ""}${injA.length ? `${an} ${injA.length} 人（${nm(injA)}${injA.length > 3 ? " 等" : ""}）` : ""} 缺阵。`);
   }
+  parts.push("风险提示：模型基于近三个赛季攻防数据推算，阵容轮换、临场伤停与跨联赛比赛会降低可靠性。");
   let conclusion = "";
   if(pred && mp){
     const f = ip ? mp.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : mp;
@@ -3128,9 +3128,9 @@ async function exportMatchCard(m){
   const avail = cardH - 94 - 40 - conclH - conclGap;
   const maxLines = Math.max(2, Math.floor(avail / lineH));
   const shown = bodyLines.slice(0, maxLines);
-  const contentH = shown.length * lineH + conclGap + conclH;
-  const topOffset = Math.max(0, Math.floor((cardH - 94 - 40 - contentH) / 2));
-  let ty = innerTop + topOffset;
+  const innerSpace = cardH - 94 - 40 - conclH - conclGap;
+  const dynLH = Math.min(44, Math.max(34, Math.floor(innerSpace / Math.max(1, shown.length))));
+  let ty = cardY + 96;
   cFont(ctx, 22, 400); ctx.fillStyle = ink2;
   shown.forEach((line, i) => {
     if(i === shown.length - 1 && bodyLines.length > shown.length){
@@ -3139,7 +3139,7 @@ async function exportMatchCard(m){
       line = t + "…";
     }
     ctx.fillText(line, cardX + 48, ty);
-    ty += lineH;
+    ty += dynLH;
   });
   if(conclLines.length){
     const cy = ty + conclGap - 12;
@@ -3527,8 +3527,10 @@ function fixtureRowHtml(f, forceStatus){
     const _ip = marketProbs(f);
     if(_ip){
       predLine = `<div class="fix-pred"><span class="tag">欧赔</span><span>主胜 <b>${Math.round(_ip[0]*100)}%</b></span><span>平 <b>${Math.round(_ip[1]*100)}%</b></span><span>客胜 <b>${Math.round(_ip[2]*100)}%</b></span><span class="hint">${f.books.length} 家机构</span></div>`;
-    } else if(f.sp){
+    } else if(f.sp && Array.isArray(f.sp.had) && f.sp.had.length === 3 && f.sp.had.every(v => v != null)){
       predLine = `<div class="fix-pred"><span class="tag">竞彩</span><span>主胜 <b>${Number(f.sp.had[0]).toFixed(2)}</b></span><span>平 <b>${Number(f.sp.had[1]).toFixed(2)}</b></span><span>客胜 <b>${Number(f.sp.had[2]).toFixed(2)}</b></span></div>`;
+    } else if(f.sp && f.sp.hhad && f.sp.hhad.line != null){
+      predLine = `<div class="fix-pred"><span class="tag">竞彩让球</span><span>${f.sp.hhad.line > 0 ? "主受让" : (f.sp.hhad.line < 0 ? "主让" : "平手")}${Math.abs(f.sp.hhad.line)} 球</span><span class="hint">${Number(f.sp.hhad.h).toFixed(2)} / ${Number(f.sp.hhad.d).toFixed(2)} / ${Number(f.sp.hhad.a).toFixed(2)}</span></div>`;
     }
   } else if(pd && fbp){
     const o25 = pd.lines ? pd.lines["2.5"] : null;
