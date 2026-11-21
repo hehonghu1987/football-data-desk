@@ -2827,22 +2827,27 @@ function cPanelSoft(ctx, x, y, w, h, r){
 
 function cWrap(ctx, text, maxW){
   const NO_START = "，。、；：！？）】》”’,.;:!?)%";
-  const chars = String(text == null ? "" : text).split("");
+  const src = String(text == null ? "" : text);
+  // 按「不可拆分的词块」切分：数字/英文/百分比整体不换行，中文逐字
+  const tokens = src.match(/[A-Za-z0-9]+(?:[.:%+\-–/][A-Za-z0-9]+)*%?|\s+|[\s\S]/gu) || [];
   const lines = [];
   let cur = "";
-  for(const ch of chars){
-    if(ch === "\n"){ lines.push(cur); cur = ""; continue; }
-    const test = cur + ch;
+  const flush = () => { if(cur) { lines.push(cur.replace(/\s+$/, "")); cur = ""; } };
+  for(const tk of tokens){
+    if(tk === "\n"){ flush(); continue; }
+    const test = cur + tk;
     if(ctx.measureText(test).width > maxW && cur){
-      if(NO_START.includes(ch)){ cur = test; continue; }   // 标点不另起一行
-      lines.push(cur);
-      cur = ch;
-    } else cur = test;
+      const first = tk.charAt(0);
+      if(NO_START.includes(first)){ cur = test; continue; }
+      flush();
+      cur = tk.replace(/^\s+/, "");
+    } else {
+      cur = test;
+    }
   }
-  if(cur) lines.push(cur);
+  flush();
   return lines;
 }
-
 function cSectionTitle(ctx, text, x, y){
   ctx.fillStyle = CK.accent;
   cRound(ctx, x, y + 8, 8, 30, 4);
