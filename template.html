@@ -2988,8 +2988,13 @@ function cardAnalysis(m, hn, an, h, a){
     const f = ip ? mp.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : mp;
     const lean = f[0] >= f[2] + 0.08 ? hn : (f[2] >= f[0] + 0.08 ? an : "平局");
     conclusion = `综合判断：倾向 ${lean}${ip ? "，市场方向基本一致" : ""}。`;
-    const total = (pred.xgH != null ? pred.xgH : pred.xh) + (pred.xgA != null ? pred.xgA : pred.xa);
-    conclusion += total >= 2.8 ? " 进球端更看好大球。" : (total <= 2.2 ? " 进球端更看好小球。" : " 进球端接近常态。");
+    // 进球方向必须按市场主盘线上的模型概率判断，不能再用预期总进球阈值（会与盘口结论矛盾）
+    const _ou = mainOu(m);
+    const _ln = _ou ? _ou.line : 2.5;
+    const _po = modelOverAt(m, _ln) != null ? modelOverAt(m, _ln) : (pred.o25 != null ? pred.o25 : null);
+    if(_po != null){
+      conclusion += ` 进球端${_po >= 0.56 ? "偏大球" : (_po <= 0.44 ? "偏小球" : "方向不明显")}（主盘 ${_ln} 球，模型大球 ${pct(_po)}）。`;
+    }
   }
   return { parts, conclusion };
 }
