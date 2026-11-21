@@ -1323,7 +1323,8 @@ def _pick_ah(values):
 
 
 def _pick_ou(values):
-    """从 Goals Over/Under 多线里挑最接近 2.5 的主盘。"""
+    """从 Goals Over/Under 多线里挑真正的主盘：赔率最均衡的一对（接近 1.9/1.9），
+    而不是固定取 2.5 线（强队比赛主盘常在 3.0–3.5）。"""
     pairs = {}
     for v in values or []:
         val = (v.get("value") or "").strip().lower()
@@ -1347,10 +1348,15 @@ def _pick_ou(values):
             pairs[round(line, 2)].setdefault("line", line)
     best = None
     for item in pairs.values():
-        if item.get("over") and item.get("under") and item.get("line"):
-            d = abs(item["line"] - 2.5)
-            if best is None or d < best[0]:
-                best = (d, item)
+        over, under, line = item.get("over"), item.get("under"), item.get("line")
+        if not (over and under and line):
+            continue
+        if not (1.3 <= over <= 4.5 and 1.3 <= under <= 4.5):
+            continue
+        # 均衡度优先，其次离 2.5 近（避免出现极端线）
+        key = (round(abs(over - under), 2), round(abs(line - 2.5), 2))
+        if best is None or key < best[0]:
+            best = (key, item)
     return best[1] if best else None
 
 

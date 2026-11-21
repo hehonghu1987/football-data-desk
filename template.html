@@ -3504,6 +3504,35 @@ function consensusLine(m, key){
            over: on ? over / on : null, under: un ? under / un : null, n: bestN };
 }
 
+/* 大小球主盘：机构最均衡的那条线（强队比赛常见 3.0–3.5），以及模型在该线的概率 */
+function modelOverAt(m, line){
+  const L = (m && m.pred && m.pred.lines) || null;
+  if(!L || line == null) return null;
+  const key = String(Number(line));
+  if(L[key] != null) return L[key];
+  const keys = Object.keys(L).map(Number).sort((a, b) => a - b);
+  if(!keys.length) return null;
+  const pv = k => (L[String(k)] != null ? L[String(k)] : (L[k.toFixed(1)] != null ? L[k.toFixed(1)] : null));
+  let lo = null, hi = null;
+  for(const k of keys){ if(k <= line) lo = k; if(k >= line){ hi = k; break; } }
+  if(lo != null && hi != null && hi > lo){
+    const a = pv(lo), b = pv(hi);
+    if(a == null || b == null) return null;
+    return a + (b - a) * ((line - lo) / (hi - lo));
+  }
+  return lo != null ? pv(lo) : (hi != null ? pv(hi) : null);
+}
+function mainOu(m){
+  const c = (m && m.books && m.books.length) ? consensusLine(m, "ou") : null;
+  if(c && c.over != null && c.under != null) return { line: Number(c.line), over: c.over, under: c.under, n: c.n, market: true };
+  if(m && m.pred && m.pred.lines && m.pred.lines["2.5"] != null) return { line: 2.5, market: false, n: 0 };
+  return null;
+}
+function marketOverAt(ou){
+  if(!ou || ou.over == null || ou.under == null) return null;
+  return _devig2(ou.over, ou.under);
+}
+
 function fixtureStatus(f){
   const m = MATCH_BY_ID.get(String(f.id));
   const st = f.state || (m && m.state) || "";
@@ -5499,16 +5528,22 @@ function renderPreMatch(m){
         </div>
         <div class="odds-src">该场暂无机构赔率，以上由模型概率折算，仅供参考</div>
       </div>`);
-      const o25 = (pred && pred.o25 != null) ? pred.o25 : ((pre && pre.o && pre.o[2] != null) ? pre.o[2] / 1000 : null);
-      if(o25 != null){
+      const _ouMain = mainOu(m);
+      let _ouLine = _ouMain ? _ouMain.line : null;
+      let _modelOver = _ouLine != null ? modelOverAt(m, _ouLine) : null;
+      if(_modelOver == null && pred && pred.o25 != null){ _ouLine = 2.5; _modelOver = pred.o25; }
+      if(_modelOver != null){
+        const mkRef = (_ouMain && _ouMain.market)
+          ? `市场主盘 ${Number(_ouMain.line)} 球：大 ${Number(_ouMain.over).toFixed(2)} / 小 ${Number(_ouMain.under).toFixed(2)}（${_ouMain.n} 家同线）`
+          : "模型概率折算的公平赔率";
         cells.push(`<div class="odds-cell">
-          <div class="l">模型 · 大小球 2.5</div>
-          <div class="odds-line"><b>2.5 球</b></div>
+          <div class="l">模型 · 大小球 ${_ouLine}</div>
+          <div class="odds-line"><b>${_ouLine} 球</b></div>
           <div class="odds-two">
-            <div><div class="k">大球</div><div class="o">${fo(o25)}</div><div class="p">${pct(o25)}</div></div>
-            <div><div class="k">小球</div><div class="o">${fo(1 - o25)}</div><div class="p">${pct(1 - o25)}</div></div>
+            <div><div class="k">大球</div><div class="o">${fo(_modelOver)}</div><div class="p">${pct(_modelOver)}</div></div>
+            <div><div class="k">小球</div><div class="o">${fo(1 - _modelOver)}</div><div class="p">${pct(1 - _modelOver)}</div></div>
           </div>
-          <div class="odds-src">模型概率折算的公平赔率</div>
+          <div class="odds-src">${mkRef}</div>
         </div>`);
       }
       if(pred && pred.ah && pred.ah["0"] != null){
@@ -5556,9 +5591,12 @@ function renderPreMatch(m){
     const comp = ip ? (i) => `<div class="p">模型 ${pct(mp[i])} · 市场 ${pct(ip[i])}</div>` : () => "";
     const conf = confidenceLabel(model, ip, pred && pred.xlg);
     const range = poissonRange(model.xgH + model.xgA);
+    const _ouF = mainOu(m);
+    const _ouFline = _ouF ? _ouF.line : 2.5;
+    const _ouFp = modelOverAt(m, _ouFline) != null ? modelOverAt(m, _ouFline) : pred.o25;
     const facts = pred ? `
-        <span>大 2.5 球 <b>${pct(pred.o25)}</b></span>
-        <span>小 2.5 球 <b>${pct(1 - pred.o25)}</b></span>
+        <span>大 ${_ouFline} 球 <b>${pct(_ouFp)}</b></span>
+        <span>小 ${_ouFline} 球 <b>${pct(1 - _ouFp)}</b></span>
         <span>双方进球 <b>${pct(pred.btts)}</b></span>
         <span>最可能比分 <b>${pred.top.map(t => t[0]).join(" / ")}</b></span>
         <span>总进球 80% 区间 <b>${range[0]}–${range[1]} 球</b></span>
@@ -5846,7 +5884,13 @@ function renderInsight(m){
     const total = xh + xa;
     let t = `预期总进球 ${total.toFixed(1)}，${total >= 2.8 ? "节奏偏快，进球可能偏多" : total <= 2.2 ? "节奏偏慢，进球可能偏少" : "节奏中等"}。`;
     if(m.pred){
-      t += ` 大 2.5 球概率 ${pct(m.pred.o25)}，双方进球概率 ${pct(m.pred.btts)}；最可能比分 ${m.pred.top.map(x => x[0]).join(" / ")}。`;
+      const _ou = mainOu(m);
+      const _ln = _ou ? _ou.line : 2.5;
+      const _po = modelOverAt(m, _ln) != null ? modelOverAt(m, _ln) : m.pred.o25;
+      t += ` 大 ${_ln} 球概率 ${pct(_po)}`;
+      const _pm = marketOverAt(_ou);
+      if(_pm != null) t += `（市场 ${pct(_pm)}）`;
+      t += `，双方进球概率 ${pct(m.pred.btts)}；最可能比分 ${m.pred.top.map(x => x[0]).join(" / ")}。`;
     }
     const hy = havYellow(h.id), ay = havYellow(a.id);
     if(hy != null && ay != null) t += ` 两队近 30 场场均黄牌合计 ${(hy + ay).toFixed(1)} 张${hy + ay >= 5 ? "，对抗可能较激烈" : ""}。`;
@@ -5886,17 +5930,22 @@ function renderInsight(m){
   // 9) 进球盘口（大/小球 + 双方进球，公平赔率）
   if(upcoming && model){
     const lines = model.lines || {};
+    const _main = mainOu(m);
+    const _mainLine = _main ? _main.line : 2.5;
+    const pMain = modelOverAt(m, _mainLine) != null ? modelOverAt(m, _mainLine) : lines["2.5"];
     const p25 = lines["2.5"], p35 = lines["3.5"];
     let t = "";
-    if(p25 != null){
-      t += `大 2.5 球概率 ${pct(p25)}（公平赔率 ${(1 / p25).toFixed(2)}），小 2.5 球 ${pct(1 - p25)}（公平赔率 ${(1 / (1 - p25)).toFixed(2)}）`;
+    if(pMain != null){
+      t += `按市场主盘 ${_mainLine} 球：模型大球 ${pct(pMain)}（公平赔率 ${(1 / pMain).toFixed(2)}）、小球 ${pct(1 - pMain)}（公平赔率 ${(1 / (1 - pMain)).toFixed(2)}）`;
+      const _pm = marketOverAt(_main);
+      if(_pm != null) t += `；市场去水大球 ${pct(_pm)}，模型${pMain >= _pm ? "偏大球" : "偏小球"}（差 ${(Math.abs(pMain - _pm) * 100).toFixed(1)} 个百分点）`;
     }
-    if(p35 != null) t += `${t ? "；" : ""}大 3.5 球概率 ${pct(p35)}（公平赔率 ${(1 / p35).toFixed(2)}）`;
+    if(p25 != null && Math.abs(_mainLine - 2.5) > 1e-9) t += `${t ? "。" : ""}另：大 2.5 球 ${pct(p25)}（公平赔率 ${(1 / p25).toFixed(2)}）`;
+    if(p35 != null && Math.abs(_mainLine - 3.5) > 1e-9) t += `${t ? "；" : ""}大 3.5 球 ${pct(p35)}（公平赔率 ${(1 / p35).toFixed(2)}）`;
     if(t) t += "。";
     if(model.btts != null){
       t += `双方进球概率 ${pct(model.btts)}（是的公平赔率 ${(1 / model.btts).toFixed(2)}，否的公平赔率 ${(1 / (1 - model.btts)).toFixed(2)}）。`;
     }
-    if(p25 != null) t += p25 >= 0.58 ? " 进球盘明显偏向大球。" : (p25 <= 0.45 ? " 进球盘偏向小球。" : " 大小球倾向不明显。");
     if(t) bullets.push({ k: "进球盘口", t });
   }
 
@@ -6003,16 +6052,16 @@ function renderInsight(m){
           segs.push("模型与市场基本一致，胜负方向没有明显价值点。");
         }
       }
-      // ③ 进球盘
+      // ③ 进球盘（按市场主盘线对比）
       if(m.pred && m.pred.o25 != null){
-        let g2 = `进球：模型大 2.5 球 ${pct(m.pred.o25)}`;
-        const ouc = (m.books && m.books.length) ? consensusLine(m, "ou") : null;
-        if(ouc && Math.abs(Number(ouc.line) - 2.5) < 0.01){
-          const pm = _devig2(ouc.over, ouc.under);
-          if(pm != null){
-            const d = m.pred.o25 - pm;
-            g2 += `、市场 ${pct(pm)}，相差 ${(Math.abs(d) * 100).toFixed(1)} 个百分点${Math.abs(d) >= 0.05 ? (d > 0 ? "，模型偏大球" : "，模型偏小球") : ""}`;
-          }
+        const _ou = mainOu(m);
+        const _ln = _ou ? _ou.line : 2.5;
+        const _po = modelOverAt(m, _ln) != null ? modelOverAt(m, _ln) : m.pred.o25;
+        let g2 = `进球：按市场主盘 ${_ln} 球，模型大球 ${pct(_po)}`;
+        const _pm = marketOverAt(_ou);
+        if(_pm != null){
+          const d = _po - _pm;
+          g2 += `、市场 ${pct(_pm)}，相差 ${(Math.abs(d) * 100).toFixed(1)} 个百分点${Math.abs(d) >= 0.05 ? (d > 0 ? "，模型偏大球" : "，模型偏小球") : ""}`;
         }
         if(m.pred.btts != null) g2 += `；双方进球 ${pct(m.pred.btts)}`;
         segs.push(g2 + "。");
@@ -6083,14 +6132,15 @@ function renderInsight(m){
         vcards.push(`<div class="v-card"><div class="v-k">胜负倾向</div><div class="v-v">${esc(label)}</div><div class="v-s">${esc(sub)}</div></div>`);
       }
       if(upcoming && m.pred && m.pred.o25 != null){
-        const over = m.pred.o25 >= 0.5;
-        let sub = `模型 ${pct(over ? m.pred.o25 : 1 - m.pred.o25)}`;
-        const ouc = (m.books && m.books.length) ? consensusLine(m, "ou") : null;
-        if(ouc && Math.abs(Number(ouc.line) - 2.5) < 0.01){
-          const pm = _devig2(ouc.over, ouc.under);
-          if(pm != null) sub += ` · 市场 ${pct(over ? pm : 1 - pm)}`;
-        }
-        vcards.push(`<div class="v-card"><div class="v-k">进球倾向</div><div class="v-v">${over ? "大" : "小"} 2.5 球</div><div class="v-s">${esc(sub)}</div></div>`);
+        const _ou = mainOu(m);
+        const _ln = _ou ? _ou.line : 2.5;
+        const _po = modelOverAt(m, _ln) != null ? modelOverAt(m, _ln) : m.pred.o25;
+        const over = _po >= 0.5;
+        let sub = `模型 ${pct(over ? _po : 1 - _po)}`;
+        const _pm = marketOverAt(_ou);
+        if(_pm != null) sub += ` · 市场 ${pct(over ? _pm : 1 - _pm)}`;
+        sub += ` · 盘口 ${_ln}`;
+        vcards.push(`<div class="v-card"><div class="v-k">进球倾向</div><div class="v-v">${over ? "大" : "小"} ${_ln} 球</div><div class="v-s">${esc(sub)}</div></div>`);
       }
       let ahMain = "暂无亚盘", ahSub = "";
       const ahc = (m.books && m.books.length) ? consensusLine(m, "ah") : null;
