@@ -3188,7 +3188,7 @@ async function exportMatchCard(m){
   const TITLE_H = 78;
   const hasNote = !!(noteText || dirLabel);
   let noteTextH = noteLines.reduce((n, l) => n + (l ? 34 : 17), 0);
-  const conclBoxH = conclLines.length ? 30 + conclLines.length * 40 + 14 : 0;
+  const conclBoxH = conclLines.length ? conclLines.length * 40 + 44 : 0;
 
   let hModel = pred && pred.ph != null ? 330 : 0;
   const items = [];
@@ -3323,7 +3323,7 @@ async function exportMatchCard(m){
     cRound(ctx, MX + 40, cy, W - 80, conclBoxH, 16);
     ctx.fillStyle = CK.soft; ctx.fill();
     cFont(ctx, 26, 700); ctx.fillStyle = CK.accent;
-    let cyy = cy + 18;
+    let cyy = cy + Math.floor((conclBoxH - conclLines.length * 40) / 2) + 5;
     conclLines.forEach(line => { ctx.fillText(line, MX + 62, cyy); cyy += 40; });
   }
 
