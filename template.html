@@ -1092,6 +1092,36 @@ html{scroll-behavior:smooth}
 
 /* 多机构赔率比价表 */
 .books-wrap{overflow-x:auto;background:var(--surface)}
+.bk-cards{display:none}
+/* 手机端：赛前数据紧凑排版 + 机构卡片 */
+@media(max-width:760px){
+  #odds-grid{grid-template-columns:1fr;gap:8px}
+  #odds-grid .odds-cell{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"l vals" "src src";column-gap:10px;row-gap:4px;padding:10px 12px}
+  #odds-grid .odds-cell .l{grid-area:l;margin:0;font-size:11px;white-space:nowrap;align-self:center}
+  #odds-grid .odds-cell .odds-three,#odds-grid .odds-cell .odds-two{grid-area:vals;display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap}
+  #odds-grid .odds-cell .odds-line{grid-area:vals;text-align:right;margin:0}
+  #odds-grid .odds-cell .odds-src{grid-area:src;margin:2px 0 0;font-size:10px}
+  #odds-grid .odds-cell .odds-three>div,#odds-grid .odds-cell .odds-two>div{display:flex;align-items:baseline;gap:4px}
+  #odds-grid .odds-cell .odds-three .k,#odds-grid .odds-cell .odds-two .k{font-size:10px}
+  #odds-grid .odds-cell .odds-three .o,#odds-grid .odds-cell .odds-two .o{font-size:15px;margin:0}
+  #odds-grid .odds-cell .odds-three .p{font-size:10px;margin:0}
+  .books-wrap{overflow-x:visible}
+  .books-wrap table.books{display:none}
+  .books-wrap .mv-hint{font-size:10px;gap:4px 8px}
+  .books-wrap .mv-hint span{white-space:normal}
+  .bk-cards{display:grid;gap:8px;padding:2px 0 4px}
+  .bk-card{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface)}
+  .bk-h{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:4px}
+  .bk-h span{color:var(--muted);font-size:10px}
+  .bk-r{display:flex;gap:12px;font-size:11.5px;color:var(--ink-2);flex-wrap:wrap}
+  .bk-r b{font-family:var(--font-mono);font-weight:600}
+  .bk-r2{color:var(--muted);font-size:10.5px;margin-top:2px}
+  .bk-open{color:var(--muted);font-size:10px;margin-top:4px;border-top:1px dashed var(--line);padding-top:4px}
+  .books-wrap .book-scope{flex-wrap:wrap}
+  .books-wrap .seg{width:100%}
+  .books-wrap .seg button{flex:1;white-space:nowrap;font-size:11px;padding:4px 6px}
+}
+
 table.books{width:100%;border-collapse:collapse;font-size:12px;min-width:620px}
 table.books th,table.books td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 table.books th:first-child,table.books td:first-child{text-align:left}
@@ -5118,6 +5148,22 @@ function renderPreMatch(m){
         }
         return mk(isUpcoming ? "即时" : "收盘", mm, ahb, oub, "", true);
       }).join("");
+      const bmCards = ordered.map(b => {
+        const mm = b.m || [null, null, null];
+        const ahb = b.ah || {}, oub = b.ou || {};
+        const op = b.open || null;
+        const om = (op && op.m) || [null, null, null];
+        const oah = (op && op.ah) || {}, oou = (op && op.ou) || {};
+        const num = v => (v == null ? "—" : Number(v).toFixed(2));
+        const ln = v => (v == null ? "—" : Number(v).toFixed(1));
+        const opening = op ? `<div class="bk-open">初赔 ${num(om[0])} / ${num(om[1])} / ${num(om[2])}${oah.line != null ? ` · 让 ${ahq(oah)} ${num(oah.h)}/${num(oah.a)}` : ""}${oou.line != null ? ` · 大小 ${ln(oou.line)} ${num(oou.over)}/${num(oou.under)}` : ""}</div>` : "";
+        return `<div class="bk-card">
+          <div class="bk-h"><b>${bookLabel(b.book)}</b><span>${isUpcoming ? "即时" : "收盘"}</span></div>
+          <div class="bk-r"><span>主 <b>${mvCell(mm[0], om[0])}</b></span><span>平 <b>${mvCell(mm[1], om[1])}</b></span><span>客 <b>${mvCell(mm[2], om[2])}</b></span></div>
+          <div class="bk-r bk-r2"><span>让 ${ahq(ahb)} · ${num(ahb.h)}/${num(ahb.a)}</span><span>大小 ${ln(oub.line)} · ${num(oub.over)}/${num(oub.under)}</span></div>
+          ${opening}
+        </div>`;
+      }).join("");
       cells.push(`<div class="books-wrap" style="grid-column:1/-1">
         <div class="book-scope">
           <div class="seg" id="book-scope" role="group" aria-label="机构范围">
@@ -5133,6 +5179,7 @@ function renderPreMatch(m){
           <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
         <div class="odds-src" style="padding:6px 2px 2px">「—」表示该机构未开此盘口；不同机构覆盖范围不同属正常（Bet365/平博/DraftKings/1xBet 通常最全）。</div>
+        <div class="bk-cards">${bmCards}</div>
       </div>`);
     } else if(odds){
       cells.push(`<div class="odds-cell">
