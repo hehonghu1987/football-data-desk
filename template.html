@@ -3005,6 +3005,28 @@ async function exportMatchCard(m){
   ctx.fillStyle = CK.muted;
   ctx.fillText("客队", M + 154, rowY2 + 66);
 
+  // 右侧：双方近 5 场战绩圆点（填补空白）
+  try{
+    const dots = (tid, x, y) => {
+      const f = sideForm(tid, "all", 5);
+      if(!f.ms.length) return;
+      cFont(ctx, 15, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.textAlign = "left";
+      ctx.fillText("近 5 场", x, y - 26);
+      f.ms.slice(0, 5).forEach((mm, i) => {
+        const home = String(mm.home) === String(tid);
+        const gf = home ? mm.hs : mm.as, ga = home ? mm.as : mm.hs;
+        ctx.beginPath();
+        ctx.arc(x + 10 + i * 30, y + 4, 9, 0, Math.PI * 2);
+        ctx.fillStyle = gf > ga ? CK.win : (gf < ga ? CK.loss : CK.draw);
+        ctx.fill();
+      });
+    };
+    dots(h.id, CARD_W - M - 300, rowY1 + 30);
+    dots(a.id, CARD_W - M - 300, rowY2 + 30);
+  }catch(e){}
+
   ctx.textAlign = "right";
   if(isUpcoming){
     cFont(ctx, 42, 700);
