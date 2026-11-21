@@ -1156,7 +1156,7 @@ main:focus{outline:none}
 }
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
-/* 智能分析结论卡 */
+/* 分析要点结论卡 */
 .verdict-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:2px 0 10px}
 .v-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .v-k{font-size:10.5px;color:var(--muted);letter-spacing:.04em}
@@ -2005,7 +2005,7 @@ td.gsep{border-left:1px solid var(--line)}
 
     <section class="section insight" id="insight" hidden>
       <div class="section-head">
-        <h2 class="section-title">智能分析</h2>
+        <h2 class="section-title">分析要点</h2>
         <span class="section-note">基于本站数据与模型自动生成</span>
       </div>
       <div class="verdict-grid" id="insight-verdict"></div>
@@ -2917,7 +2917,7 @@ function cChip(ctx, x, y, text){
   return w;
 }
 
-/* 汇总一段可用于海报的智能分析文字 */
+/* 汇总一段可用于海报的分析文字 */
 function cardAnalysis(m, hn, an, h, a){
   const upcoming = m.hs == null && m.as == null;
   const pred = upcoming ? m.pred : (m.pre && m.pre.ph != null ? m.pre : null);
@@ -3166,7 +3166,7 @@ async function exportMatchCard(m){
     y += hh + GAP;
   }
 
-  // ===== 智能分析（数据结论 + 用户补充观点） =====
+  // ===== 分析要点（数据结论 + 用户补充观点） =====
   const analysis = cardAnalysis(m, hn, an, h, a);
   const note = readMatchNote(m.id);
   const noteText = String(note.text || "").trim();
@@ -3197,7 +3197,7 @@ async function exportMatchCard(m){
   const cardY = y;
   const cardH = (CARD_H - 190) - cardY;
   card(cardX, cardY, cardW, cardH);
-  titleAt("智能分析", cardX + 40, cardY + 32);
+  titleAt("分析要点", cardX + 40, cardY + 32);
 
   const bodyW = cardW - 96;
   let noteH = 0, noteLines = [];
