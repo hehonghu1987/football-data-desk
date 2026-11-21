@@ -3278,10 +3278,11 @@ async function exportMatchCard(m){
       while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
       noteLines[noteLines.length - 1] = last + (last.endsWith("…") ? "" : "…");
     }
-    // 行距自适应铺满，同时块高严格不超过分配空间
+    // 行距自适应；空行按半行高压缩。块高严格 = 文字实际高度，绝不溢出
     const _nLines = Math.max(1, noteLines.length);
+    const _blankN = noteLines.filter(l => !l).length;
     const noteLH = Math.min(36, Math.max(26, Math.floor((noteCapH - 46) / _nLines)));
-    const innerNoteH = Math.min(noteCapH, Math.max(46 + (_nLines - 1) * noteLH + 26, Math.min(noteCapH, 46 + _nLines * noteLH)));
+    const innerNoteH = 46 + _nLines * noteLH - _blankN * noteLH * 0.5;
     noteH = innerNoteH + 14;
     const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
     cRound(ctx, nx, ny, nw, innerNoteH, 14);
@@ -3300,7 +3301,11 @@ async function exportMatchCard(m){
       ctx.fillText(tag, nx + nw - tw - 6, ny + 16);
     }
     cFont(ctx, 21, 400); ctx.fillStyle = ink2;
-    noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 44 + i * noteLH));
+    let nyy = ny + 44;
+    noteLines.forEach(line => {
+      if(line) ctx.fillText(line, nx + 20, nyy);
+      nyy += line ? noteLH : noteLH * 0.5;
+    });
   }
 
   const topStart = cardY + 78 + noteH;
