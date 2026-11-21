@@ -3673,30 +3673,36 @@ function mainOu(m){
     if(m && m.pred && m.pred.lines && m.pred.lines["2.5"] != null) return { line: 2.5, market: false, n: 0 };
     return null;
   }
-  // 按「均衡度」加权投票：越接近 1.9/1.9 的机构线路权重越高，避免被只开 2.5 的机构带偏
+  // 只有「赔率接近均衡」的机构线路才算真实主盘：只报了单边/失衡 2.5 线的机构不参与投票，
+  // 避免被「每家都挂一条 2.5」带偏（强队比赛真实主盘常在 3.0–3.5）。
   const weight = new Map();
   for(const b of books){
-    const over = b.ou.over, under = b.ou.under;
-    const line = Number(b.ou.line);
-    if(over == null || under == null || !isFinite(line)) continue;
-    const bal = Math.abs(Number(over) - Number(under));
-    const wt = 1 / (0.2 + bal);
+    const over = Number(b.ou.over), under = Number(b.ou.under), line = Number(b.ou.line);
+    if(!isFinite(over) || !isFinite(under) || !isFinite(line)) continue;
+    const bal = Math.abs(over - under);
+    const wt = Math.exp(-Math.pow(bal / 0.40, 2));
+    if(wt < 0.02) continue;
     weight.set(line, (weight.get(line) || 0) + wt);
   }
-  let bestLine = null, bestN = 0, bestW = -1;
-  const cnt = new Map();
-  for(const [ln, w] of weight){
-    if(w > bestW){ bestW = w; bestLine = ln; }
+  let bestLine = null, bestW = -1;
+  for(const [ln, w] of weight) if(w > bestW){ bestW = w; bestLine = ln; }
+  if(bestLine == null){
+    // 全部失衡时退回「离 2.5 最近」作保底
+    let best = null;
+    for(const b of books){
+      const line = Number(b.ou.line);
+      if(best == null || Math.abs(line - 2.5) < Math.abs(best - 2.5)) best = line;
+    }
+    bestLine = best;
   }
-  let over = 0, on = 0, under = 0, un = 0;
+  let over = 0, on = 0, under = 0, un = 0, n = 0;
   for(const b of books){
     if(Number(b.ou.line) !== bestLine) continue;
-    cnt.set(bestLine, (cnt.get(bestLine) || 0) + 1);
+    n++;
     if(b.ou.over != null){ over += Number(b.ou.over); on++; }
     if(b.ou.under != null){ under += Number(b.ou.under); un++; }
   }
-  bestN = cnt.get(bestLine) || 0;
-  return { line: bestLine, over: on ? over / on : null, under: un ? under / un : null, n: bestN, market: true };
+  return { line: bestLine, over: on ? over / on : null, under: un ? under / un : null, n, market: true };
 }
 
 function marketOverAt(ou){
