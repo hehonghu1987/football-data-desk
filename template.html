@@ -1247,7 +1247,7 @@ main:focus{outline:none}
 .ft-kpi{display:inline-flex;align-items:baseline;gap:4px;font-size:10.5px;color:var(--muted);background:none;border:0;border-radius:0;padding:0;white-space:nowrap}
 .ft-kpi b{font-family:var(--font-mono);font-size:11px;color:var(--ink);font-weight:600}
 .ft-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-table.ft-tbl{width:100%;max-width:1184px;min-width:1172px;margin:0 auto;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
+table.ft-tbl{width:100%;max-width:1184px;min-width:1062px;margin:0 auto;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
 
 table.ft-tbl col.ftc-type{width:64px}
 table.ft-tbl col.ftc-date{width:74px}
@@ -1260,8 +1260,6 @@ table.ft-tbl col.ftc-ahRes,table.ft-tbl col.ftc-ouRes{width:48px}
 table.ft-tbl col.ftc-mH,table.ft-tbl col.ftc-mD,table.ft-tbl col.ftc-mA{width:48px}
 table.ft-tbl col.ftc-shots{width:54px}
 table.ft-tbl col.ftc-sot{width:50px}
-table.ft-tbl col.ftc-poss{width:60px}
-table.ft-tbl col.ftc-fouls{width:50px}
 table.ft-tbl col.ftc-yellow{width:46px}
 table.ft-tbl col.ftc-res{width:48px}
 table.ft-tbl col.ftc-parity{width:40px}
@@ -6496,7 +6494,7 @@ function ftColumnPlan(rows){
   if(plan.ah) order.push("ahLine", "ahRes");
   if(plan.ou) order.push("ouLine", "ouRes");
   if(plan.model) order.push("mH", "mD", "mA");
-  if(plan.tech) order.push("shots", "sot", "poss", "fouls", "yellow");
+  if(plan.tech) order.push("shots", "sot", "yellow");
   order.push("res", "parity");
   plan.order = order;
   return plan;
@@ -6521,8 +6519,6 @@ const FT_COLDEF = {
   mA:     { label: "客胜", group: "赛前模型" },
   shots:  { label: "射门", group: "技术" },
   sot:    { label: "射正", group: "技术" },
-  poss:   { label: "控球", group: "技术" },
-  fouls:  { label: "犯规", group: "技术" },
   yellow: { label: "黄牌", group: "技术" },
   res:    { label: "胜负", group: "全场" },
   parity: { label: "单双", group: "全场" }
@@ -6578,14 +6574,11 @@ function ftTrHtml(r, plan){
   }
   if(plan.tech){
     if(!r.sh || !r.sa){
-      tds += cell("gsep mut", "—") + cell("mut", "—") + cell("mut", "—") + cell("mut", "—") + cell("mut", "—");
+      tds += cell("gsep mut", "—") + cell("mut", "—") + cell("mut", "—");
     } else {
-      const ph = r.sh.possession == null ? null : Math.round(r.sh.possession);
       const pair = (a, b) => (a == null ? `<span class="mut">—</span>` : a) + "-" + (b == null ? `<span class="mut">—</span>` : b);
       tds += cell("gsep", pair(r.sh.shots, r.sa.shots))
         + cell("", pair(r.sh.sot, r.sa.sot))
-        + cell("", ph == null ? `<span class="mut">—</span>` : `${ph}-${100 - ph}`)
-        + cell("", pair(r.sh.fouls, r.sa.fouls))
         + cell("", pair(r.sh.yellow, r.sa.yellow));
     }
   }
