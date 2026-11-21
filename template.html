@@ -3217,10 +3217,10 @@ async function exportMatchCard(m){
   }
   // 整版垂直居中 + 均匀间距：不留大片空白
   const sumH = hModel + hMarket + analysisContentH;
-  let gap = Math.floor((available - sumH) / 3);
-  gap = Math.max(28, Math.min(88, gap));
-  if(sumH + 2 * gap > available) gap = Math.max(20, Math.floor((available - sumH) / 3));
-  let y = TOP + Math.max(0, Math.floor((available - (sumH + 2 * gap)) / 2));
+  let vGap = Math.floor((available - sumH) / 3);
+  vGap = Math.max(28, Math.min(88, vGap));
+  if(sumH + 2 * vGap > available) vGap = Math.max(20, Math.floor((available - sumH) / 3));
+  let y = TOP + Math.max(0, Math.floor((available - (sumH + 2 * vGap)) / 2));
   const analysisH = analysisContentH;
 
   // ===== 模型预测卡 =====
@@ -3260,7 +3260,7 @@ async function exportMatchCard(m){
       cFont(ctx, 28, 700); ctx.fillStyle = ink;
       ctx.fillText(Math.round(v * 100) + "%", x + 28, y + 258);
     });
-    y += hModel + gap;
+    y += hModel + vGap;
   }
 
   // ===== 关键盘口卡 =====
@@ -3276,7 +3276,7 @@ async function exportMatchCard(m){
       cFont(ctx, 38, 700); ctx.fillStyle = ink;
       ctx.fillText(it[1], cxx, y + 130);
     });
-    y += hMarket + gap;
+    y += hMarket + vGap;
   }
 
   // ===== 赛前研判卡 =====
