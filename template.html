@@ -3529,11 +3529,37 @@ function modelOverAt(m, line){
   return lo != null ? pv(lo) : (hi != null ? pv(hi) : null);
 }
 function mainOu(m){
-  const c = (m && m.books && m.books.length) ? consensusLine(m, "ou") : null;
-  if(c && c.over != null && c.under != null) return { line: Number(c.line), over: c.over, under: c.under, n: c.n, market: true };
-  if(m && m.pred && m.pred.lines && m.pred.lines["2.5"] != null) return { line: 2.5, market: false, n: 0 };
-  return null;
+  const books = ((m && m.books) || []).filter(b => b.ou && b.ou.line != null && b.book !== "竞彩总进球");
+  if(!books.length){
+    if(m && m.pred && m.pred.lines && m.pred.lines["2.5"] != null) return { line: 2.5, market: false, n: 0 };
+    return null;
+  }
+  // 按「均衡度」加权投票：越接近 1.9/1.9 的机构线路权重越高，避免被只开 2.5 的机构带偏
+  const weight = new Map();
+  for(const b of books){
+    const over = b.ou.over, under = b.ou.under;
+    const line = Number(b.ou.line);
+    if(over == null || under == null || !isFinite(line)) continue;
+    const bal = Math.abs(Number(over) - Number(under));
+    const wt = 1 / (0.2 + bal);
+    weight.set(line, (weight.get(line) || 0) + wt);
+  }
+  let bestLine = null, bestN = 0, bestW = -1;
+  const cnt = new Map();
+  for(const [ln, w] of weight){
+    if(w > bestW){ bestW = w; bestLine = ln; }
+  }
+  let over = 0, on = 0, under = 0, un = 0;
+  for(const b of books){
+    if(Number(b.ou.line) !== bestLine) continue;
+    cnt.set(bestLine, (cnt.get(bestLine) || 0) + 1);
+    if(b.ou.over != null){ over += Number(b.ou.over); on++; }
+    if(b.ou.under != null){ under += Number(b.ou.under); un++; }
+  }
+  bestN = cnt.get(bestLine) || 0;
+  return { line: bestLine, over: on ? over / on : null, under: un ? under / un : null, n: bestN, market: true };
 }
+
 function marketOverAt(ou){
   if(!ou || ou.over == null || ou.under == null) return null;
   return _devig2(ou.over, ou.under);
