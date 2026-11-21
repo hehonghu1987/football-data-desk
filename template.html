@@ -3133,7 +3133,7 @@ async function exportMatchCard(m){
 
   // ===== 模型预测（含市场综合概率） =====
   if(pred && pred.ph != null){
-    const hh = 400;
+    const hh = 330;
     card(MX, y, W, hh);
     titleAt("模型预测", MX + 40, y + 32);
     cFont(ctx, 20, 400); ctx.fillStyle = muted;
@@ -3156,18 +3156,19 @@ async function exportMatchCard(m){
       cFont(ctx, 42, 700); ctx.fillStyle = ink;
       ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 172);
     });
-    // 分隔线 + 市场综合概率
+    // 分隔线 + 市场综合概率（单行紧凑，与模型层级区分）
     ctx.strokeStyle = "#E3EBE3"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(bx, y + 238); ctx.lineTo(bx + bw, y + 238); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, y + 224); ctx.lineTo(bx + bw, y + 224); ctx.stroke();
     cFont(ctx, 17, 500); ctx.fillStyle = muted;
-    ctx.fillText("市场综合概率 · 综合预测", bx, y + 258);
+    ctx.fillText("市场综合概率", bx, y + 250);
     const bl = ip ? ps.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : ps;
-    labels.forEach((lb, i) => {
-      const col = bx + (bw / 3) * i;
-      cFont(ctx, 17, 400); ctx.fillStyle = muted;
-      ctx.fillText(["主", "平", "客"][i], col, y + 284);
-      cFont(ctx, 32, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(bl[i] * 100) + "%", col, y + 310);
+    const mStart = bx + 176, segW = (bw - 176) / 3;
+    bl.forEach((v, i) => {
+      const x = mStart + segW * i;
+      cFont(ctx, 16, 400); ctx.fillStyle = muted;
+      ctx.fillText(["主", "平", "客"][i], x, y + 254);
+      cFont(ctx, 26, 700); ctx.fillStyle = ink;
+      ctx.fillText(Math.round(v * 100) + "%", x + 28, y + 244);
     });
     y += hh + GAP;
   }
@@ -3244,7 +3245,7 @@ async function exportMatchCard(m){
     ? "以上为数据参考，最终判断见上方「我的判断」。"
     : (String(note.concl || "").trim() ? "以上为数据参考，最终判断见下方。" : "以上为数据参考。");
   const shortTxt = cardShortSummary(m, hn, an, h, a) + _refTxt;
-  cFont(ctx, 21, 400);
+  cFont(ctx, 20, 400);
   let shortLines = cWrap(ctx, shortTxt, bodyW);
   if(shortLines.length > 3){
     shortLines = shortLines.slice(0, 3);
@@ -3252,7 +3253,7 @@ async function exportMatchCard(m){
     while(last.length > 1 && ctx.measureText(last + "…").width > bodyW) last = last.slice(0, -1);
     shortLines[2] = last + "…";
   }
-  const shortH = shortLines.length * 34;
+  const shortH = shortLines.length * 30;
   cFont(ctx, 22, 700);
   const conclLines = conclusion ? cWrap(ctx, conclusion, bodyW - 48) : [];
   const conclH = conclLines.length ? (conclLines.length * 34 + 34) : 0;
@@ -3278,11 +3279,26 @@ async function exportMatchCard(m){
       while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
       noteLines[noteLines.length - 1] = last + (last.endsWith("…") ? "" : "…");
     }
-    // 行距自适应；空行按半行高压缩。块高严格 = 文字实际高度，绝不溢出
+    // 字号 22px，行距自适应；文字在块内垂直居中，超行截断，绝不溢出
     const _nLines = Math.max(1, noteLines.length);
     const _blankN = noteLines.filter(l => !l).length;
-    const noteLH = Math.min(36, Math.max(26, Math.floor((noteCapH - 46) / _nLines)));
-    const innerNoteH = 46 + _nLines * noteLH - _blankN * noteLH * 0.5;
+    const _capLH = Math.floor((noteCapH - 76) / _nLines);
+    if(_capLH < 30){
+      // 行数太多，按最小行距反推可放行数
+      const _fit = Math.max(1, Math.floor((noteCapH - 76) / 30));
+      if(noteLines.length > _fit){
+        noteLines = noteLines.slice(0, _fit);
+        let last = noteLines[noteLines.length - 1];
+        while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
+        noteLines[noteLines.length - 1] = last + (last.endsWith("…") ? "" : "…");
+      }
+    }
+    const n2 = Math.max(1, noteLines.length);
+    const blankN2 = noteLines.filter(l => !l).length;
+    const noteLH = Math.min(40, Math.max(30, Math.floor((noteCapH - 76) / n2)));
+    const textH = n2 * noteLH - blankN2 * noteLH * 0.5;
+    const innerNoteH = noteCapH;
+    const _padTop = Math.max(30, Math.floor((innerNoteH - textH) / 2) + 10);
     noteH = innerNoteH + 14;
     const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
     cRound(ctx, nx, ny, nw, innerNoteH, 14);
@@ -3300,8 +3316,8 @@ async function exportMatchCard(m){
       ctx.fillStyle = CK.accent;
       ctx.fillText(tag, nx + nw - tw - 6, ny + 16);
     }
-    cFont(ctx, 21, 400); ctx.fillStyle = ink2;
-    let nyy = ny + 44;
+    cFont(ctx, 22, 400); ctx.fillStyle = ink2;
+    let nyy = ny + _padTop;
     noteLines.forEach(line => {
       if(line) ctx.fillText(line, nx + 20, nyy);
       nyy += line ? noteLH : noteLH * 0.5;
@@ -3311,7 +3327,7 @@ async function exportMatchCard(m){
   const topStart = cardY + 78 + noteH;
   let ty = topStart;
   cFont(ctx, 21, 400); ctx.fillStyle = ink2;
-  shortLines.forEach(line => { ctx.fillText(line, cardX + 48, ty); ty += 34; });
+  shortLines.forEach(line => { ctx.fillText(line, cardX + 48, ty); ty += 30; });
   ty += 12;
   if(conclLines.length){
     const cy = ty;
