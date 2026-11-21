@@ -2696,7 +2696,8 @@ async function sharePage(){
 }
 
 /* ---------- 图文卡片导出 ---------- */
-const CARD_W = 1080, CARD_H = 1350;
+const CARD_W = 1350, CARD_H = 2250;
+const DAILY_CARD_H = 1350;
 const CK = {
   bg: "#F2F5EF", surface: "#FFFFFF", ink: "#12211A", ink2: "#33463C",
   muted: "#5E7065", line: "#D3DDD5", accent: "#0E7A49", soft: "#DFF1E6",
@@ -2769,8 +2770,9 @@ function cHeader(ctx, subtitle){
   }
 }
 
-function cFootNote(ctx, lines){
-  let y = CARD_H - 96;
+function cFootNote(ctx, lines, totalH){
+  const H = totalH || CARD_H;
+  let y = H - 96;
   ctx.textAlign = "center";
   cFont(ctx, 17, 400);
   ctx.fillStyle = CK.muted;
@@ -2792,8 +2794,142 @@ function cDownload(cv, name, msg){
   }, "image/png");
 }
 
+/* ---------- 高清分享海报（3:5，1350×2250） ---------- */
+const CARD_LOGO = { img: null, tried: false };
+async function ensureCardLogo(){
+  if(CARD_LOGO.tried) return CARD_LOGO.img;
+  CARD_LOGO.tried = true;
+  try{
+    CARD_LOGO.img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error("logo"));
+      im.src = "icons/icon-512.png";
+    });
+  }catch(e){ CARD_LOGO.img = null; }
+  return CARD_LOGO.img;
+}
+
+function cPanelSoft(ctx, x, y, w, h, r){
+  ctx.save();
+  ctx.shadowColor = "rgba(18,33,26,.07)";
+  ctx.shadowBlur = 26;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = CK.surface;
+  cRound(ctx, x, y, w, h, r == null ? 28 : r);
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = CK.line;
+  ctx.lineWidth = 2;
+  cRound(ctx, x, y, w, h, r == null ? 28 : r);
+  ctx.stroke();
+}
+
+function cWrap(ctx, text, maxW){
+  const chars = String(text == null ? "" : text).split("");
+  const lines = [];
+  let cur = "";
+  for(const ch of chars){
+    if(ch === "\n"){ lines.push(cur); cur = ""; continue; }
+    const test = cur + ch;
+    if(ctx.measureText(test).width > maxW && cur){ lines.push(cur); cur = ch; }
+    else cur = test;
+  }
+  if(cur) lines.push(cur);
+  return lines;
+}
+
+function cSectionTitle(ctx, text, x, y){
+  ctx.fillStyle = CK.accent;
+  cRound(ctx, x, y + 8, 8, 30, 4);
+  ctx.fill();
+  cFont(ctx, 28, 700);
+  ctx.fillStyle = CK.ink;
+  ctx.fillText(text, x + 24, y);
+}
+
+function cMonogram(ctx, x, y, size, ch, bg, fg){
+  cRound(ctx, x, y, size, size, size * 0.32);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  cFont(ctx, Math.round(size * 0.46), 700);
+  ctx.fillStyle = fg;
+  ctx.fillText(ch, x + size / 2, y + size / 2 + 1);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+}
+
+function cChip(ctx, x, y, text){
+  cFont(ctx, 20, 600);
+  const w = ctx.measureText(text).width + 32;
+  cRound(ctx, x, y, w, 40, 20);
+  ctx.fillStyle = CK.soft;
+  ctx.fill();
+  ctx.fillStyle = CK.accent;
+  ctx.fillText(text, x + 16, y + 9);
+  return w;
+}
+
+/* 汇总一段可用于海报的智能分析文字 */
+function cardAnalysis(m, hn, an, h, a){
+  const upcoming = m.hs == null && m.as == null;
+  const pred = upcoming ? m.pred : (m.pre && m.pre.ph != null ? m.pre : null);
+  const ip = upcoming ? ((m.odds || (m.books && m.books.length)) ? marketProbs(m) : null) : (m.mkt || null);
+  const parts = [];
+  const mp = pred ? [pred.ph, pred.pd, pred.pa] : null;
+  if(mp && mp.every(v => v != null)){
+    const xh = pred.xgH != null ? pred.xgH : pred.xh, xa = pred.xgA != null ? pred.xgA : pred.xa;
+    let t = `模型给出 ${hn} ${pct(mp[0])}、平局 ${pct(mp[1])}、${an} ${pct(mp[2])}，预期进球 ${Number(xh).toFixed(2)}–${Number(xa).toFixed(2)}。`;
+    if(ip && ip.every(v => v != null)){
+      let mi = 0, ma = 0;
+      for(let i = 0; i < 3; i++){ const d = Math.abs((mp[i] || 0) - (ip[i] || 0)); if(d > ma){ ma = d; mi = i; } }
+      const names = ["主胜", "平局", "客胜"];
+      if(ma >= 0.03) t += `市场${names[mi]} ${pct(ip[mi])}，模型${mp[mi] > ip[mi] ? "更看好" : "更看淡"}${names[mi]}（差 ${(ma * 100).toFixed(1)} 个百分点）。`;
+      else t += `模型与市场基本一致（市场 ${pct(ip[0])}/${pct(ip[1])}/${pct(ip[2])}）。`;
+    }
+    parts.push(t);
+  }
+  if(upcoming && m.pred && m.pred.lines && m.pred.lines["2.5"] != null){
+    let t = `进球端：模型大 2.5 球概率 ${pct(m.pred.lines["2.5"])}`;
+    const ouc = (m.books && m.books.length) ? consensusLine(m, "ou") : null;
+    if(ouc && Math.abs(Number(ouc.line) - 2.5) < 0.01){
+      const pm = _devig2(ouc.over, ouc.under);
+      if(pm != null) t += `，市场 ${pct(pm)}，模型${m.pred.lines["2.5"] >= pm ? "偏大球" : "偏小球"}。`;
+    } else t += "。";
+    parts.push(t);
+  }
+  const h5 = sideForm(h.id, "all", 5), a5 = sideForm(a.id, "all", 5);
+  if(h5.ms.length && a5.ms.length){
+    const rf = r => `${r.w}胜${r.d}平${r.l}负`;
+    parts.push(`状态：${hn}近 5 场 ${rf(h5.rec)}${h5.gf != null ? `，场均进 ${h5.gf.toFixed(1)}、失 ${h5.ga.toFixed(1)}` : ""}；${an}近 5 场 ${rf(a5.rec)}${a5.gf != null ? `，场均进 ${a5.gf.toFixed(1)}、失 ${a5.ga.toFixed(1)}` : ""}。`);
+  }
+  const h2h = h2hMatches(h.id, a.id, m.id);
+  if(h2h.length >= 2){
+    const rec = recordOf(h2h.slice(0, 6), h.id);
+    const g = h2h.slice(0, 6).reduce((n, x) => n + (x.hs || 0) + (x.as || 0), 0) / Math.min(6, h2h.length);
+    parts.push(`交锋：近 ${Math.min(6, h2h.length)} 次 ${hn} ${rec.w}胜${rec.d}平${rec.l}负，场均总进球 ${g.toFixed(1)}。`);
+  }
+  const injH = (m.inj && m.inj.h) || [], injA = (m.inj && m.inj.a) || [];
+  if(injH.length || injA.length){
+    const nm = arr => arr.slice(0, 3).map(x => x.n).join("、");
+    parts.push(`伤停：${injH.length ? `${hn} ${injH.length} 人（${nm(injH)}${injH.length > 3 ? " 等" : ""}）` : ""}${injH.length && injA.length ? "；" : ""}${injA.length ? `${an} ${injA.length} 人（${nm(injA)}${injA.length > 3 ? " 等" : ""}）` : ""} 缺阵。`);
+  }
+  let conclusion = "";
+  if(pred && mp){
+    const f = ip ? blendProbs(mp, ip, 0.7) : mp;
+    const lean = f[0] >= f[2] + 0.08 ? hn : (f[2] >= f[0] + 0.08 ? an : "平局");
+    conclusion = `综合判断：倾向 ${lean}${ip ? "，市场方向基本一致" : ""}。`;
+    const total = (pred.xgH != null ? pred.xgH : pred.xh) + (pred.xgA != null ? pred.xgA : pred.xa);
+    conclusion += total >= 2.8 ? " 进球端更看好大球。" : (total <= 2.2 ? " 进球端更看好小球。" : " 进球端接近常态。");
+  }
+  return { parts, conclusion };
+}
+
 async function exportMatchCard(m){
   await ensureCardFonts();
+  const logo = await ensureCardLogo();
   const cv = document.createElement("canvas");
   cv.width = CARD_W; cv.height = CARD_H;
   const ctx = cv.getContext("2d");
@@ -2803,159 +2939,243 @@ async function exportMatchCard(m){
   const hn = h.cn || h.name || "主队", an = a.cn || a.name || "客队";
   const isUpcoming = m.hs == null && m.as == null;
   const pred = isUpcoming ? m.pred : (m.pre ? { xgH: m.pre.xh, xgA: m.pre.xa, ph: m.pre.ph, pd: m.pre.pd, pa: m.pre.pa } : null);
+  const ip = isUpcoming ? ((m.odds || (m.books && m.books.length)) ? marketProbs(m) : null) : (m.mkt || null);
 
-  ctx.fillStyle = CK.bg;
+  // 背景：柔和渐变 + 顶部装饰
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, CARD_H);
+  bgGrad.addColorStop(0, "#F7FAF5");
+  bgGrad.addColorStop(0.55, "#EFF5EE");
+  bgGrad.addColorStop(1, "#E8F1E8");
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
-  cHeader(ctx, fullTime(m.date));
-
-  // 联赛标签
-  ctx.fillStyle = CK.soft;
-  cFont(ctx, 20, 600);
-  const lgTxt = m.league || "";
-  const lgW = ctx.measureText(lgTxt).width + 36;
-  cRound(ctx, 64, 158, lgW, 40, 20);
+  ctx.fillStyle = "rgba(14,122,73,.06)";
+  ctx.beginPath();
+  ctx.arc(CARD_W - 60, 120, 260, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = CK.accent;
-  ctx.fillText(lgTxt, 82, 168);
+  ctx.fillRect(0, 0, CARD_W, 12);
 
-  // 对阵
-  cFont(ctx, 46, 700);
+  // 页头
+  const LX = 72;
+  if(logo){
+    ctx.save();
+    cRound(ctx, LX, 64, 84, 84, 22);
+    ctx.clip();
+    ctx.drawImage(logo, LX, 64, 84, 84);
+    ctx.restore();
+  } else {
+    cMonogram(ctx, LX, 64, 84, "智", CK.accent, "#fff");
+  }
+  cFont(ctx, 38, 700);
   ctx.fillStyle = CK.ink;
-  ctx.fillText(cFit(ctx, hn, 440), 64, 240);
-  ctx.fillText(cFit(ctx, an, 440), 64, 320);
+  ctx.fillText("智球实验室", 180, 70);
+  cFont(ctx, 16, 500);
+  ctx.fillStyle = CK.muted;
+  ctx.fillText("Z H I Q I U   L A B", 182, 116);
 
   ctx.textAlign = "right";
-  const score = isUpcoming ? "VS" : `${m.hs}–${m.as}`;
-  cFont(ctx, isUpcoming ? 34 : 62, 700);
-  ctx.fillStyle = isUpcoming ? CK.muted : CK.accent;
-  ctx.fillText(score, CARD_W - 64, isUpcoming ? 272 : 258);
+  cFont(ctx, 20, 500);
+  ctx.fillStyle = CK.muted;
+  ctx.fillText(fullTime(m.date), CARD_W - 72, 78);
+  cFont(ctx, 17, 400);
+  ctx.fillText(m.venue || (m.league || ""), CARD_W - 72, 112);
   ctx.textAlign = "left";
 
-  let y = 430;
-  if(pred){
-    cPanel(ctx, 64, y, CARD_W - 128, 250);
-    cFont(ctx, 20, 600);
-    ctx.fillStyle = CK.muted;
-    ctx.fillText("模型预测", 96, y + 26);
-    ctx.textAlign = "right";
+  const M = 72, W = CARD_W - 144;
+  let y = 200;
+
+  // 对阵卡
+  const heroH = 340;
+  cPanelSoft(ctx, M, y, W, heroH);
+  cChip(ctx, M + 40, y + 34, m.league || "足球");
+  const rowY1 = y + 96, rowY2 = y + 200;
+  const badge = ch => (ch || "?").slice(0, 1);
+  cMonogram(ctx, M + 40, rowY1, 88, badge(hn), CK.accent, "#fff");
+  cFont(ctx, 46, 700);
+  ctx.fillStyle = CK.ink;
+  ctx.fillText(cFit(ctx, hn, 520), M + 152, rowY1 + 14);
+  cFont(ctx, 19, 400);
+  ctx.fillStyle = CK.muted;
+  ctx.fillText("主队", M + 154, rowY1 + 66);
+  cMonogram(ctx, M + 40, rowY2, 88, badge(an), "#E3EDE5", CK.ink);
+  cFont(ctx, 46, 700);
+  ctx.fillStyle = CK.ink;
+  ctx.fillText(cFit(ctx, an, 520), M + 152, rowY2 + 14);
+  cFont(ctx, 19, 400);
+  ctx.fillStyle = CK.muted;
+  ctx.fillText("客队", M + 154, rowY2 + 66);
+
+  ctx.textAlign = "right";
+  if(isUpcoming){
+    cFont(ctx, 42, 700);
+    ctx.fillStyle = CK.accent;
+    ctx.fillText("VS", CARD_W - M - 56, y + 140);
+  } else {
+    cFont(ctx, 78, 700);
+    ctx.fillStyle = CK.accent;
+    ctx.fillText(`${m.hs}–${m.as}`, CARD_W - M - 56, y + 112);
+    if(m.so && m.so[0] != null){
+      cFont(ctx, 18, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.fillText(`点球 ${m.so[0]}–${m.so[1]}`, CARD_W - M - 56, y + 210);
+    }
+  }
+  ctx.textAlign = "left";
+  y += heroH + 28;
+
+  // 模型预测卡
+  if(pred && pred.ph != null){
+    const cardH = 300;
+    cPanelSoft(ctx, M, y, W, cardH);
+    cSectionTitle(ctx, "模型预测", M + 40, y + 30);
     cFont(ctx, 20, 400);
-    ctx.fillText(`预期进球 ${Number(pred.xgH).toFixed(2)} – ${Number(pred.xgA).toFixed(2)}`, CARD_W - 96, y + 26);
+    ctx.fillStyle = CK.muted;
+    ctx.textAlign = "right";
+    ctx.fillText(`预期进球 ${Number(pred.xgH).toFixed(2)} – ${Number(pred.xgA).toFixed(2)}`, CARD_W - M - 40, y + 34);
     ctx.textAlign = "left";
-
     const ps = [pred.ph, pred.pd, pred.pa];
-    const bw = CARD_W - 192, bx = 96, by = y + 66, bh = 16;
+    const bx = M + 40, bw = W - 80;
+    // 模型条
     let cx = bx;
-    ps.forEach((p, i) => {
-      ctx.fillStyle = i === 0 ? CK.accent : (i === 1 ? CK.line : CK.muted);
-      ctx.fillRect(cx, by, Math.max(0, bw * p - (i < 2 ? 2 : 0)), bh);
-      cx += bw * p;
+    cFont(ctx, 18, 400);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText("模型", bx, y + 92);
+    const barY = y + 122, barH = 18;
+    const bars = [[ps, CK.accent], [ip || null, "#9DB5A6"]];
+    let rowY = barY;
+    bars.forEach(([arr], bi) => {
+      if(!arr) return;
+      cx = bx;
+      arr.forEach((p, i) => {
+        ctx.fillStyle = i === 0 ? (bi === 0 ? CK.accent : "#8FAF9D") : (i === 1 ? CK.line : (bi === 0 ? CK.muted : "#C9D6CC"));
+        ctx.fillRect(cx, rowY, Math.max(0, bw * p - 2), barH);
+        cx += bw * p;
+      });
+      cFont(ctx, 15, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.textAlign = "right";
+      ctx.fillText(bi === 0 ? "模型" : "市场", CARD_W - M - 40, rowY - 2);
+      ctx.textAlign = "left";
+      rowY += barH + 28;
     });
-
     const labels = ["主胜", "平", "客胜"];
     labels.forEach((lb, i) => {
       const col = bx + (bw / 3) * i;
-      cFont(ctx, 19, 400);
-      ctx.fillStyle = CK.muted;
-      ctx.fillText(lb, col, by + 34);
-      cFont(ctx, 34, 700);
-      ctx.fillStyle = CK.ink;
-      ctx.fillText(Math.round(ps[i] * 100) + "%", col, by + 62);
-    });
-    y += 280;
-  }
-
-  // 盘口
-  if(pred && (pred.lines || pred.ah || pred.corners)){
-    cPanel(ctx, 64, y, CARD_W - 128, 230);
-    cFont(ctx, 20, 600);
-    ctx.fillStyle = CK.muted;
-    ctx.fillText("关键盘口", 96, y + 26);
-
-    const items = [];
-    if(pred.lines && pred.lines["2.5"] != null)
-      items.push(["大 2.5 球", Math.round(pred.lines["2.5"] * 100) + "%"]);
-    if(pred.ah && pred.ah["-0.5"] != null)
-      items.push(["主队 -0.5 赢盘", Math.round(pred.ah["-0.5"] * 100) + "%"]);
-    if(pred.corners)
-      items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
-    if(pred.corners && pred.corners.over && pred.corners.over["9.5"] != null)
-      items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
-
-    const colW = (CARD_W - 192) / 2;
-    items.slice(0, 4).forEach((it, i) => {
-      const col = 96 + (i % 2) * colW;
-      const row = y + 74 + Math.floor(i / 2) * 74;
-      cFont(ctx, 19, 400);
-      ctx.fillStyle = CK.muted;
-      ctx.fillText(cFit(ctx, it[0], colW - 24), col, row);
-      cFont(ctx, 30, 700);
-      ctx.fillStyle = CK.ink;
-      ctx.fillText(it[1], col, row + 26);
-    });
-    y += 260;
-  }
-
-  // 已完赛场次：本场技术统计
-  if(!isUpcoming && m.stats){
-    const H = m.stats.home || {}, A = m.stats.away || {};
-    const pc = v => (v == null ? "—" : Number(v).toFixed(1) + "%");
-    const rows = [
-      ["射门", H.shots, A.shots],
-      ["射正", H.sot, A.sot],
-      ["角球", H.corners, A.corners],
-      ["控球率", pc(H.possession), pc(A.possession)]
-    ];
-    const ph = 96 + rows.length * 52;
-    cPanel(ctx, 64, y, CARD_W - 128, ph);
-    cFont(ctx, 20, 600);
-    ctx.fillStyle = CK.muted;
-    ctx.fillText("本场技术统计", 96, y + 26);
-    rows.forEach((r, i) => {
-      const ry = y + 82 + i * 52;
-      cFont(ctx, 19, 400);
-      ctx.fillStyle = CK.muted;
-      ctx.textAlign = "center";
-      ctx.fillText(r[0], CARD_W / 2, ry + 6);
-      ctx.textAlign = "left";
-      cFont(ctx, 26, 700);
-      ctx.fillStyle = CK.ink;
-      ctx.fillText(String(r[1] == null ? "—" : r[1]), 96, ry);
-      ctx.textAlign = "right";
-      ctx.fillText(String(r[2] == null ? "—" : r[2]), CARD_W - 96, ry);
-      ctx.textAlign = "left";
-    });
-    y += ph + 28;
-  }
-
-  // 模型 vs 市场（有赔率时）
-  const odds = isUpcoming ? m.odds : null;
-  const ip = odds ? impliedProbs(odds.ml) : (m.mkt || null);
-  if(ip && pred){
-    const bl = blendProbs(pred, ip, 0.7);
-    cPanel(ctx, 64, y, CARD_W - 128, 176);
-    cFont(ctx, 20, 600);
-    ctx.fillStyle = CK.muted;
-    ctx.fillText("市场去水概率 · 综合预测", 96, y + 26);
-    const labels = ["主", "平", "客"];
-    const colW = (CARD_W - 192) / 3;
-    labels.forEach((lb, i) => {
-      const col = 96 + colW * i;
       cFont(ctx, 18, 400);
       ctx.fillStyle = CK.muted;
-      ctx.fillText(lb + " 　模型 " + Math.round(pred[["ph", "pd", "pa"][i]] * 100) + "%", col, y + 68);
-      cFont(ctx, 30, 700);
+      ctx.fillText(lb, col, y + 216);
+      cFont(ctx, 40, 700);
       ctx.fillStyle = CK.ink;
-      ctx.fillText(Math.round(bl[i] * 100) + "%", col, y + 100);
+      ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 246);
+      if(ip && ip[i] != null){
+        cFont(ctx, 15, 400);
+        ctx.fillStyle = CK.muted;
+        ctx.fillText(`市场 ${Math.round(ip[i] * 100)}%`, col, y + 292);
+      }
     });
-    y += 200;
+    y += cardH + 24;
   }
 
-  cFootNote(ctx, [
-    "赔率来自多家机构 · 模型基于近三个赛季攻防数据",
-    "预测仅供参考，不代表确定结果",
-    "zhiqiulab.com"
-  ]);
+  // 关键盘口卡
+  const items = [];
+  if(pred && pred.lines && pred.lines["2.5"] != null) items.push(["大 2.5 球", Math.round(pred.lines["2.5"] * 100) + "%"]);
+  if(pred && pred.ah && pred.ah["-0.5"] != null) items.push(["主队 -0.5 赢盘", Math.round(pred.ah["-0.5"] * 100) + "%"]);
+  if(pred && pred.corners) items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
+  if(pred && pred.corners && pred.corners.over && pred.corners.over["9.5"] != null) items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
+  if(items.length){
+    const cardH = 260;
+    cPanelSoft(ctx, M, y, W, cardH);
+    cSectionTitle(ctx, "关键盘口", M + 40, y + 30);
+    const colW = (W - 80) / 2;
+    items.slice(0, 4).forEach((it, i) => {
+      const cx = M + 40 + (i % 2) * colW;
+      const cy = y + 92 + Math.floor(i / 2) * 84;
+      cFont(ctx, 18, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.fillText(cFit(ctx, it[0], colW - 20), cx, cy);
+      cFont(ctx, 38, 700);
+      ctx.fillStyle = CK.ink;
+      ctx.fillText(it[1], cx, cy + 26);
+    });
+    y += cardH + 24;
+  }
 
+  // 智能分析卡（自适应高度，必要时截断）
+  const analysis = cardAnalysis(m, hn, an, h, a);
+  cFont(ctx, 23, 400);
+  const bodyLines = cWrap(ctx, analysis.parts.join(""), W - 96);
+  cFont(ctx, 23, 700);
+  const conclLines = analysis.conclusion ? cWrap(ctx, analysis.conclusion, W - 128) : [];
+  const availBottom = CARD_H - 170;
+  let lineCount = bodyLines.length;
+  let analysisH = 132 + lineCount * 40 + (conclLines.length ? 34 + conclLines.length * 38 + 26 : 0);
+  const reserved = 258; // 状态卡 + 底部留给页脚
+  while(y + analysisH > availBottom - reserved && lineCount > 3){
+    lineCount--; analysisH = 132 + lineCount * 40 + (conclLines.length ? 34 + conclLines.length * 38 + 26 : 0);
+  }
+  cPanelSoft(ctx, M, y, W, analysisH);
+  cSectionTitle(ctx, "智能分析", M + 40, y + 30);
+  cFont(ctx, 23, 400);
+  ctx.fillStyle = CK.ink2;
+  let ty = y + 92;
+  bodyLines.slice(0, lineCount).forEach(line => { ctx.fillText(line, M + 48, ty); ty += 40; });
+  if(conclLines.length){
+    ty += 10;
+    cRound(ctx, M + 40, ty - 8, W - 80, 28 + conclLines.length * 38 + 14, 16);
+    ctx.fillStyle = CK.soft;
+    ctx.fill();
+    cFont(ctx, 23, 700);
+    ctx.fillStyle = CK.accent;
+    conclLines.forEach(line => { ctx.fillText(line, M + 64, ty + 4); ty += 38; });
+  }
+  y += analysisH + 24;
+
+  // 近期状态卡
+  if(y + 236 < CARD_H - 120){
+    const cardH = 236;
+    cPanelSoft(ctx, M, y, W, cardH);
+    cSectionTitle(ctx, "近期状态", M + 40, y + 26);
+    const h5 = sideForm(h.id, "all", 5), a5 = sideForm(a.id, "all", 5);
+    const rows = [[hn, h5], [an, a5]];
+    rows.forEach(([nm, f], i) => {
+      const ry = y + 82 + i * 74;
+      cFont(ctx, 22, 600);
+      ctx.fillStyle = CK.ink;
+      ctx.fillText(cFit(ctx, nm, 240), M + 40, ry);
+      cFont(ctx, 19, 400);
+      ctx.fillStyle = CK.ink2;
+      const recTxt = f.ms.length ? `近 5 场 ${f.rec.w}胜${f.rec.d}平${f.rec.l}负${f.gf != null ? ` · 场均进 ${f.gf.toFixed(1)} 失 ${f.ga.toFixed(1)}` : ""}` : "暂无近期比赛";
+      ctx.fillText(cFit(ctx, recTxt, W - 360), M + 300, ry + 3);
+    });
+    y += cardH + 20;
+  }
+
+  // 历史交锋小卡
+  const h2h = h2hMatches(h.id, a.id, m.id);
+  if(h2h.length >= 2 && y + 150 < CARD_H - 110){
+    const rec = recordOf(h2h.slice(0, 6), h.id);
+    const g = h2h.slice(0, 6).reduce((n, x) => n + (x.hs || 0) + (x.as || 0), 0) / Math.min(6, h2h.length);
+    cPanelSoft(ctx, M, y, W, 132);
+    cSectionTitle(ctx, "历史交锋", M + 40, y + 24);
+    cFont(ctx, 20, 400);
+    ctx.fillStyle = CK.ink2;
+    const last = h2h[0];
+    ctx.fillText(`近 ${Math.min(6, h2h.length)} 次 ${hn} ${rec.w}胜${rec.d}平${rec.l}负 · 场均总进球 ${g.toFixed(1)} · 最近 ${last.hs}–${last.as}（${fmtDate(last.date)}）`, M + 48, y + 82);
+    y += 152;
+  }
+
+  // 页脚
+  ctx.textAlign = "center";
+  cFont(ctx, 17, 400);
+  ctx.fillStyle = CK.muted;
+  ctx.fillText("赔率来自多家机构 · 模型基于近三个赛季攻防数据", CARD_W / 2, CARD_H - 92);
+  ctx.fillText("预测仅供参考，不代表确定结果", CARD_W / 2, CARD_H - 64);
+  cFont(ctx, 18, 600);
+  ctx.fillStyle = CK.accent;
+  ctx.fillText("zhiqiulab.com", CARD_W / 2, CARD_H - 36);
+  ctx.textAlign = "left";
+
+  window.__lastCardCanvas = cv;
   const safe = (hn + "-vs-" + an).replace(/[^\w\u4e00-\u9fa5-]+/g, "");
   cDownload(cv, `${safe || "match"}-智球实验室.png`);
 }
@@ -2963,7 +3183,7 @@ async function exportMatchCard(m){
 async function exportDailyCard(){
   await ensureCardFonts();
   const cv = document.createElement("canvas");
-  cv.width = CARD_W; cv.height = CARD_H;
+  cv.width = CARD_W; cv.height = DAILY_CARD_H;
   const ctx = cv.getContext("2d");
   ctx.textBaseline = "top";
 
@@ -3023,7 +3243,7 @@ async function exportDailyCard(){
     "模型基于近三个赛季攻防数据",
     "大小球方向判别力有限，请以胜平负为主参考",
     "zhiqiulab.com"
-  ]);
+  ], DAILY_CARD_H);
 
   const d = new Date();
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
