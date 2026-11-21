@@ -3276,9 +3276,9 @@ async function exportMatchCard(m){
   let ty = topStart;
   cFont(ctx, 21, 400); ctx.fillStyle = ink2;
   shortLines.forEach(line => { ctx.fillText(line, cardX + 48, ty); ty += 34; });
-  ty += 10;
+  ty += 12;
   if(conclLines.length){
-    const cy = Math.max(ty + 4, cardY + cardH - conclH - 30);
+    const cy = ty;
     cRound(ctx, cardX + 40, cy, cardW - 80, conclH, 16);
     ctx.fillStyle = CK.soft; ctx.fill();
     cFont(ctx, 22, 700); ctx.fillStyle = CK.accent;
