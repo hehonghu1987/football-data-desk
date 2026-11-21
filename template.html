@@ -2918,7 +2918,7 @@ function cardAnalysis(m, hn, an, h, a){
   }
   let conclusion = "";
   if(pred && mp){
-    const f = ip ? blendProbs(mp, ip, 0.7) : mp;
+    const f = ip ? mp.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : mp;
     const lean = f[0] >= f[2] + 0.08 ? hn : (f[2] >= f[0] + 0.08 ? an : "平局");
     conclusion = `综合判断：倾向 ${lean}${ip ? "，市场方向基本一致" : ""}。`;
     const total = (pred.xgH != null ? pred.xgH : pred.xh) + (pred.xgA != null ? pred.xgA : pred.xa);
@@ -3025,7 +3025,7 @@ async function exportMatchCard(m){
 
   // 模型预测卡
   if(pred && pred.ph != null){
-    const cardH = 300;
+    const cardH = 250;
     cPanelSoft(ctx, M, y, W, cardH);
     cSectionTitle(ctx, "模型预测", M + 40, y + 30);
     cFont(ctx, 20, 400);
@@ -3035,44 +3035,44 @@ async function exportMatchCard(m){
     ctx.textAlign = "left";
     const ps = [pred.ph, pred.pd, pred.pa];
     const bx = M + 40, bw = W - 80;
-    // 模型条
-    let cx = bx;
-    cFont(ctx, 18, 400);
-    ctx.fillStyle = CK.muted;
-    ctx.fillText("模型", bx, y + 92);
-    const barY = y + 122, barH = 18;
-    const bars = [[ps, CK.accent], [ip || null, "#9DB5A6"]];
-    let rowY = barY;
-    bars.forEach(([arr], bi) => {
-      if(!arr) return;
-      cx = bx;
+    const drawBar = (arr, by, isModel) => {
+      let cx = bx;
       arr.forEach((p, i) => {
-        ctx.fillStyle = i === 0 ? (bi === 0 ? CK.accent : "#8FAF9D") : (i === 1 ? CK.line : (bi === 0 ? CK.muted : "#C9D6CC"));
-        ctx.fillRect(cx, rowY, Math.max(0, bw * p - 2), barH);
+        ctx.fillStyle = isModel
+          ? (i === 0 ? CK.accent : (i === 1 ? "#B9CDBE" : "#6E8B7B"))
+          : (i === 0 ? "#8FB39C" : (i === 1 ? "#D9E3DA" : "#B4C4B8"));
+        ctx.fillRect(cx, by, Math.max(0, bw * p - 2), 16);
         cx += bw * p;
       });
-      cFont(ctx, 15, 400);
+    };
+    cFont(ctx, 18, 500);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText("模型概率", bx, y + 84);
+    ctx.textAlign = "right";
+    cFont(ctx, 18, 600);
+    ctx.fillStyle = CK.ink2;
+    ctx.fillText(`主 ${Math.round(ps[0]*100)}% · 平 ${Math.round(ps[1]*100)}% · 客 ${Math.round(ps[2]*100)}%`, CARD_W - M - 40, y + 84);
+    ctx.textAlign = "left";
+    drawBar(ps, y + 112, true);
+    if(ip && ip.every(v => v != null)){
+      cFont(ctx, 18, 500);
       ctx.fillStyle = CK.muted;
+      ctx.fillText("市场概率", bx, y + 150);
       ctx.textAlign = "right";
-      ctx.fillText(bi === 0 ? "模型" : "市场", CARD_W - M - 40, rowY - 2);
+      cFont(ctx, 18, 600);
+      ctx.fillStyle = CK.ink2;
+      ctx.fillText(`主 ${Math.round(ip[0]*100)}% · 平 ${Math.round(ip[1]*100)}% · 客 ${Math.round(ip[2]*100)}%`, CARD_W - M - 40, y + 150);
       ctx.textAlign = "left";
-      rowY += barH + 28;
-    });
-    const labels = ["主胜", "平", "客胜"];
-    labels.forEach((lb, i) => {
-      const col = bx + (bw / 3) * i;
-      cFont(ctx, 18, 400);
-      ctx.fillStyle = CK.muted;
-      ctx.fillText(lb, col, y + 216);
-      cFont(ctx, 40, 700);
-      ctx.fillStyle = CK.ink;
-      ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 246);
-      if(ip && ip[i] != null){
-        cFont(ctx, 15, 400);
-        ctx.fillStyle = CK.muted;
-        ctx.fillText(`市场 ${Math.round(ip[i] * 100)}%`, col, y + 292);
-      }
-    });
+      drawBar(ip, y + 178, false);
+    }
+    // 融合概率大数字
+    const f = ip ? ps.map((v, i) => ip[i] * 0.7 + v * 0.3) : ps;
+    cFont(ctx, 16, 400);
+    ctx.fillStyle = CK.muted;
+    ctx.fillText("综合概率", bx, y + 208);
+    cFont(ctx, 22, 700);
+    ctx.fillStyle = CK.accent;
+    ctx.fillText(`${Math.round(f[0]*100)}%  /  ${Math.round(f[1]*100)}%  /  ${Math.round(f[2]*100)}%`, bx + 110, y + 205);
     y += cardH + 24;
   }
 
@@ -3098,6 +3098,36 @@ async function exportMatchCard(m){
       ctx.fillText(it[1], cx, cy + 26);
     });
     y += cardH + 24;
+  }
+
+  // 盘口共识卡
+  {
+    const ahc = consensusLine(m, "ah");
+    const ouc = consensusLine(m, "ou");
+    if(ip || ahc || ouc){
+      const cardH = 236;
+      cPanelSoft(ctx, M, y, W, cardH);
+      cSectionTitle(ctx, "盘口共识", M + 40, y + 30);
+      const colW = (W - 80) / 3;
+      const cellsData = [];
+      if(ip) cellsData.push(["欧赔", `主 ${(1/ip[0]).toFixed(2)} · 平 ${(1/ip[1]).toFixed(2)} · 客 ${(1/ip[2]).toFixed(2)}`]);
+      if(ahc) cellsData.push(["亚盘 " + ahText(ahc.line), `主 ${ahc.h ? ahc.h.toFixed(2) : "—"} · 客 ${ahc.a ? ahc.a.toFixed(2) : "—"}`]);
+      if(ouc) cellsData.push(["大小 " + Number(ouc.line).toFixed(1), `大 ${ouc.over ? ouc.over.toFixed(2) : "—"} · 小 ${ouc.under ? ouc.under.toFixed(2) : "—"}`]);
+      cellsData.slice(0, 3).forEach(([lb, val], i) => {
+        const cx = M + 40 + i * colW;
+        cFont(ctx, 18, 500);
+        ctx.fillStyle = CK.muted;
+        ctx.fillText(cFit(ctx, lb, colW - 20), cx, y + 96);
+        cFont(ctx, 24, 700);
+        ctx.fillStyle = CK.ink;
+        ctx.fillText(cFit(ctx, val, colW - 16), cx, y + 134);
+      });
+      const spLine = (m.sp && m.sp.had) ? `竞彩 ${m.sp.had.map(v => Number(v).toFixed(2)).join(" / ")}` : "";
+      cFont(ctx, 16, 400);
+      ctx.fillStyle = CK.muted;
+      ctx.fillText(spLine || "多家机构去水共识", M + 40, y + 196);
+      y += cardH + 24;
+    }
   }
 
   // 智能分析卡（自适应高度，必要时截断）
