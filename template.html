@@ -2826,14 +2826,18 @@ function cPanelSoft(ctx, x, y, w, h, r){
 }
 
 function cWrap(ctx, text, maxW){
+  const NO_START = "，。、；：！？）】》”’,.;:!?)%";
   const chars = String(text == null ? "" : text).split("");
   const lines = [];
   let cur = "";
   for(const ch of chars){
     if(ch === "\n"){ lines.push(cur); cur = ""; continue; }
     const test = cur + ch;
-    if(ctx.measureText(test).width > maxW && cur){ lines.push(cur); cur = ch; }
-    else cur = test;
+    if(ctx.measureText(test).width > maxW && cur){
+      if(NO_START.includes(ch)){ cur = test; continue; }   // 标点不另起一行
+      lines.push(cur);
+      cur = ch;
+    } else cur = test;
   }
   if(cur) lines.push(cur);
   return lines;
@@ -2929,6 +2933,13 @@ function cardAnalysis(m, hn, an, h, a){
     const nm = arr => arr.slice(0, 3).map(x => x.n).join("、");
     parts.push(`伤停：${injH.length ? `${hn} ${injH.length} 人（${nm(injH)}${injH.length > 3 ? " 等" : ""}）` : ""}${injH.length && injA.length ? "；" : ""}${injA.length ? `${an} ${injA.length} 人（${nm(injA)}${injA.length > 3 ? " 等" : ""}）` : ""} 缺阵。`);
   }
+  if(upcoming && m.pred && Array.isArray(m.pred.top) && m.pred.top.length){
+    const tops = m.pred.top.slice(0, 3).map(x => `${x[0]}（${Math.round(x[1] * 100)}%）`);
+    parts.push(`比分参考：${tops.join("、")}。`);
+  }
+  if(upcoming && m.sp && Array.isArray(m.sp.had) && m.sp.had.every(v => v != null)){
+    parts.push(`竞彩胜平负：${m.sp.had.map(v => Number(v).toFixed(2)).join(" / ")}。`);
+  }
   parts.push("风险提示：模型基于近三个赛季攻防数据推算，阵容轮换、临场伤停与跨联赛比赛会降低可靠性。");
   let conclusion = "";
   if(pred && mp){
@@ -3001,10 +3012,6 @@ async function exportMatchCard(m){
   ctx.textAlign = "right";
   cFont(ctx, 22, 500); ctx.fillStyle = muted;
   ctx.fillText(fullTime(m.date), CARD_W - 72, LY + 8);
-  if(m.venue){
-    cFont(ctx, 17, 400); ctx.fillStyle = muted;
-    ctx.fillText(m.venue, CARD_W - 72, LY + 46);
-  }
   ctx.textAlign = "left";
 
   // ===== 联赛标签（居中） =====
@@ -3129,7 +3136,7 @@ async function exportMatchCard(m){
   const maxLines = Math.max(2, Math.floor(avail / lineH));
   const shown = bodyLines.slice(0, maxLines);
   const innerSpace = cardH - 94 - 40 - conclH - conclGap;
-  const dynLH = Math.min(44, Math.max(34, Math.floor(innerSpace / Math.max(1, shown.length))));
+  const dynLH = Math.min(50, Math.max(34, Math.floor(innerSpace / Math.max(1, shown.length))));
   let ty = cardY + 96;
   cFont(ctx, 22, 400); ctx.fillStyle = ink2;
   shown.forEach((line, i) => {
