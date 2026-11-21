@@ -3185,7 +3185,7 @@ async function exportMatchCard(m){
   const TITLE_H = 78;
   const hasNote = !!(noteText || dirLabel);
   let noteTextH = noteLines.reduce((n, l) => n + (l ? 34 : 17), 0);
-  const conclBoxH = conclLines.length ? 52 + conclLines.length * 34 + 16 : 0;
+  const conclBoxH = conclLines.length ? 30 + conclLines.length * 40 + 14 : 0;
 
   let hModel = pred && pred.ph != null ? 330 : 0;
   const items = [];
@@ -3292,9 +3292,7 @@ async function exportMatchCard(m){
     const nx = MX + 40, nw = W - 80;
     cRound(ctx, nx, cy, nw, noteBoxH, 16);
     ctx.fillStyle = "#F2F8F3"; ctx.fill();
-    ctx.fillStyle = CK.accent;
-    cRound(ctx, nx, cy + 10, 5, noteBoxH - 20, 3); ctx.fill();
-    cFont(ctx, 18, 700); ctx.fillStyle = CK.accent;
+    cFont(ctx, 19, 700); ctx.fillStyle = CK.accent;
     ctx.fillText("我的判断", nx + 22, cy + 16);
     if(dirLabel){
       cFont(ctx, 16, 600);
@@ -3321,16 +3319,9 @@ async function exportMatchCard(m){
     cy += 20;
     cRound(ctx, MX + 40, cy, W - 80, conclBoxH, 16);
     ctx.fillStyle = CK.soft; ctx.fill();
-    cFont(ctx, 15, 700);
-    const chipTxt = "综合判断";
-    const chipW = ctx.measureText(chipTxt).width + 26;
-    cRound(ctx, MX + 62, cy + 16, chipW, 26, 13);
-    ctx.fillStyle = CK.accent; ctx.fill();
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText(chipTxt, MX + 75, cy + 21);
-    cFont(ctx, 22, 700); ctx.fillStyle = CK.accent;
-    let cyy = cy + 56;
-    conclLines.forEach(line => { ctx.fillText(line, MX + 62, cyy); cyy += 34; });
+    cFont(ctx, 26, 700); ctx.fillStyle = CK.accent;
+    let cyy = cy + 18;
+    conclLines.forEach(line => { ctx.fillText(line, MX + 62, cyy); cyy += 40; });
   }
 
   // ===== 页脚 =====
