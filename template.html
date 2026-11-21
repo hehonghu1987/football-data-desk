@@ -3164,10 +3164,10 @@ async function exportMatchCard(m){
     const bl = ip ? ps.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : ps;
     labels.forEach((lb, i) => {
       const col = bx + (bw / 3) * i;
-      cFont(ctx, 17, 400); ctx.fillStyle = muted;
-      ctx.fillText((["主", "平", "客"][i]) + " ", col, y + 288);
-      cFont(ctx, 17, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(bl[i] * 100) + "%", col + 22, y + 288);
+      cFont(ctx, 16, 400); ctx.fillStyle = muted;
+      ctx.fillText(["主", "平", "客"][i], col, y + 282);
+      cFont(ctx, 24, 700); ctx.fillStyle = ink;
+      ctx.fillText(Math.round(bl[i] * 100) + "%", col, y + 306);
     });
     y += hh + GAP;
   }
@@ -3270,16 +3270,18 @@ async function exportMatchCard(m){
         cWrap(ctx, para, bodyW - 64).forEach(l => noteLines.push(l));
       });
     } else noteLines = [];
-    const maxNoteLines = Math.max(1, Math.floor((noteCapH - 46 + 8) / 26));
+    // 以「最小行距 26px」计算能放几行，超出就截断并加省略号，保证不溢出绿框
+    const maxNoteLines = Math.max(1, Math.floor((noteCapH - 46) / 26));
     if(noteLines.length > maxNoteLines){
       noteLines = noteLines.slice(0, maxNoteLines);
       let last = noteLines[noteLines.length - 1];
       while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
-      noteLines[noteLines.length - 1] = last + "…";
+      noteLines[noteLines.length - 1] = last + (last.endsWith("…") ? "" : "…");
     }
-    // 观点块尽量占满分配空间：行距自适应，块高至少填满 noteCapH
-    const noteLH = Math.min(36, Math.max(28, Math.floor((noteCapH - 46) / Math.max(1, noteLines.length))));
-    const innerNoteH = Math.max(30 + noteLines.length * noteLH + 16, noteCapH);
+    // 行距自适应铺满，同时块高严格不超过分配空间
+    const _nLines = Math.max(1, noteLines.length);
+    const noteLH = Math.min(36, Math.max(26, Math.floor((noteCapH - 46) / _nLines)));
+    const innerNoteH = Math.min(noteCapH, Math.max(46 + (_nLines - 1) * noteLH + 26, Math.min(noteCapH, 46 + _nLines * noteLH)));
     noteH = innerNoteH + 14;
     const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
     cRound(ctx, nx, ny, nw, innerNoteH, 14);
