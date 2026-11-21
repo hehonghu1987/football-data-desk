@@ -3182,7 +3182,9 @@ async function exportMatchCard(m){
     });
   }
   cFont(ctx, 22, 700);
-  const _conclTxt = "最终方向：" + String(conclusion || "").replace(/^综合判断[：:]\s*/, "");
+  const _conclTxt = "最终方向：" + String(conclusion || "")
+    .replace(/^综合判断[：:]\s*/, "")
+    .replace(/^(综合来看|综合判断|综合|总体来看|整体来看|综上)[，,：:]\s*/, "");
   const conclLines = _conclTxt ? cWrap(ctx, _conclTxt, bodyW - 64) : [];
   const dataH = shortLines.length * 30;
   const TITLE_H = 78;
