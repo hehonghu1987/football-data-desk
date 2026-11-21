@@ -2901,12 +2901,13 @@ function cardAnalysis(m, hn, an, h, a){
     parts.push(t);
   }
   if(upcoming && m.pred && m.pred.lines && m.pred.lines["2.5"] != null){
-    let t = `进球端：模型大 2.5 球概率 ${pct(m.pred.lines["2.5"])}`;
-    const ouc = (m.books && m.books.length) ? consensusLine(m, "ou") : null;
-    if(ouc && Math.abs(Number(ouc.line) - 2.5) < 0.01){
-      const pm = _devig2(ouc.over, ouc.under);
-      if(pm != null) t += `，市场 ${pct(pm)}，模型${m.pred.lines["2.5"] >= pm ? "偏大球" : "偏小球"}。`;
-    } else t += "。";
+    const _ou = mainOu(m);
+    const _ln = _ou ? _ou.line : 2.5;
+    const _po = modelOverAt(m, _ln) != null ? modelOverAt(m, _ln) : m.pred.lines["2.5"];
+    let t = `进球端：按市场主盘 ${_ln} 球，模型大球概率 ${pct(_po)}`;
+    const _pm = marketOverAt(_ou);
+    if(_pm != null) t += `，市场 ${pct(_pm)}，模型${_po >= _pm ? "偏大球" : "偏小球"}（差 ${(Math.abs(_po - _pm) * 100).toFixed(1)} 个百分点）。`;
+    else t += "。";
     parts.push(t);
   }
   const h5 = sideForm(h.id, "all", 5), a5 = sideForm(a.id, "all", 5);
@@ -3080,7 +3081,12 @@ async function exportMatchCard(m){
 
   // ===== 关键盘口 =====
   const items = [];
-  if(pred && pred.lines && pred.lines["2.5"] != null) items.push(["大 2.5 球", Math.round(pred.lines["2.5"] * 100) + "%"]);
+  if(pred && pred.lines && pred.lines["2.5"] != null){
+    const _ouI = mainOu(m);
+    const _lnI = _ouI ? _ouI.line : 2.5;
+    const _poI = modelOverAt(m, _lnI) != null ? modelOverAt(m, _lnI) : pred.lines["2.5"];
+    items.push([`大 ${_lnI} 球`, Math.round(_poI * 100) + "%"]);
+  }
   if(pred && pred.ah && pred.ah["-0.5"] != null) items.push(["主队 -0.5 赢盘", Math.round(pred.ah["-0.5"] * 100) + "%"]);
   if(pred && pred.corners) items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
   if(pred && pred.corners && pred.corners.over && pred.corners.over["9.5"] != null) items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
@@ -3573,10 +3579,12 @@ function fixtureRowHtml(f, forceStatus){
       predLine = `<div class="fix-pred"><span class="tag">竞彩让球</span><span>${f.sp.hhad.line > 0 ? "主受让" : (f.sp.hhad.line < 0 ? "主让" : "平手")}${Math.abs(f.sp.hhad.line)} 球</span><span class="hint">${Number(f.sp.hhad.h).toFixed(2)} / ${Number(f.sp.hhad.d).toFixed(2)} / ${Number(f.sp.hhad.a).toFixed(2)}</span></div>`;
     }
   } else if(pd && fbp){
-    const o25 = pd.lines ? pd.lines["2.5"] : null;
     const btts = pd.btts != null ? pd.btts : null;
+    const _ouH = mainOu(f);
+    const _lnH = _ouH ? _ouH.line : 2.5;
+    const o25 = modelOverAt(f, _lnH) != null ? modelOverAt(f, _lnH) : (pd.lines ? pd.lines["2.5"] : null);
     const hints = [];
-    if(o25 != null) hints.push(o25 >= 0.5 ? `大2.5 ${Math.round(o25*100)}%` : `小2.5 ${Math.round((1-o25)*100)}%`);
+    if(o25 != null) hints.push(o25 >= 0.5 ? `大${_lnH} ${Math.round(o25*100)}%` : `小${_lnH} ${Math.round((1-o25)*100)}%`);
     if(btts != null) hints.push(`双方进球 ${Math.round(btts*100)}%`);
     const hiTh = (DATA.conf && DATA.conf.p60 && DATA.conf.p60.th) ? DATA.conf.p60.th : 0.6;
     const hiTag = Math.max(fbp[0], fbp[1], fbp[2]) >= hiTh ? `<span class="tag tag-conf">高信心</span>` : "";
@@ -6286,13 +6294,15 @@ function renderMatch(id){
       if(!p) return "";
       const fip = m.odds ? marketProbs(m) : null;
       const fp = fip ? blendProbs(p, fip, 0.7) : [p.ph, p.pd, p.pa];
-      const o25 = p.lines ? p.lines["2.5"] : null;
+      const _ouQ = mainOu(m);
+      const _lnQ = _ouQ ? _ouQ.line : 2.5;
+      const o25 = modelOverAt(m, _lnQ) != null ? modelOverAt(m, _lnQ) : (p.lines ? p.lines["2.5"] : null);
       const bits = [
         ["主胜", `${Math.round(fp[0] * 100)}%`, "mq-h"],
         ["平", `${Math.round(fp[1] * 100)}%`, "mq-d"],
         ["客胜", `${Math.round(fp[2] * 100)}%`, "mq-a"],
         ["预期进球", `${p.xgH.toFixed(1)}–${p.xgA.toFixed(1)}`, ""],
-        ["大 2.5", o25 != null ? `${Math.round(o25 * 100)}%` : "—", ""],
+        [`大 ${_lnQ}`, o25 != null ? `${Math.round(o25 * 100)}%` : "—", ""],
         ["双方进球", p.btts != null ? `${Math.round(p.btts * 100)}%` : "—", ""]
       ];
       return `<div class="match-quick">${bits.map(([k, v, cls]) => `<div class="mq-item ${cls}"><span class="k">${k}</span><b>${v}</b></div>`).join("")}</div>`;
