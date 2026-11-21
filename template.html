@@ -3052,27 +3052,42 @@ async function exportMatchCard(m){
   const pred = isUpcoming ? m.pred : (m.pre ? { xgH: m.pre.xh, xgA: m.pre.xa, ph: m.pre.ph, pd: m.pre.pd, pa: m.pre.pa } : null);
   const ip = isUpcoming ? ((m.odds || (m.books && m.books.length)) ? marketProbs(m) : null) : (m.mkt || null);
 
-  // 背景
-  ctx.fillStyle = "#F7FAF5";
+  // 背景（柔和渐变 + 顶部装饰）
+  const _bg = ctx.createLinearGradient(0, 0, 0, CARD_H);
+  _bg.addColorStop(0, "#F9FCF7");
+  _bg.addColorStop(0.55, "#F4FAF4");
+  _bg.addColorStop(1, "#EDF6EF");
+  ctx.fillStyle = _bg;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
+  ctx.fillStyle = "rgba(14,122,73,0.05)";
+  ctx.beginPath(); ctx.arc(CARD_W - 60, 120, 260, 0, Math.PI * 2); ctx.fill();
 
   const M = 72, W = CARD_W - 96 * 2; // 左右 96 边距
   const MX = 96;
   const cardFill = "#FFFFFF", cardLine = "#E3EBE3", ink = "#12211A", ink2 = "#33463C", muted = "#5E7065";
 
   const card = (x, y, w, hh, r) => {
-    cRound(ctx, x, y, w, hh, r == null ? 20 : r);
+    const rr = r == null ? 20 : r;
+    ctx.save();
+    ctx.shadowColor = "rgba(22, 54, 38, 0.07)";
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 8;
+    cRound(ctx, x, y, w, hh, rr);
     ctx.fillStyle = cardFill;
     ctx.fill();
+    ctx.restore();
     ctx.strokeStyle = cardLine;
     ctx.lineWidth = 2;
-    cRound(ctx, x, y, w, hh, r == null ? 20 : r);
+    cRound(ctx, x, y, w, hh, rr);
     ctx.stroke();
   };
   const titleAt = (text, x, y) => {
+    ctx.fillStyle = CK.accent;
+    cRound(ctx, x - 2, y + 3, 5, 22, 3);
+    ctx.fill();
     cFont(ctx, 26, 700);
     ctx.fillStyle = ink;
-    ctx.fillText(text, x, y);
+    ctx.fillText(text, x + 16, y);
   };
 
   // ===== 页头 =====
@@ -3128,20 +3143,96 @@ async function exportMatchCard(m){
   cFont(ctx, 62, 700); ctx.fillStyle = ink;
   ctx.fillText(cFit(ctx, an, 420), tx, teamY);
 
-  let y = 440;
-  const GAP = 52;
+  // ================= 版式计算 =================
+  const TOP = 440, BOTTOM = CARD_H - 186, GAP0 = 46;
+  const note = readMatchNote(m.id);
+  const noteText = String(note.text || "").trim();
+  const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
+  const dirLabel = DIR_LABEL[note.dir] || "";
+  const analysis = cardAnalysis(m, hn, an, h, a);
+  const userConcl = String(note.concl || "").trim();
+  const userAns = noteText ? pickUserConclusion(noteText) : "";
+  let conclusion = analysis.conclusion || "";
+  if(userConcl) conclusion = userConcl.startsWith("综合判断") ? userConcl : `综合判断：${userConcl}`;
+  else if(userAns) conclusion = `综合判断：${userAns}`;
 
-  // ===== 模型预测（含市场综合概率） =====
-  if(pred && pred.ph != null){
-    const hh = 330;
-    card(MX, y, W, hh);
-    titleAt("模型预测", MX + 40, y + 32);
+  const bodyW = W - 96;
+  const _refTxt = (noteText || dirLabel)
+    ? "以上为数据参考，最终判断见上方「我的判断」。"
+    : (userConcl ? "以上为数据参考，最终判断见下方。" : "以上为数据参考。");
+  cFont(ctx, 19, 400);
+  let shortLines = cWrap(ctx, cardShortSummary(m, hn, an, h, a) + _refTxt, bodyW);
+  if(shortLines.length > 3){
+    shortLines = shortLines.slice(0, 3);
+    let last = shortLines[2];
+    while(last.length > 1 && ctx.measureText(last + "…").width > bodyW) last = last.slice(0, -1);
+    shortLines[2] = last + "…";
+  }
+  // 我的判断：22px，段间留白
+  let noteLines = [];
+  if(noteText){
+    cFont(ctx, 22, 400);
+    const paras = noteText.split(/\n+/).map(x => x.trim()).filter(Boolean);
+    paras.forEach((para, pi) => {
+      if(pi > 0) noteLines.push("");
+      cWrap(ctx, para, bodyW - 64).forEach(l => noteLines.push(l));
+    });
+  }
+  cFont(ctx, 22, 700);
+  const conclLines = conclusion ? cWrap(ctx, conclusion, bodyW - 64) : [];
+  const dataH = shortLines.length * 30;
+  const TITLE_H = 78;
+  const hasNote = !!(noteText || dirLabel);
+  let noteTextH = noteLines.reduce((n, l) => n + (l ? 34 : 17), 0);
+  const conclBoxH = conclLines.length ? 52 + conclLines.length * 34 + 16 : 0;
+
+  let hModel = pred && pred.ph != null ? 330 : 0;
+  const items = [];
+  if(pred && pred.lines && pred.lines["2.5"] != null){
+    const _ouI = mainOu(m); const _lnI = _ouI ? _ouI.line : 2.5;
+    const _poI = modelOverAt(m, _lnI) != null ? modelOverAt(m, _lnI) : pred.lines["2.5"];
+    items.push([`大 ${_lnI} 球`, Math.round(_poI * 100) + "%"]);
+  }
+  if(pred && pred.ah && pred.ah["-0.5"] != null) items.push(["主队 -0.5 赢盘", Math.round(pred.ah["-0.5"] * 100) + "%"]);
+  if(pred && pred.corners) items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
+  if(pred && pred.corners && pred.corners.over && pred.corners.over["9.5"] != null) items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
+  const hMarket = items.length ? 196 : 0;
+
+  const available = BOTTOM - TOP;
+  const maxAnalysisH = available - hModel - hMarket - 2 * 40;
+  // 极端长文：先按最大可用高度压缩我的判断
+  let noteBoxH = hasNote ? 46 + noteTextH + 22 : 0;
+  let analysisContentH = TITLE_H + noteBoxH + 18 + dataH + (conclLines.length ? 20 + conclBoxH : 0) + 34;
+  if(analysisContentH > maxAnalysisH){
+    let budget = maxAnalysisH - TITLE_H - 18 - dataH - (conclLines.length ? 20 + conclBoxH : 0) - 34 - 46;
+    let used = 0, keep = 0;
+    for(const l of noteLines){ const add = l ? 34 : 17; if(used + add > Math.max(0, budget)) break; used += add; keep++; }
+    noteLines = noteLines.slice(0, Math.max(1, keep));
+    let last = noteLines[noteLines.length - 1] || "";
+    while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
+    noteLines[noteLines.length - 1] = (last || "") + "…";
+    noteTextH = noteLines.reduce((n, l) => n + (l ? 34 : 17), 0);
+    noteBoxH = hasNote ? 46 + noteTextH + 22 : 0;
+    analysisContentH = TITLE_H + noteBoxH + 18 + dataH + (conclLines.length ? 20 + conclBoxH : 0) + 34;
+  }
+  // 整版垂直居中 + 均匀间距：不留大片空白
+  const sumH = hModel + hMarket + analysisContentH;
+  let gap = Math.floor((available - sumH) / 3);
+  gap = Math.max(28, Math.min(88, gap));
+  if(sumH + 2 * gap > available) gap = Math.max(20, Math.floor((available - sumH) / 3));
+  let y = TOP + Math.max(0, Math.floor((available - (sumH + 2 * gap)) / 2));
+  const analysisH = analysisContentH;
+
+  // ===== 模型预测卡 =====
+  if(hModel){
+    card(MX, y, W, hModel);
+    titleAt("模型预测", MX + 40, y + 30);
     cFont(ctx, 20, 400); ctx.fillStyle = muted;
     ctx.textAlign = "right";
-    ctx.fillText(`预期进球 ${Number(pred.xgH).toFixed(2)} — ${Number(pred.xgA).toFixed(2)}`, MX + W - 40, y + 36);
+    ctx.fillText(`预期进球 ${Number(pred.xgH).toFixed(2)} — ${Number(pred.xgA).toFixed(2)}`, MX + W - 40, y + 34);
     ctx.textAlign = "left";
     const ps = [pred.ph, pred.pd, pred.pa];
-    const bx = MX + 40, bw = W - 80, barY = y + 92, barH = 16;
+    const bx = MX + 40, bw = W - 80, barY = y + 94, barH = 16;
     let cx = bx;
     ps.forEach((p, i) => {
       ctx.fillStyle = i === 0 ? CK.accent : (i === 1 ? "#DDE7DE" : "#8FA898");
@@ -3152,190 +3243,93 @@ async function exportMatchCard(m){
     labels.forEach((lb, i) => {
       const col = bx + (bw / 3) * i;
       cFont(ctx, 19, 400); ctx.fillStyle = muted;
-      ctx.fillText(lb, col, y + 144);
-      cFont(ctx, 42, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 172);
+      ctx.fillText(lb, col, y + 148);
+      cFont(ctx, 44, 700); ctx.fillStyle = ink;
+      ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 176);
     });
-    // 分隔线 + 市场综合概率（单行紧凑，与模型层级区分）
-    ctx.strokeStyle = "#E3EBE3"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(bx, y + 224); ctx.lineTo(bx + bw, y + 224); ctx.stroke();
+    ctx.strokeStyle = "#E6EDE7"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(bx, y + 236); ctx.lineTo(bx + bw, y + 236); ctx.stroke();
     cFont(ctx, 17, 500); ctx.fillStyle = muted;
-    ctx.fillText("市场综合概率", bx, y + 250);
+    ctx.fillText("市场综合概率", bx, y + 262);
     const bl = ip ? ps.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : ps;
     const mStart = bx + 176, segW = (bw - 176) / 3;
     bl.forEach((v, i) => {
       const x = mStart + segW * i;
-      cFont(ctx, 16, 400); ctx.fillStyle = muted;
-      ctx.fillText(["主", "平", "客"][i], x, y + 254);
-      cFont(ctx, 26, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(v * 100) + "%", x + 28, y + 244);
+      cFont(ctx, 17, 400); ctx.fillStyle = muted;
+      ctx.fillText(["主", "平", "客"][i], x, y + 264);
+      cFont(ctx, 28, 700); ctx.fillStyle = ink;
+      ctx.fillText(Math.round(v * 100) + "%", x + 28, y + 258);
     });
-    y += hh + GAP;
+    y += hModel + gap;
   }
 
-  // ===== 关键盘口 =====
-  const items = [];
-  if(pred && pred.lines && pred.lines["2.5"] != null){
-    const _ouI = mainOu(m);
-    const _lnI = _ouI ? _ouI.line : 2.5;
-    const _poI = modelOverAt(m, _lnI) != null ? modelOverAt(m, _lnI) : pred.lines["2.5"];
-    items.push([`大 ${_lnI} 球`, Math.round(_poI * 100) + "%"]);
-  }
-  if(pred && pred.ah && pred.ah["-0.5"] != null) items.push(["主队 -0.5 赢盘", Math.round(pred.ah["-0.5"] * 100) + "%"]);
-  if(pred && pred.corners) items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
-  if(pred && pred.corners && pred.corners.over && pred.corners.over["9.5"] != null) items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
-  if(items.length){
-    const hh = 196;
-    card(MX, y, W, hh);
-    titleAt("关键盘口", MX + 40, y + 28);
+  // ===== 关键盘口卡 =====
+  if(hMarket){
+    card(MX, y, W, hMarket);
+    titleAt("关键盘口", MX + 40, y + 30);
     const nCol = Math.max(4, items.length);
     const colW = (W - 80) / nCol;
     items.slice(0, 4).forEach((it, i) => {
       const cxx = MX + 40 + colW * i;
-      cFont(ctx, 17, 400); ctx.fillStyle = muted;
-      ctx.fillText(cFit(ctx, it[0], colW - 18), cxx, y + 88);
-      cFont(ctx, 34, 700); ctx.fillStyle = ink;
-      ctx.fillText(it[1], cxx, y + 116);
+      cFont(ctx, 18, 400); ctx.fillStyle = muted;
+      ctx.fillText(cFit(ctx, it[0], colW - 18), cxx, y + 100);
+      cFont(ctx, 38, 700); ctx.fillStyle = ink;
+      ctx.fillText(it[1], cxx, y + 130);
     });
-    y += hh + GAP;
+    y += hMarket + gap;
   }
 
-  // ===== 赛前研判（我的判断 + 数据参考 + 综合判断） =====
-  const analysis = cardAnalysis(m, hn, an, h, a);
-  const note = readMatchNote(m.id);
-  const noteText = String(note.text || "").trim();
-  if(noteText){
-    analysis.parts = analysis.parts.filter(p => !/^(让球盘：|大小球盘：|双方进球概率|主客场：)/.test(p));
-  }
-  const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
-  const dirLabel = DIR_LABEL[note.dir] || "";
-  let conclusion = analysis.conclusion || "";
-  const userConcl = String(note.concl || "").trim();
-  const userAns = noteText ? pickUserConclusion(noteText) : "";
-  if(userConcl){
-    conclusion = userConcl.startsWith("综合判断") ? userConcl : `综合判断：${userConcl}`;
-  } else if(userAns){
-    conclusion = `综合判断：${userAns}${dirLabel ? `（我的倾向：${dirLabel}）` : ""}`;
-  } else if(dirLabel && pred && pred.ph != null){
-    let same = null;
-    if(note.dir === "home" || note.dir === "draw" || note.dir === "away"){
-      const mp = [pred.ph, pred.pd, pred.pa];
-      const f = ip ? mp.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : mp;
-      const idx = { home: 0, draw: 1, away: 2 }[note.dir];
-      const favIdx = f.indexOf(Math.max(...f));
-      same = favIdx === idx;
-    } else {
-      const ou = mainOu(m);
-      const ln = ou ? ou.line : 2.5;
-      const po = modelOverAt(m, ln) != null ? modelOverAt(m, ln) : (pred.o25 || 0.5);
-      same = note.dir === "over" ? po >= 0.5 : po < 0.5;
-    }
-    if(same !== null) conclusion += ` 你倾向${dirLabel}，与模型方向${same ? "一致" : "不一致，可作为分歧点重点观察"}。`;
-  }
-
-  const cardX = MX, cardW = W;
+  // ===== 赛前研判卡 =====
   const cardY = y;
-  const cardH = (CARD_H - 190) - cardY;
-  card(cardX, cardY, cardW, cardH);
-  titleAt("赛前研判", cardX + 40, cardY + 32);
+  const cardH = analysisH;
+  card(MX, cardY, W, cardH);
+  titleAt("赛前研判", MX + 40, cardY + 30);
 
-  const bodyW = cardW - 96;
-  // 先算数据摘要与结论高度，剩余空间全部给「我的判断」
-  const _refTxt = (noteText || dirLabel)
-    ? "以上为数据参考，最终判断见上方「我的判断」。"
-    : (String(note.concl || "").trim() ? "以上为数据参考，最终判断见下方。" : "以上为数据参考。");
-  const shortTxt = cardShortSummary(m, hn, an, h, a) + _refTxt;
-  cFont(ctx, 20, 400);
-  let shortLines = cWrap(ctx, shortTxt, bodyW);
-  if(shortLines.length > 3){
-    shortLines = shortLines.slice(0, 3);
-    let last = shortLines[2];
-    while(last.length > 1 && ctx.measureText(last + "…").width > bodyW) last = last.slice(0, -1);
-    shortLines[2] = last + "…";
-  }
-  const shortH = shortLines.length * 30;
-  cFont(ctx, 22, 700);
-  const conclLines = conclusion ? cWrap(ctx, conclusion, bodyW - 48) : [];
-  const conclH = conclLines.length ? (conclLines.length * 34 + 34) : 0;
-  const conclGap = conclLines.length ? 18 : 0;
-  // 标题 74 + 数据 34*行 + 结论 + 间距/底部留白
-  const noteCapH = Math.max(0, cardH - 74 - shortH - 16 - conclH - conclGap - 34);
-  let noteH = 0, noteLines = [];
-  if(noteText || dirLabel){
-    cFont(ctx, 19, 400);
-    if(noteText){
-      noteLines = [];
-      const paras = noteText.split(/\n+/).map(x => x.trim()).filter(Boolean);
-      paras.forEach((para, pi) => {
-        if(pi > 0) noteLines.push("");
-        cWrap(ctx, para, bodyW - 64).forEach(l => noteLines.push(l));
-      });
-    } else noteLines = [];
-    // 以「最小行距 26px」计算能放几行，超出就截断并加省略号，保证不溢出绿框
-    const maxNoteLines = Math.max(1, Math.floor((noteCapH - 46) / 26));
-    if(noteLines.length > maxNoteLines){
-      noteLines = noteLines.slice(0, maxNoteLines);
-      let last = noteLines[noteLines.length - 1];
-      while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
-      noteLines[noteLines.length - 1] = last + (last.endsWith("…") ? "" : "…");
-    }
-    // 字号 22px，行距自适应；文字在块内垂直居中，超行截断，绝不溢出
-    const _nLines = Math.max(1, noteLines.length);
-    const _blankN = noteLines.filter(l => !l).length;
-    const _capLH = Math.floor((noteCapH - 76) / _nLines);
-    if(_capLH < 30){
-      // 行数太多，按最小行距反推可放行数
-      const _fit = Math.max(1, Math.floor((noteCapH - 76) / 30));
-      if(noteLines.length > _fit){
-        noteLines = noteLines.slice(0, _fit);
-        let last = noteLines[noteLines.length - 1];
-        while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
-        noteLines[noteLines.length - 1] = last + (last.endsWith("…") ? "" : "…");
-      }
-    }
-    const n2 = Math.max(1, noteLines.length);
-    const blankN2 = noteLines.filter(l => !l).length;
-    const noteLH = Math.min(40, Math.max(30, Math.floor((noteCapH - 76) / n2)));
-    const textH = n2 * noteLH - blankN2 * noteLH * 0.5;
-    const innerNoteH = noteCapH;
-    const _padTop = Math.max(30, Math.floor((innerNoteH - textH) / 2) + 10);
-    noteH = innerNoteH + 14;
-    const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
-    cRound(ctx, nx, ny, nw, innerNoteH, 14);
-    ctx.fillStyle = "#F3F8F2"; ctx.fill();
+  let cy = cardY + TITLE_H;
+  // 我的判断
+  if(hasNote){
+    const nx = MX + 40, nw = W - 80;
+    cRound(ctx, nx, cy, nw, noteBoxH, 16);
+    ctx.fillStyle = "#F2F8F3"; ctx.fill();
     ctx.fillStyle = CK.accent;
-    cRound(ctx, nx, ny, 6, innerNoteH, 3); ctx.fill();
+    cRound(ctx, nx, cy + 10, 5, noteBoxH - 20, 3); ctx.fill();
     cFont(ctx, 18, 700); ctx.fillStyle = CK.accent;
-    ctx.fillText("我的判断", nx + 20, ny + 14);
+    ctx.fillText("我的判断", nx + 22, cy + 16);
     if(dirLabel){
       cFont(ctx, 16, 600);
       const tag = `倾向${dirLabel}`;
-      const tw = ctx.measureText(tag).width + 20;
-      cRound(ctx, nx + nw - tw - 16, ny + 10, tw, 26, 13);
+      const tw = ctx.measureText(tag).width + 22;
+      cRound(ctx, nx + nw - tw - 18, cy + 12, tw, 28, 14);
       ctx.fillStyle = "#DCEFE3"; ctx.fill();
       ctx.fillStyle = CK.accent;
-      ctx.fillText(tag, nx + nw - tw - 6, ny + 16);
+      ctx.fillText(tag, nx + nw - tw - 7, cy + 18);
     }
     cFont(ctx, 22, 400); ctx.fillStyle = ink2;
-    let nyy = ny + _padTop;
+    let nyy = cy + 46;
     noteLines.forEach(line => {
-      if(line) ctx.fillText(line, nx + 20, nyy);
-      nyy += line ? noteLH : noteLH * 0.5;
+      if(line) ctx.fillText(line, nx + 22, nyy);
+      nyy += line ? 34 : 17;
     });
+    cy += noteBoxH + 18;
   }
-
-  const topStart = cardY + 78 + noteH;
-  let ty = topStart;
-  cFont(ctx, 21, 400); ctx.fillStyle = ink2;
-  shortLines.forEach(line => { ctx.fillText(line, cardX + 48, ty); ty += 30; });
-  ty += 12;
+  // 数据参考
+  cFont(ctx, 19, 400); ctx.fillStyle = muted;
+  shortLines.forEach(line => { ctx.fillText(line, MX + 48, cy); cy += 30; });
+  // 综合判断
   if(conclLines.length){
-    const cy = ty;
-    cRound(ctx, cardX + 40, cy, cardW - 80, conclH, 16);
+    cy += 20;
+    cRound(ctx, MX + 40, cy, W - 80, conclBoxH, 16);
     ctx.fillStyle = CK.soft; ctx.fill();
+    cFont(ctx, 15, 700);
+    const chipTxt = "综合判断";
+    const chipW = ctx.measureText(chipTxt).width + 26;
+    cRound(ctx, MX + 62, cy + 16, chipW, 26, 13);
+    ctx.fillStyle = CK.accent; ctx.fill();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(chipTxt, MX + 75, cy + 21);
     cFont(ctx, 22, 700); ctx.fillStyle = CK.accent;
-    let cyy = cy + 16;
-    conclLines.forEach(line => { ctx.fillText(line, cardX + 64, cyy); cyy += 34; });
+    let cyy = cy + 56;
+    conclLines.forEach(line => { ctx.fillText(line, MX + 62, cyy); cyy += 34; });
   }
 
   // ===== 页脚 =====
