@@ -1575,6 +1575,7 @@ td.gsep{border-left:1px solid var(--line)}
 .note-title{font-size:15px;font-weight:700;margin:0 0 4px}
 .note-sub{font-size:11.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}
 .note-ta{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:13px;line-height:1.6;background:var(--surface-2);color:var(--ink)}
+.note-count{text-align:right;font-size:10.5px;color:var(--muted);margin-top:4px}
 .note-dirs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
 .note-dirs button{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:11.5px;background:var(--surface);color:var(--ink-2)}
 .note-dirs button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
@@ -2071,7 +2072,8 @@ td.gsep{border-left:1px solid var(--line)}
   <div class="note-box" role="dialog" aria-modal="true" aria-labelledby="note-title">
     <p class="note-title" id="note-title">导出前的补充判断（可选）</p>
     <p class="note-sub">写下你的观点/思考方向，会和数据一起生成到分享图的分析里（每场比赛单独保存）</p>
-    <textarea class="note-ta" id="note-text" maxlength="300" placeholder="例如：曼城主场强攻、富勒姆客场防守差，倾向大球；但曼城后防有伤停，要防客队反击"></textarea>
+    <textarea class="note-ta" id="note-text" maxlength="400" placeholder="例如：曼城主场强攻、富勒姆客场防守差，倾向大球；但曼城后防有伤停，要防客队反击"></textarea>
+    <div class="note-count" id="note-count">0 / 400</div>
     <div class="note-dirs" id="note-dirs" role="group" aria-label="倾向选择">
       <button type="button" data-note-dir="home" aria-pressed="false">倾向主胜</button>
       <button type="button" data-note-dir="draw" aria-pressed="false">倾向平局</button>
@@ -3163,6 +3165,9 @@ async function exportMatchCard(m){
   const analysis = cardAnalysis(m, hn, an, h, a);
   const note = readMatchNote(m.id);
   const noteText = String(note.text || "").trim();
+  if(noteText){
+    analysis.parts = analysis.parts.filter(p => !/^(让球盘：|大小球盘：|双方进球概率|主客场：)/.test(p));
+  }
   const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
   const dirLabel = DIR_LABEL[note.dir] || "";
   let conclusion = analysis.conclusion || "";
@@ -3192,9 +3197,15 @@ async function exportMatchCard(m){
   const bodyW = cardW - 96;
   let noteH = 0, noteLines = [];
   if(noteText || dirLabel){
-    cFont(ctx, 21, 400);
+    cFont(ctx, 20, 400);
     noteLines = noteText ? cWrap(ctx, noteText, bodyW - 64) : [];
-    const innerNoteH = 30 + noteLines.length * 31 + 20;
+    if(noteLines.length > 10){
+      noteLines = noteLines.slice(0, 10);
+      let last = noteLines[9];
+      while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
+      noteLines[9] = last + "…";
+    }
+    const innerNoteH = 30 + noteLines.length * 27 + 18;
     noteH = innerNoteH + 14;
     const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
     cRound(ctx, nx, ny, nw, innerNoteH, 14);
@@ -3213,7 +3224,7 @@ async function exportMatchCard(m){
       ctx.fillText(tag, nx + nw - tw - 6, ny + 16);
     }
     cFont(ctx, 21, 400); ctx.fillStyle = ink2;
-    noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 46 + i * 31));
+    noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 46 + i * 27));
   }
 
   const topStart = cardY + 94 + noteH;
@@ -4619,7 +4630,8 @@ function openNoteModal(m){
   const n = readMatchNote(m.id);
   noteDir = n.dir || "";
   const ta = $("#note-text");
-  if(ta) ta.value = n.text || "";
+  if(ta) ta.value = (n.text || "").slice(0, 400);
+  updateNoteCount();
   syncNoteDirs();
   const mask = $("#note-mask");
   if(mask) mask.hidden = false;
@@ -4630,6 +4642,11 @@ $("#export-match")?.addEventListener("click", () => {
   if(!m){ toast("请先打开一场比赛"); return; }
   openNoteModal(m);
 });
+function updateNoteCount(){
+  const ta = $("#note-text"), c = $("#note-count");
+  if(c && ta) c.textContent = `${ta.value.length} / 400`;
+}
+$("#note-text")?.addEventListener("input", updateNoteCount);
 $("#note-dirs")?.addEventListener("click", e => {
   const b = e.target.closest("[data-note-dir]");
   if(!b) return;
@@ -4646,7 +4663,7 @@ $("#note-export")?.addEventListener("click", () => {
   const m = noteMatch;
   if(!m) return;
   const ta = $("#note-text");
-  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 300), dir: noteDir });
+  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 400), dir: noteDir });
   const mask = $("#note-mask");
   if(mask) mask.hidden = true;
   exportMatchCard(m);
