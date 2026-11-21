@@ -1576,6 +1576,8 @@ td.gsep{border-left:1px solid var(--line)}
 .note-sub{font-size:11.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}
 .note-ta{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:13px;line-height:1.6;background:var(--surface-2);color:var(--ink)}
 .note-count{text-align:right;font-size:10.5px;color:var(--muted);margin-top:4px}
+.note-ta-sm{min-height:52px}
+.note-sub-2{margin:10px 0 6px}
 .note-dirs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
 .note-dirs button{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:11.5px;background:var(--surface);color:var(--ink-2)}
 .note-dirs button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
@@ -2074,6 +2076,8 @@ td.gsep{border-left:1px solid var(--line)}
     <p class="note-sub">写下你的观点/思考方向，会和数据一起生成到分享图的分析里（每场比赛单独保存）</p>
     <textarea class="note-ta" id="note-text" maxlength="800" placeholder="例如：曼城主场强攻、富勒姆客场防守差，倾向大球；但曼城后防有伤停，要防客队反击"></textarea>
     <div class="note-count" id="note-count">0 / 800</div>
+    <p class="note-sub note-sub-2">综合判断（可选，会直接显示在图片底部绿色框）</p>
+    <textarea class="note-ta note-ta-sm" id="note-concl" maxlength="160" placeholder="例如：倾向小球 3.5，客队受让，比分参考 1–1 / 2–1"></textarea>
     <div class="note-dirs" id="note-dirs" role="group" aria-label="倾向选择">
       <button type="button" data-note-dir="home" aria-pressed="false">倾向主胜</button>
       <button type="button" data-note-dir="draw" aria-pressed="false">倾向平局</button>
@@ -2935,7 +2939,6 @@ function cardShortSummary(m, hn, an, h, a){
       parts.push(`机构主盘 ${ln} 球：模型大球 ${pct(po)}${pm != null ? `、市场 ${pct(pm)}` : ""}${po >= 0.56 ? "，模型偏大球。" : (po <= 0.44 ? "，模型偏小球。" : "。")}`);
     }
   }
-  parts.push("以上为数据参考，最终判断见上方「我的判断」。");
   return parts.join("");
 }
 
@@ -3206,8 +3209,11 @@ async function exportMatchCard(m){
   const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
   const dirLabel = DIR_LABEL[note.dir] || "";
   let conclusion = analysis.conclusion || "";
+  const userConcl = String(note.concl || "").trim();
   const userAns = noteText ? pickUserConclusion(noteText) : "";
-  if(userAns){
+  if(userConcl){
+    conclusion = userConcl.startsWith("综合判断") ? userConcl : `综合判断：${userConcl}`;
+  } else if(userAns){
     conclusion = `综合判断：${userAns}${dirLabel ? `（我的倾向：${dirLabel}）` : ""}`;
   } else if(dirLabel && pred && pred.ph != null){
     let same = null;
@@ -3234,7 +3240,10 @@ async function exportMatchCard(m){
 
   const bodyW = cardW - 96;
   // 先算数据摘要与结论高度，剩余空间全部给「我的判断」
-  const shortTxt = cardShortSummary(m, hn, an, h, a);
+  const _refTxt = (noteText || dirLabel)
+    ? "以上为数据参考，最终判断见上方「我的判断」。"
+    : (String(note.concl || "").trim() ? "以上为数据参考，最终判断见下方。" : "以上为数据参考。");
+  const shortTxt = cardShortSummary(m, hn, an, h, a) + _refTxt;
   cFont(ctx, 21, 400);
   let shortLines = cWrap(ctx, shortTxt, bodyW);
   if(shortLines.length > 3){
@@ -4684,6 +4693,8 @@ function openNoteModal(m){
   noteDir = n.dir || "";
   const ta = $("#note-text");
   if(ta) ta.value = (n.text || "").slice(0, 800);
+  const tc = $("#note-concl");
+  if(tc) tc.value = (n.concl || "").slice(0, 160);
   updateNoteCount();
   syncNoteDirs();
   const mask = $("#note-mask");
@@ -4716,7 +4727,8 @@ $("#note-export")?.addEventListener("click", () => {
   const m = noteMatch;
   if(!m) return;
   const ta = $("#note-text");
-  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 800), dir: noteDir });
+  const tc = $("#note-concl");
+  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 800), dir: noteDir, concl: (tc ? tc.value : "").trim().slice(0, 160) });
   const mask = $("#note-mask");
   if(mask) mask.hidden = true;
   exportMatchCard(m);
