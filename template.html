@@ -8,7 +8,7 @@
 <meta http-equiv="Expires" content="0">
 <script>document.documentElement.classList.add("js-boot");setTimeout(function(){document.documentElement.classList.remove("js-boot")},15000);</script>
 <title>智球实验室 · 足球赛程比分与模型预测</title>
-<meta name="description" content="每 30 分钟刷新数据的足球数据台：五大联赛、欧冠、英冠、巴西甲的赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，含进球线、亚盘让球与角球盘口概率。">
+<meta name="description" content="每 30 分钟刷新数据的足球数据台：五大联赛、欧冠、英冠、巴西甲的赛程比分、射门射正角球等技术统计、球队近况与攻防模型预测，含进球线、让球与角球指数概率。">
 <meta name="theme-color" content="#0E7A49">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <link rel="canonical" href="https://zhiqiulab.com/">
@@ -16,7 +16,7 @@
 <meta property="og:site_name" content="智球实验室">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:title" content="智球实验室 · 足球赛程比分与模型预测">
-<meta property="og:description" content="每 30 分钟刷新的足球数据台：赛程比分、技术统计、球队近况与攻防模型预测，含进球线、亚盘与角球盘口概率。">
+<meta property="og:description" content="每 30 分钟刷新的足球数据台：赛程比分、技术统计、球队近况与攻防模型预测，含进球线、让球与角球指数概率。">
 <meta property="og:url" content="https://zhiqiulab.com/">
 <meta property="og:image" content="https://zhiqiulab.com/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -24,7 +24,7 @@
 <meta property="og:image:alt" content="智球实验室：足球赛程比分与模型预测">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="智球实验室 · 足球赛程比分与模型预测">
-<meta name="twitter:description" content="每 30 分钟刷新的足球数据台：赛程比分、技术统计与攻防模型预测，含进球线、亚盘与角球盘口概率。">
+<meta name="twitter:description" content="每 30 分钟刷新的足球数据台：赛程比分、技术统计与攻防模型预测，含进球线、让球与角球指数概率。">
 <meta name="twitter:image" content="https://zhiqiulab.com/og-image.png">
 <link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
@@ -37,7 +37,7 @@
 <link rel="icon" href="og-icon.png" type="image/png">
 <link rel="prefetch" href="data/history.json" as="fetch" crossorigin>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebSite","name":"智球实验室","alternateName":"ZHIQIU LAB","url":"https://zhiqiulab.com/","description":"足球赛程比分、技术统计与攻防模型预测，覆盖五大联赛、欧冠、欧联杯、英冠、巴西甲及各国杯赛，含进球线、亚盘与角球盘口概率。","inLanguage":"zh-CN","publisher":{"@type":"Organization","name":"智球实验室"},"about":[{"@type":"Thing","name":"足球赛程与比分"},{"@type":"Thing","name":"足球技术统计"},{"@type":"Thing","name":"足球比赛模型预测"}]}
+{"@context":"https://schema.org","@type":"WebSite","name":"智球实验室","alternateName":"ZHIQIU LAB","url":"https://zhiqiulab.com/","description":"足球赛程比分、技术统计与攻防模型预测，覆盖五大联赛、欧冠、欧联杯、英冠、巴西甲及各国杯赛，含进球线、让球与角球指数概率。","inLanguage":"zh-CN","publisher":{"@type":"Organization","name":"智球实验室"},"about":[{"@type":"Thing","name":"足球赛程与比分"},{"@type":"Thing","name":"足球技术统计"},{"@type":"Thing","name":"足球比赛模型预测"}]}
 </script>
 <link rel="preload" href="fonts/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>
 <style>
@@ -726,7 +726,7 @@ table.stats tbody tr:last-child td{border-bottom:0}
   font-size:10px;color:var(--muted);margin-top:4px;
 }
 .pred-note{font-size:10px;color:var(--muted);margin-top:12px;line-height:1.7}
-/* ---------- 盘口对照 ---------- */
+/* ---------- 数据对照 ---------- */
 .mk-block{margin-top:16px}
 .mk-title{font-size:12px;font-weight:600;margin:0 0 4px}
 .mk-sub{font-size:10px;color:var(--muted);line-height:1.75;margin-bottom:12px}
@@ -1611,8 +1611,8 @@ td.gsep{border-left:1px solid var(--line)}
 <noscript>
   <div class="noscript-note">
     <p class="noscript-title">智球实验室 · 足球赛程比分与模型预测</p>
-    <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、亚盘让球与角球大小盘口概率。</p>
-    <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与盘口对照，以及模型校准曲线。</p>
+    <p>本站提供英超、西甲、意甲、德甲、法甲、欧冠、欧联杯、英冠、巴西甲及各国杯赛的每日赛程、比分与技术统计（射门、射正、角球、控球率等），并对每场比赛给出攻防模型预测：胜平负概率、进球线（0.5～4.5 球）、让球与角球大小球指数概率。</p>
+    <p>页面为前端渲染，开启 JavaScript 后可查看完整赛程表、球队近 30 场逐场数据、双方历史交锋与数据对照，以及模型校准曲线。</p>
     <p><a href="/teams/index.html">→ 球队索引（静态页，含各队近期战绩与逐场技术统计）</a></p>
     <p>赔率来自多家机构。</p>
   </div>
@@ -1725,8 +1725,8 @@ td.gsep{border-left:1px solid var(--line)}
 
     <section class="section" id="value-sec" hidden>
       <div class="section-head">
-        <h2 class="section-title">便宜盘口 · 近 5 天</h2>
-        <span class="section-note" id="value-note">欧赔：最优价 vs 机构中位隐含概率；亚盘/大小球：模型概率 vs 最优水位</span>
+        <h2 class="section-title">低赔关注 · 近 5 天</h2>
+        <span class="section-note" id="value-note">欧赔：最优价 vs 机构中位隐含概率；让球/大小球：模型概率 vs 最优水位</span>
       </div>
       <div class="value-grid" id="value-panel"></div>
     </section>
@@ -1781,9 +1781,9 @@ td.gsep{border-left:1px solid var(--line)}
       <h3 class="subhead" id="perf-cal-head" hidden>校准曲线</h3>
       <div class="sum-grid" id="perf-cal-summary" hidden></div>
       <div class="cal-wrap" id="perf-cal" hidden></div>
-      <div class="table-hint">回测口径：先评估纯数据模型；有赛前盘口快照的比赛会再评估「市场 70% + 模型 30%」的综合预测，样本随每轮构建逐步积累。</div>
+      <div class="table-hint">回测口径：先评估纯数据模型；有赛前赔率快照的比赛会再评估「市场 70% + 模型 30%」的综合预测，样本随每轮构建逐步积累。</div>
       <div class="table-hint">校准曲线横轴是模型给出的概率，纵轴是实际命中率；落在对角线上表示概率可信。点越靠右下说明模型系统性高估，越靠左上说明低估。每档至少 20 个样本才绘制，圆点大小代表样本量。</div>
-      <div class="table-hint">「大小球技能分」用 Brier 分数与「永远猜本区间平均进球率」相比：大于 0 说明模型对大小球有判别力，接近 0 或为负说明这些概率不比平均值更有信息量，此时盘口对照里的偏差应视为校准参考，而不是可下注的边际。</div>
+      <div class="table-hint">「大小球技能分」用 Brier 分数与「永远猜本区间平均进球率」相比：大于 0 说明模型对大小球有判别力，接近 0 或为负说明这些概率不比平均值更有信息量，此时数据对照里的偏差应视为校准参考，而不是可下注的边际。</div>
     </section>
 
     <section class="section" id="dis-board-sec" hidden>
@@ -1797,7 +1797,7 @@ td.gsep{border-left:1px solid var(--line)}
     <section class="section" id="ix-board-sec" hidden>
       <div class="section-head">
         <h2 class="section-title">指数榜 · 近 7 天</h2>
-        <span class="section-note">多机构收盘盘口 · 离散度越大分歧越大 · 凯利 = 最高价 × 共识概率</span>
+        <span class="section-note">多机构收盘数据 · 离散度越大分歧越大 · 凯利 = 最高价 × 共识概率</span>
       </div>
       <div class="panel" id="ix-board"></div>
     </section>
@@ -1938,7 +1938,7 @@ td.gsep{border-left:1px solid var(--line)}
       <button type="button" data-nav="pre-match">赛前数据</button>
       <button type="button" data-nav="af-inj">伤停</button>
       <button type="button" data-nav="match-timeline">比赛事件</button>
-      <button type="button" data-nav="match-books">多机构盘口</button>
+      <button type="button" data-nav="match-books">多机构赔率</button>
       <button type="button" data-nav="match-squads">双方阵容</button>
     </nav>
     <div id="match-compare"></div>
@@ -1985,7 +1985,7 @@ td.gsep{border-left:1px solid var(--line)}
     <section class="section" id="recent-form" hidden>
       <div class="section-head">
         <h2 class="section-title">双方近期战绩</h2>
-        <span class="section-note" id="form-note">最近 10 场已结束比赛 · 盘口按本队视角 · 点行进入比赛页</span>
+        <span class="section-note" id="form-note">最近 10 场已结束比赛 · 指数按本队视角 · 点行进入比赛页</span>
       </div>
       <div class="filters">
         <div class="seg" id="form-side" role="group" aria-label="按主客场筛选近期战绩">
@@ -2036,7 +2036,7 @@ td.gsep{border-left:1px solid var(--line)}
       <h3 class="subhead" id="lineup-head">参考首发（近期首发频率推算，非官方）</h3>
       <div class="lineup-compare" id="lineup-compare"></div>
 
-      <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有盘口时，「综合预测」= 市场综合概率 70% + 纯数据模型 30%，两者分别标注；没有盘口时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新盘口为准。</div>
+      <div class="pred-note">赔率来源指定机构（平博 / 威廉希尔 / 立博 / Unibet / Tipico / Winamax / Bet365 等）。有指数时，「综合预测」= 市场综合概率 70% + 纯数据模型 30%，两者分别标注；没有指数时只显示纯数据模型。模型基于近三个赛季攻防数据，不代表确定结果；赛前数据以构建时间为准，临近开赛请以最新指数为准。</div>
     </section>
 
     <section class="section" id="af-inj" hidden>
@@ -2936,7 +2936,7 @@ function cardShortSummary(m, hn, an, h, a){
     const po = modelOverAt(m, ln);
     if(po != null){
       const pm = marketOverAt(ou);
-      parts.push(`机构主盘 ${ln} 球：模型大球 ${pct(po)}${pm != null ? `、市场 ${pct(pm)}` : ""}${po >= 0.56 ? "，模型偏大球。" : (po <= 0.44 ? "，模型偏小球。" : "。")}`);
+      parts.push(`机构共识 ${ln} 球：模型大球 ${pct(po)}${pm != null ? `、市场 ${pct(pm)}` : ""}${po >= 0.56 ? "，模型偏大球。" : (po <= 0.44 ? "，模型偏小球。" : "。")}`);
     }
   }
   return parts.join("");
@@ -3013,7 +3013,7 @@ function cardAnalysis(m, hn, an, h, a){
     const f = ip ? mp.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : mp;
     const lean = f[0] >= f[2] + 0.08 ? hn : (f[2] >= f[0] + 0.08 ? an : "平局");
     conclusion = `综合判断：倾向 ${lean}${ip ? "，市场方向基本一致" : ""}。`;
-    // 进球方向必须按市场主盘线上的模型概率判断，不能再用预期总进球阈值（会与盘口结论矛盾）
+    // 进球方向必须按市场主盘线上的模型概率判断，不能再用预期总进球阈值（会与指数结论矛盾）
     const _ou = mainOu(m);
     const _ln = _ou ? _ou.line : 2.5;
     const _po = modelOverAt(m, _ln) != null ? modelOverAt(m, _ln) : (pred.o25 != null ? pred.o25 : null);
@@ -3199,7 +3199,7 @@ async function exportMatchCard(m){
     const _poI = modelOverAt(m, _lnI) != null ? modelOverAt(m, _lnI) : pred.lines["2.5"];
     items.push([`大 ${_lnI} 球`, Math.round(_poI * 100) + "%"]);
   }
-  if(pred && pred.ah && pred.ah["-0.5"] != null) items.push(["主队 -0.5 赢盘", Math.round(pred.ah["-0.5"] * 100) + "%"]);
+  if(pred && pred.ah && pred.ah["-0.5"] != null) items.push(["主队 -0.5 覆盖", Math.round(pred.ah["-0.5"] * 100) + "%"]);
   if(pred && pred.corners) items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
   if(pred && pred.corners && pred.corners.over && pred.corners.over["9.5"] != null) items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
   const hMarket = items.length ? 196 : 0;
@@ -3269,10 +3269,10 @@ async function exportMatchCard(m){
     y += hModel + vGap;
   }
 
-  // ===== 关键盘口卡 =====
+  // ===== 关键指标卡 =====
   if(hMarket){
     card(MX, y, W, hMarket);
-    titleAt("关键盘口", MX + 40, y + 30);
+    titleAt("关键指标", MX + 40, y + 30);
     const nCol = Math.max(4, items.length);
     const colW = (W - 80) / nCol;
     items.slice(0, 4).forEach((it, i) => {
@@ -3621,7 +3621,7 @@ function bookLabel(name){
   return `<span class="bn-cn">${esc(cn)}</span><span class="bn-en">${esc(name || "")}</span>`;
 }
 
-/* 多机构赔率：共识市场概率 / 最集中的盘口线 */
+/* 多机构赔率：共识市场概率 / 最集中的参考线 */
 function marketProbs(m){
   const books = (m && m.books) || [];
   let sum = null, n = 0;
@@ -4037,10 +4037,10 @@ function valuePicks(){
         if(best[i] > 1.25 && best[i] <= 10 && ev >= 0.005) res.x12.push({ f, label: labels[i], odds: best[i], prob: p, ev, book: bestBook[i] });
       }
     }
-    // 亚盘/大小球：模型概率 vs 各家水位（加上 sanity 限制，避免模型极端值）
+    // 让球/大小球：模型概率 vs 各家水位（加上 sanity 限制，避免模型极端值）
     const p = f.pred;
     const deVig2 = (x, y) => (x && y) ? ((1 / x) / (1 / x + 1 / y)) : null;
-    // 亚盘/大小球只在「模型与市场同线概率接近」时才提示，避免模型极端值造成的假 EV
+    // 让球/大小球只在「模型与市场同线概率接近」时才提示，避免模型极端值造成的假 EV
     if(p && p.ah){
       for(const b of books){
         if(!b.ah || b.ah.h == null || b.ah.a == null) continue;
@@ -4076,10 +4076,10 @@ function renderValueBoard(){
   const total = picks.x12.length + picks.ah.length + picks.ou.length;
   if(!total){ sec.hidden = true; return; }
   sec.hidden = false;
-  if(note) note.textContent = `共 ${total} 个候选（欧赔为报价差，亚盘/大小球为模型参考）`;
+  if(note) note.textContent = `共 ${total} 个候选（欧赔为报价差，让球/大小球为模型参考）`;
   const cols = [
     ["欧赔 · 1X2", picks.x12],
-    ["亚盘 · 让球", picks.ah],
+    ["让球 · 让球", picks.ah],
     ["大小球", picks.ou]
   ];
   const names = f => {
@@ -4092,7 +4092,7 @@ function renderValueBoard(){
       <span class="value-teams">${names(x.f)}<i>${fmtDate(x.f.date).slice(5)}</i></span>
       <span class="value-pick"><b>${esc(x.label)}</b><span class="value-odds">${Number(x.odds).toFixed(2)}</span></span>
       <span class="value-ev">EV +${(x.ev * 100).toFixed(1)}%</span>
-    </a>`).join("") : `<div class="value-empty">近 5 天暂无达到阈值的盘口</div>`}
+    </a>`).join("") : `<div class="value-empty">近 5 天暂无达到阈值的指数</div>`}
   </div>`).join("");
 }
 
@@ -4483,7 +4483,7 @@ function renderModelPerf(){
   head.hidden = false;
   const diff = Math.round((s2.hit / s2.n - s.hit / s.n) * 100);
   box.innerHTML = [
-    tile("综合评估", `${s2.n} 场`, "有赛前盘口快照的比赛"),
+    tile("综合评估", `${s2.n} 场`, "有赛前赔率快照的比赛"),
     tile("综合方向命中", `${Math.round(s2.hit / s2.n * 100)}%`, `较纯模型 ${diff >= 0 ? "+" : ""}${diff} 个百分点`),
     tile("综合高信心", s2.favN ? `${Math.round(s2.favHit / s2.favN * 100)}%` : "—", s2.favN ? `概率 ≥50% 的 ${s2.favN} 场` : "暂无高信心场次"),
     tile("综合 Brier", (s2.brier / s2.n).toFixed(3), "越低越好")
@@ -5343,7 +5343,7 @@ function devig2(o1, o2){
   return s ? [a / s, b / s] : null;
 }
 
-/* 盘口对照表：模型概率 vs 同一条线上的市场综合概率，偏差单位为百分点 */
+/* 数据对照表：模型概率 vs 同一条线上的市场综合概率，偏差单位为百分点 */
 function marketRows(rows, mkLine, mkProbs, fmt){
   return rows.map(r => {
     const isMk = mkProbs && mkLine != null && Math.abs(mkLine - r.line) < 1e-6;
@@ -5352,7 +5352,7 @@ function marketRows(rows, mkLine, mkProbs, fmt){
     const cls = edge == null ? "dim" : edge > 0.015 ? "pos" : edge < -0.015 ? "neg" : "";
     const txt = edge == null ? "—" : (edge > 0 ? "+" : "") + (edge * 100).toFixed(1);
     return `<tr${isMk ? ' class="on"' : ""}>`
-      + `<td>${fmt(r.line)}${isMk ? '<span class="tagline">盘口</span>' : ""}</td>`
+      + `<td>${fmt(r.line)}${isMk ? '<span class="tagline">指数</span>' : ""}</td>`
       + `<td>${pct(r.p)}</td>`
       + `<td>${pm == null ? '<span class="dim">—</span>' : pct(pm)}</td>`
       + `<td class="${cls}">${txt}</td></tr>`;
@@ -5389,7 +5389,7 @@ function renderMarkets(m, pred, odds){
   const ou = odds && odds.ou ? odds.ou : null;
   const ah = odds && odds.ah ? odds.ah : null;
 
-  // 没有模型（冷门杯赛/样本不足）时，仍然展示盘口异动与多机构数据
+  // 没有模型（冷门杯赛/样本不足）时，仍然展示赔率异动与多机构数据
   if(pred && pred.lines){
     const rows = Object.keys(pred.lines)
       .sort((x, y) => Number(x) - Number(y))
@@ -5398,7 +5398,7 @@ function renderMarkets(m, pred, odds){
     const mkLine = ou && ou.line != null ? Number(ou.line) : null;
     cards.push(`<div class="mk-card">
       <div class="hd">大小球 · 模型 vs 市场（大球概率），模型期望总进球 <b>${(Number(pred.xgH) + Number(pred.xgA)).toFixed(2)}</b></div>
-      <table class="mk-tbl"><thead><tr><th>盘口线</th><th>模型</th><th>市场</th><th>偏差 pts</th></tr></thead>
+      <table class="mk-tbl"><thead><tr><th>参考线</th><th>模型</th><th>市场</th><th>偏差 pts</th></tr></thead>
       <tbody>${marketRows(rows, mkLine, mk, v => v.toFixed(1) + " 球")}</tbody></table></div>`);
   }
 
@@ -5419,7 +5419,7 @@ function renderMarkets(m, pred, odds){
     const mk = ah ? devig2(ah.h, ah.a) : null;
     const mkLine = ah && ah.line != null ? Number(ah.line) : null;
     cards.push(`<div class="mk-card">
-      <div class="hd">亚盘让球 · 主队赢盘概率（走盘按退还本金折算）</div>
+      <div class="hd">让球 · 主队覆盖概率（平线按退还本金折算）</div>
       <table class="mk-tbl"><thead><tr><th>让球</th><th>模型</th><th>市场</th><th>偏差 pts</th></tr></thead>
       <tbody>${marketRows(rows, mkLine, mk, v => ahText(v))}</tbody></table></div>`);
   }
@@ -5444,7 +5444,7 @@ function renderMarkets(m, pred, odds){
     const dv = (m.mv.b - m.mv.a) * 100;
     const cls = dv > 0 ? "pos" : "neg";
     cards.unshift(`<div class="mk-card">
-      <div class="hd">盘口异动 · 赛前 ${m.mv.n} 次快照</div>
+      <div class="hd">赔率异动 · 赛前 ${m.mv.n} 次快照</div>
       <div class="mk-corner">
         <span>${esc(lb)} <b>${Math.round(m.mv.a * 100)}%</b> → <b>${Math.round(m.mv.b * 100)}%</b></span>
         <span class="${cls}">${dv > 0 ? "+" : ""}${dv.toFixed(1)} pts</span>
@@ -5459,7 +5459,7 @@ function renderMarkets(m, pred, odds){
   const warn = pred && pred.xlg
     ? `<div class="mk-sub mk-warn">本场为跨联赛对阵，模型向均值收缩后偏向保守，偏差绝对值会系统性偏大，参考性较低。</div>`
     : "";
-  box.innerHTML = `<div class="mk-title">盘口对照</div>
+  box.innerHTML = `<div class="mk-title">数据对照</div>
     <div class="mk-sub">模型 = 纯数据模型概率；市场 = 多家机构共识赔率折算后的隐含概率（仅与市场同线时可对照）。偏差 = 模型 − 市场，单位为百分点；仅供参考，不代表存在投注价值。</div>
     ${warn}
     <div class="mk-sub">大小球口径的模型判别力有限（「模型表现」里的大小球技能分可查），该部分偏差更适合当作校准参考，不宜直接当作下注边际。</div>
@@ -5597,7 +5597,7 @@ function renderPreMatch(m){
       </div>`);
       const ahc = mainAh(m);
       if(ipc) cells.push(ahc ? `<div class="odds-cell">
-        <div class="l">亚盘 · ${isUpcoming ? "共识" : "收盘共识"}（${ahc.n} 家同线）</div>
+        <div class="l">让球 · ${isUpcoming ? "共识" : "收盘共识"}（${ahc.n} 家同线）</div>
         <div class="odds-line"><b>${ahText(ahc.line)}</b></div>
         <div class="odds-two">
           <div><div class="k">主队</div><div class="o">${ahc.h ? ahc.h.toFixed(2) : "—"}</div></div>
@@ -5605,9 +5605,9 @@ function renderPreMatch(m){
         </div>
         <div class="odds-src">让球方：${ahc.line < 0 ? "主队" : ahc.line > 0 ? "客队" : "平手"}</div>
       </div>` : `<div class="odds-cell empty">
-        <div class="l">亚盘 · 让球</div>
+        <div class="l">让球 · 让球</div>
         <div class="odds-line"><b>—</b></div>
-        <div class="odds-src">该场暂无亚盘数据${m.sp ? "（可参考下方官方让球盘）" : "（机构未提供让球盘）"}</div>
+        <div class="odds-src">该场暂无让球数据${m.sp ? "（可参考下方官方让球盘）" : "（机构未提供让球盘）"}</div>
       </div>`);
       const ouc = mainOu(m);
       const ouLineTxt = v => {
@@ -5621,7 +5621,7 @@ function renderPreMatch(m){
           <div><div class="k">大球</div><div class="o">${ouc.over ? Number(ouc.over).toFixed(2) : "—"}</div></div>
           <div><div class="k">小球</div><div class="o">${ouc.under ? Number(ouc.under).toFixed(2) : "—"}</div></div>
         </div>
-        <div class="odds-src">盘口线 ${ouLineTxt(ouc.line)}${ouc.market === false ? "（模型参考线）" : ""}</div>
+        <div class="odds-src">参考线 ${ouLineTxt(ouc.line)}${ouc.market === false ? "（模型参考线）" : ""}</div>
       </div>` : `<div class="odds-cell empty">
         <div class="l">大小球</div>
         <div class="odds-line"><b>—</b></div>
@@ -5637,13 +5637,13 @@ function renderPreMatch(m){
         if(!isFinite(d) || Math.abs(d) < 0.005) return c;
         return `<span class="${d > 0 ? "mv-up" : "mv-down"}" title="${d > 0 ? "涨" : "降"} ${Math.abs(d).toFixed(2)}">${c}<i>${d > 0 ? "▲" : "▼"}</i></span>`;
       };
-      // 让球线/大小球线：主让加深（数值变小）= 升盘（红↑），变浅 = 降盘（绿↓）
+      // 让球线/大小球线：主让加深（数值变小）= 上调（红↑），变浅 = 下调（绿↓）
       const lineCell = (cur, prev, fmt) => {
         const c = (fmt || ahText)(cur);
         if(cur == null || prev == null) return c;
         const d = Number(cur) - Number(prev);
         if(!isFinite(d) || Math.abs(d) < 1e-9) return c;
-        return `<span class="${d < 0 ? "mv-up" : "mv-down"}" title="${d < 0 ? "升盘" : "降盘"}">${c}<i>${d < 0 ? "▲" : "▼"}</i></span>`;
+        return `<span class="${d < 0 ? "mv-up" : "mv-down"}" title="${d < 0 ? "上调" : "下调"}">${c}<i>${d < 0 ? "▲" : "▼"}</i></span>`;
       };
       const ahq = ah => (ah && ah.line != null ? ahText(ah.line) : "—");
       const MAINSTREAM = new Set(["Bet365","Pinnacle","William Hill","Ladbrokes","Unibet","Tipico","Winamax","DraftKings","Marathon Bet","1xBet","竞彩官方","竞彩总进球"]);
@@ -5712,12 +5712,12 @@ function renderPreMatch(m){
           </div>
           ${pickHtml}
         </div>
-        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>即时 vs 初赔 · 盘口线：▲ 升盘 / ▼ 降盘</span></div>
+        <div class="mv-hint"><span class="mv-up">▲ 红 = 涨（赔率变大）</span><span class="mv-down">▼ 绿 = 降（赔率变小）</span><span>即时 vs 初赔 · 参考线：▲ 上调 / ▼ 下调</span></div>
         <table class="books">
           <thead><tr><th>机构</th><th>类型</th><th>主胜</th><th>平</th><th>客胜</th><th>让球</th><th>主</th><th>客</th><th>大小</th><th>大</th><th>小</th></tr></thead>
           <tbody>${rows || `<tr><td colspan="11" class="mut" style="text-align:center;padding:16px">未选择机构，请在上面勾选要显示的机构</td></tr>`}</tbody>
         </table>
-        <div class="odds-src" style="padding:6px 2px 2px">「—」表示该机构未开此盘口；不同机构覆盖范围不同属正常（Bet365/平博/DraftKings/1xBet 通常最全）。</div>
+        <div class="odds-src" style="padding:6px 2px 2px">「—」表示该机构未开此指数；不同机构覆盖范围不同属正常（Bet365/平博/DraftKings/1xBet 通常最全）。</div>
         <div class="bk-cards">${bmCards}</div>
       </div>`);
     } else if(odds){
@@ -5732,7 +5732,7 @@ function renderPreMatch(m){
       </div>`);
       if(odds.ah){
         cells.push(`<div class="odds-cell">
-          <div class="l">亚盘 · 让球</div>
+          <div class="l">让球 · 让球</div>
           <div class="odds-line"><b>${ahText(odds.ah.line)}</b></div>
           <div class="odds-two">
             <div><div class="k">主队</div><div class="o">${odds.ah.h ? odds.ah.h.toFixed(2) : "—"}</div></div>
@@ -5742,9 +5742,9 @@ function renderPreMatch(m){
         </div>`);
       } else {
         cells.push(`<div class="odds-cell empty">
-          <div class="l">亚盘 · 让球</div>
+          <div class="l">让球 · 让球</div>
           <div class="odds-line"><b>—</b></div>
-          <div class="odds-src">该场暂无亚盘数据（机构未提供让球盘）</div>
+          <div class="odds-src">该场暂无让球数据（机构未提供让球盘）</div>
         </div>`);
       }
       if(odds.ou){
@@ -5755,12 +5755,12 @@ function renderPreMatch(m){
             <div><div class="k">大球</div><div class="o">${odds.ou.over ? odds.ou.over.toFixed(2) : "—"}</div></div>
             <div><div class="k">小球</div><div class="o">${odds.ou.under ? odds.ou.under.toFixed(2) : "—"}</div></div>
           </div>
-          <div class="odds-src">盘口线 ${odds.ou.line}</div>
+          <div class="odds-src">参考线 ${odds.ou.line}</div>
         </div>`);
       }
     }
   }
-  // 已结束比赛：用收盘盘口补「赛前数据」，而不是只显示模型
+  // 已结束比赛：用收盘数据补「赛前数据」，而不是只显示模型
   if(!isUpcoming && !cells.length){
     const fdcl = (typeof FDCO !== "undefined" && FDCO) ? FDCO[String(m.id)] : null;
     if(fdcl && (fdcl.bo || fdcl.closeAh || fdcl.closeOu)){
@@ -5780,13 +5780,13 @@ function renderPreMatch(m){
       const cah = fdcl.closeAh || fdcl.ah;
       if(cah && cah.line != null && cah.b365){
         cells.push(`<div class="odds-cell">
-          <div class="l">收盘亚盘</div>
+          <div class="l">收盘让球</div>
           <div class="odds-line"><b>${ahText(Number(cah.line))}</b></div>
           <div class="odds-two">
             <div><div class="k">主队</div><div class="o">${Number(cah.b365[0]).toFixed(2)}</div></div>
             <div><div class="k">客队</div><div class="o">${Number(cah.b365[1]).toFixed(2)}</div></div>
           </div>
-          <div class="odds-src">收盘盘口 · Bet365</div>
+          <div class="odds-src">收盘数据 · Bet365</div>
         </div>`);
       }
       const cou = fdcl.closeOu || fdcl.ou;
@@ -5798,7 +5798,7 @@ function renderPreMatch(m){
             <div><div class="k">大球</div><div class="o">${Number(cou.b365[0]).toFixed(2)}</div></div>
             <div><div class="k">小球</div><div class="o">${Number(cou.b365[1]).toFixed(2)}</div></div>
           </div>
-          <div class="odds-src">收盘盘口 · Bet365</div>
+          <div class="odds-src">收盘数据 · Bet365</div>
         </div>`);
       }
     } else if(typeof FDCO === "undefined" || !FDCO){
@@ -5842,7 +5842,7 @@ function renderPreMatch(m){
       if(pred && pred.ah && pred.ah["0"] != null){
         const p0 = pred.ah["0"];
         cells.push(`<div class="odds-cell">
-          <div class="l">模型 · 亚盘（平手）</div>
+          <div class="l">模型 · 让球（平手）</div>
           <div class="odds-line"><b>平手盘</b></div>
           <div class="odds-two">
             <div><div class="k">主队</div><div class="o">${fo(p0)}</div><div class="p">${pct(p0)}</div></div>
@@ -5856,7 +5856,7 @@ function renderPreMatch(m){
   $("#odds-grid").innerHTML = cells.length ? cells.join("")
     : `<div class="odds-cell"><div class="l">赔率</div><div class="odds-src">该场暂无可用赔率</div></div>`;
   $("#odds-grid").hidden = !(odds || hasBooks);
-  // 官方让球盘（竞彩）：3 项含平，单独展示，不混入亚盘 2 项口径
+  // 官方让球盘（竞彩）：3 项含平，单独展示，不混入让球 2 项口径
   try {
     const oa = $("#official-ah");
     if(oa){
@@ -5866,7 +5866,7 @@ function renderPreMatch(m){
         rows.push(`<div class="oa-row"><span class="oa-k">竞彩让球</span><span class="oa-line">${lineTxt(Number(m.sp.hhad.line))}</span><span class="oa-odds">${Number(m.sp.hhad.h).toFixed(2)} / ${Number(m.sp.hhad.d).toFixed(2)} / ${Number(m.sp.hhad.a).toFixed(2)}</span><span class="oa-note">主 / 平 / 客</span></div>`);
       }
       if(rows.length){
-        oa.innerHTML = `<div class="panel oa-panel"><div class="oa-head">官方让球盘（竞彩）<span>含平局选项，与亚盘 2 项口径不同，仅作参考</span></div>${rows.join("")}</div>`;
+        oa.innerHTML = `<div class="panel oa-panel"><div class="oa-head">官方让球盘（竞彩）<span>含平局选项，与让球 2 项口径不同，仅作参考</span></div>${rows.join("")}</div>`;
         oa.hidden = false;
       } else { oa.hidden = true; oa.innerHTML = ""; }
     }
@@ -5903,7 +5903,7 @@ function renderPreMatch(m){
     $("#pred-card").innerHTML = `
       <div class="pred-head">
         <span class="t">${pred ? (ip ? "综合预测" : "模型预测") : (ip ? "赛前综合预测" : "赛前模型预测")}</span>
-        <span class="s">${ip ? (pred ? "市场 70% + 模型 30%" : "赛前盘口 70% + 赛前模型 30%") : (pred ? "基于近三个赛季攻防数据" : "基于该场开赛前的数据")}</span>
+        <span class="s">${ip ? (pred ? "市场 70% + 模型 30%" : "赛前数据 70% + 赛前模型 30%") : (pred ? "基于近三个赛季攻防数据" : "基于该场开赛前的数据")}</span>
       </div>
       <div class="pred-xg">
         <div class="side"><span class="k">${esc(homeName)}</span><b>${model.xgH.toFixed(2)}</b></div>
@@ -5938,7 +5938,7 @@ function renderPreMatch(m){
     $("#pred-card").innerHTML = `
       <div class="pred-head">
         <span class="t">${isUpcoming ? "市场预测" : "赛前市场"}</span>
-        <span class="s">缺少一方联赛数据，仅显示${isUpcoming ? "盘口" : "赛前盘口"}</span>
+        <span class="s">缺少一方联赛数据，仅显示${isUpcoming ? "指数" : "赛前数据"}</span>
       </div>
       <div class="pred-bars">
         <span class="pb-h" style="width:${ip[0]*100}%"></span>
@@ -5953,7 +5953,7 @@ function renderPreMatch(m){
       <div class="pred-facts">
         <span>纯模型不可用</span>
         <span>信心 <b>低</b></span>
-        ${isUpcoming ? "" : "<span>该场赛前盘口</span>"}
+        ${isUpcoming ? "" : "<span>该场赛前数据</span>"}
       </div>`;
     $("#pred-card").hidden = false;
   } else if(isUpcoming){
@@ -6220,7 +6220,7 @@ function renderInsight(m){
     bullets.push({ k: "赔率视角", t });
   }
 
-  // 9) 进球盘口（大/小球 + 双方进球，公平赔率）
+  // 9) 进球指数（大/小球 + 双方进球，公平赔率）
   if(upcoming && model){
     const lines = model.lines || {};
     const _main = mainOu(m);
@@ -6239,7 +6239,7 @@ function renderInsight(m){
     if(model.btts != null){
       t += `双方进球概率 ${pct(model.btts)}（是的公平赔率 ${(1 / model.btts).toFixed(2)}，否的公平赔率 ${(1 / (1 - model.btts)).toFixed(2)}）。`;
     }
-    if(t) bullets.push({ k: "进球盘口", t });
+    if(t) bullets.push({ k: "进球指数", t });
   }
 
   // 10) 角球与定位球
@@ -6306,7 +6306,7 @@ function renderInsight(m){
     bullets.push({ k: "比分范围", t });
   }
 
-  // 13) 赛后：赛前进球盘口复盘
+  // 13) 赛后：赛前进球指数复盘
   if(!upcoming && m.pre && Array.isArray(m.pre.o) && m.pre.o.length >= 3 && m.pre.o[2] != null){
     const p25 = m.pre.o[2] / 1000;
     const total = (m.hs || 0) + (m.as || 0);
@@ -6382,7 +6382,7 @@ function renderInsight(m){
       if(!lead) lead = "该场可用数据有限，以下为基于近期战绩与交锋的简要分析。";
     } else if(ip){
       const favName = fav === "home" ? hn : fav === "away" ? an : "平局";
-      lead = `仅从市场盘口看，更倾向${favName}：市场概率 ${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}。本站模型缺少一方联赛数据，结论参考性有限。`;
+      lead = `仅从市场指数看，更倾向${favName}：市场概率 ${pct(ip[0])} / ${pct(ip[1])} / ${pct(ip[2])}。本站模型缺少一方联赛数据，结论参考性有限。`;
     } else {
       lead = "该场可用数据有限，以下为基于近期战绩与交锋的简要分析。";
     }
@@ -6432,18 +6432,18 @@ function renderInsight(m){
         let sub = `模型 ${pct(over ? _po : 1 - _po)}`;
         const _pm = marketOverAt(_ou);
         if(_pm != null) sub += ` · 市场 ${pct(over ? _pm : 1 - _pm)}`;
-        sub += ` · 盘口 ${_ln}`;
+        sub += ` · 指数 ${_ln}`;
         vcards.push(`<div class="v-card"><div class="v-k">进球倾向</div><div class="v-v">${over ? "大" : "小"} ${_ln} 球</div><div class="v-s">${esc(sub)}</div></div>`);
       }
-      let ahMain = "暂无亚盘", ahSub = "";
+      let ahMain = "暂无让球", ahSub = "";
       const ahc = (m.books && m.books.length) ? mainAh(m) : null;
       if(ahc && m.pred && m.pred.ah){
         const pmod = modelAhAt(m, ahc.line);
         const pm = _devig2(ahc.h, ahc.a);
         if(pmod != null && pm != null){
           const d = pmod - pm;
-          ahMain = Math.abs(d) >= 0.03 ? (d > 0 ? "主队让球方占优" : "客队受让方占优") : "盘口分歧不大";
-          ahSub = `模型 ${pct(pmod)} · 市场 ${pct(pm)} · 盘口 ${ahText(ahc.line)}`;
+          ahMain = Math.abs(d) >= 0.03 ? (d > 0 ? "主队让球方占优" : "客队受让方占优") : "指数分歧不大";
+          ahSub = `模型 ${pct(pmod)} · 市场 ${pct(pm)} · 指数 ${ahText(ahc.line)}`;
         }
       } else if(m.sp && m.sp.hhad && m.sp.hhad.line != null){
         ahMain = "参考竞彩让球";
@@ -6463,7 +6463,7 @@ function renderInsight(m){
   };
   const groups = upcoming ? [
     group(["胜负天平", "市场倾向", "赛前预测", "赛前模型", "赔率视角"], "胜负判断"),
-    group(["进球盘口", "比分范围"], "进球判断"),
+    group(["进球指数", "比分范围"], "进球判断"),
     group(["近期状态", "主客场"], "状态与对位"),
     group(["战术阵容", "战术推演", "核心球员"], "战术与核心球员")
   ] : [
@@ -6476,7 +6476,7 @@ function renderInsight(m){
   const primary = groups.filter(Boolean);
   // 「更多分析」= 没有被合并进重点卡的分析项
   const mergedLabels = upcoming
-    ? ["胜负天平", "市场倾向", "赛前预测", "赛前模型", "赔率视角", "进球盘口", "比分范围", "近期状态", "主客场", "战术阵容", "战术推演", "核心球员"]
+    ? ["胜负天平", "市场倾向", "赛前预测", "赛前模型", "赔率视角", "进球指数", "比分范围", "近期状态", "主客场", "战术阵容", "战术推演", "核心球员"]
     : ["赛前预测", "赛前模型", "模型对照", "赛前进球盘复盘", "比赛数据", "近期状态", "主客场"];
   const secondary = bullets.filter(b => !mergedLabels.includes(b.k));
   $("#insight-list").innerHTML = primary.map(b => `<li><span class="k">${esc(b.k)}</span><p>${esc(b.t)}</p></li>`).join("");
@@ -6776,7 +6776,7 @@ function renderDeep(m){
       const pm = _devig2(ahc.h, ahc.a);
       if(pmod != null && pm != null){
         const d = pmod - pm;
-        marketBody += `<p><span class="deep-tag">让球 ${ahText(ahc.line)}</span>模型赢盘 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.03 ? (d > 0 ? "，方向偏向让球方" : "，方向偏向受让方") : "，分歧不大"}。</p>`;
+        marketBody += `<p><span class="deep-tag">让球 ${ahText(ahc.line)}</span>模型覆盖 ${pct(pmod)}，市场隐含 ${pct(pm)}（差 ${(d >= 0 ? "+" : "") + (d * 100).toFixed(1)} 个百分点）${Math.abs(d) >= 0.03 ? (d > 0 ? "，方向偏向让球方" : "，方向偏向受让方") : "，分歧不大"}。</p>`;
       }
     }
     const ouc = (pd && pd.lines) ? mainOu(m) : null;
@@ -6899,9 +6899,9 @@ function renderDeep(m){
      </details>` + postCard;
 }
 
-/* ---------- 多机构赛前盘口（按需加载） ---------- */
+/* ---------- 多机构赛前数据（按需加载） ---------- */
 let FDCO = null, fdcoLoading = null;
-/* 轻量半场比分（data/ht.json），给「近期进失球上下半场拆分」用，避免拉 4MB 全量盘口 */
+/* 轻量半场比分（data/ht.json），给「近期进失球上下半场拆分」用，避免拉 4MB 全量指数 */
 let HT_MAP = null, HT_LOADING = null;
 let MK = null, MK_LOADING = null;
 function loadMarkets(){
@@ -6932,7 +6932,7 @@ function renderMatchBooks(m){
   const box = $("#match-books");
   if(!box) return;
   box.innerHTML = "";
-  if(!m || m.hs == null) return;   // 只有已结束比赛有收盘盘口（复盘）
+  if(!m || m.hs == null) return;   // 只有已结束比赛有收盘数据（复盘）
   loadFdco().then(map => {
     const fd = map && map[String(m.id)];
     if(!fd) return;
@@ -6968,21 +6968,21 @@ function fdcoCard(fd, m){
       `<span>市场 ${mk.map(v => (v*100).toFixed(0) + "%").join(" / ")}</span>` +
       `<span>偏差 ${edge.map(v => (v > 0 ? "+" : "") + v.toFixed(1)).join(" / ")} pts</span></div>`;
   }
-  const ah = fd.ah ? `<div class="fd-row"><span class="fd-k">亚盘让球</span><span>${ahText(fd.ah.line)}</span><span>Bet365 主 ${fd.ah.b365[0].toFixed(2)} / 客 ${fd.ah.b365[1].toFixed(2)}</span>${fd.ah.avg ? `<span>平均 ${fd.ah.avg.map(x=>x.toFixed(2)).join(" / ")}</span>` : ""}</div>` : "";
+  const ah = fd.ah ? `<div class="fd-row"><span class="fd-k">让球</span><span>${ahText(fd.ah.line)}</span><span>Bet365 主 ${fd.ah.b365[0].toFixed(2)} / 客 ${fd.ah.b365[1].toFixed(2)}</span>${fd.ah.avg ? `<span>平均 ${fd.ah.avg.map(x=>x.toFixed(2)).join(" / ")}</span>` : ""}</div>` : "";
   const ou = fd.ou ? `<div class="fd-row"><span class="fd-k">大小球 2.5</span><span>Bet365 大 ${fd.ou.b365[0].toFixed(2)} / 小 ${fd.ou.b365[1].toFixed(2)}</span>${fd.ou.avg ? `<span>平均 ${fd.ou.avg.map(x=>x.toFixed(2)).join(" / ")}</span>` : ""}</div>` : "";
   const closing = fd.closing && fd.closing.avg ? `<div class="fd-row"><span class="fd-k">收盘（平均）</span><span>主 ${fd.closing.avg[0].toFixed(2)} / 平 ${fd.closing.avg[1].toFixed(2)} / 客 ${fd.closing.avg[2].toFixed(2)}</span></div>` : "";
   const xg = fd.xg ? `<div class="fd-row"><span class="fd-k">xG（赛后）</span><span>主 ${fd.xg[0].toFixed(2)}</span><span>客 ${fd.xg[1].toFixed(2)}</span></div>` : "";
   const ht = fd.ht ? `<div class="fd-row"><span class="fd-k">半场比分</span><span>${fd.ht[0]}–${fd.ht[1]}</span></div>` : "";
   return `<section class="section">
     <div class="section-head">
-      <h2 class="section-title">赛前盘口 · 多机构</h2>
+      <h2 class="section-title">赛前数据 · 多机构</h2>
       <span class="section-note">收盘价</span>
     </div>
     <div class="fd-card">
       ${chips ? `<div class="mk-corner">${chips}</div>` : ""}
       <table class="mk-tbl"><thead><tr><th>机构</th><th>主胜</th><th>平</th><th>客胜</th></tr></thead><tbody>${rows}${consRow}</tbody></table>
       ${vs}${ah}${ou}${closing}${xg}${ht}
-      <div class="fd-note">多机构盘口来自公开历史收盘数据（覆盖五大联赛/英冠/荷甲/葡超/比甲/土超/希腊超/苏超的历史收盘价）。返还率越接近 100% 水位越低；离散度越大说明机构分歧越大；凯利指数 = 最高赔率 × 共识概率，>1 表示相对共识有溢价。</div>
+      <div class="fd-note">多机构赔率来自公开历史收盘数据（覆盖五大联赛/英冠/荷甲/葡超/比甲/土超/希腊超/苏超的历史收盘价）。返还率越接近 100% 水位越低；离散度越大说明机构分歧越大；凯利指数 = 最高赔率 × 共识概率，>1 表示相对共识有溢价。</div>
     </div>
   </section>`;
 }
@@ -7086,7 +7086,7 @@ function ftOuClass(r){
   return "ou-v";
 }
 
-/* 单场折算：比分/半场/角球/盘口结算都按「球队视角」计算 */
+/* 单场折算：比分/半场/角球/指数结算都按「球队视角」计算 */
 function ftRowOf(tid, x){
   const id = String(tid);
   const home = String(x.home) === id;
@@ -7146,9 +7146,9 @@ const FT_COLDEF = {
   score:  { label: "比分" },
   corner: { label: "角球" },
   away:   { label: "客队", cls: "th-l" },
-  ahLine: { label: "盘口", group: "亚盘" },
-  ahRes:  { label: "结果", group: "亚盘" },
-  ouLine: { label: "盘口", group: "大小球" },
+  ahLine: { label: "指数", group: "让球" },
+  ahRes:  { label: "结果", group: "让球" },
+  ouLine: { label: "指数", group: "大小球" },
   ouRes:  { label: "结果", group: "大小球" },
   mH:     { label: "主胜", group: "赛前模型" },
   mD:     { label: "平", group: "赛前模型" },
@@ -7265,7 +7265,7 @@ function ftCardHtml(t, rows, plan, sideLabel){
     ${seq ? `<span class="ft-seq">${seq}</span>` : ""}
     <span class="ft-kpis">
       <span class="ft-kpi">胜率 <b>${s.winPct}%</b></span>
-      ${s.ahPct != null ? `<span class="ft-kpi">赢盘 <b>${s.ahPct}%</b></span>` : ""}
+      ${s.ahPct != null ? `<span class="ft-kpi">覆盖 <b>${s.ahPct}%</b></span>` : ""}
       ${s.ouPct != null ? `<span class="ft-kpi">大球 <b>${s.ouPct}%</b></span>` : `<span class="ft-kpi">大2.5 <b>${s.n ? Math.round(s.o25 / s.n * 100) : 0}%</b></span>`}
       ${s.oddPct != null ? `<span class="ft-kpi">单率 <b>${s.oddPct}%</b></span>` : ""}
     </span>
@@ -7321,7 +7321,7 @@ function renderRecentForm(m){
   const count = $("#form-count");
   if(count) count.textContent = `主队 ${rowsH.length} 场 / 客队 ${rowsA.length} 场${cat !== "all" ? " · " + FT_FAMILY_LABEL[cat] : ""}`;
   sec.hidden = false;
-  // 半场比分 / 盘口 / 历史比赛按需补载，加载完成后刷新一次
+  // 半场比分 / 指数 / 历史比赛按需补载，加载完成后刷新一次
   const refresh = () => {
     if(String(state.matchId) === String(m.id) && !$("#recent-form").hidden) renderRecentForm(m);
   };
