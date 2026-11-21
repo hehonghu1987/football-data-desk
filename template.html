@@ -2072,8 +2072,8 @@ td.gsep{border-left:1px solid var(--line)}
   <div class="note-box" role="dialog" aria-modal="true" aria-labelledby="note-title">
     <p class="note-title" id="note-title">导出前的补充判断（可选）</p>
     <p class="note-sub">写下你的观点/思考方向，会和数据一起生成到分享图的分析里（每场比赛单独保存）</p>
-    <textarea class="note-ta" id="note-text" maxlength="400" placeholder="例如：曼城主场强攻、富勒姆客场防守差，倾向大球；但曼城后防有伤停，要防客队反击"></textarea>
-    <div class="note-count" id="note-count">0 / 400</div>
+    <textarea class="note-ta" id="note-text" maxlength="500" placeholder="例如：曼城主场强攻、富勒姆客场防守差，倾向大球；但曼城后防有伤停，要防客队反击"></textarea>
+    <div class="note-count" id="note-count">0 / 500</div>
     <div class="note-dirs" id="note-dirs" role="group" aria-label="倾向选择">
       <button type="button" data-note-dir="home" aria-pressed="false">倾向主胜</button>
       <button type="button" data-note-dir="draw" aria-pressed="false">倾向平局</button>
@@ -3132,17 +3132,17 @@ async function exportMatchCard(m){
   if(pred && pred.corners) items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
   if(pred && pred.corners && pred.corners.over && pred.corners.over["9.5"] != null) items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
   if(items.length){
-    const hh = 290;
+    const hh = 196;
     card(MX, y, W, hh);
-    titleAt("关键盘口", MX + 40, y + 32);
-    const colW = (W - 80) / 2;
+    titleAt("关键盘口", MX + 40, y + 28);
+    const nCol = Math.max(4, items.length);
+    const colW = (W - 80) / nCol;
     items.slice(0, 4).forEach((it, i) => {
-      const cxx = MX + 40 + (i % 2) * colW;
-      const cy = y + 104 + Math.floor(i / 2) * 92;
-      cFont(ctx, 19, 400); ctx.fillStyle = muted;
-      ctx.fillText(cFit(ctx, it[0], colW - 24), cxx, cy);
-      cFont(ctx, 40, 700); ctx.fillStyle = ink;
-      ctx.fillText(it[1], cxx, cy + 30);
+      const cxx = MX + 40 + colW * i;
+      cFont(ctx, 17, 400); ctx.fillStyle = muted;
+      ctx.fillText(cFit(ctx, it[0], colW - 18), cxx, y + 88);
+      cFont(ctx, 34, 700); ctx.fillStyle = ink;
+      ctx.fillText(it[1], cxx, y + 116);
     });
     y += hh + GAP;
   }
@@ -3202,15 +3202,15 @@ async function exportMatchCard(m){
   const bodyW = cardW - 96;
   let noteH = 0, noteLines = [];
   if(noteText || dirLabel){
-    cFont(ctx, 20, 400);
+    cFont(ctx, 19, 400);
     noteLines = noteText ? cWrap(ctx, noteText, bodyW - 64) : [];
-    if(noteLines.length > 10){
-      noteLines = noteLines.slice(0, 10);
-      let last = noteLines[9];
+    if(noteLines.length > 12){
+      noteLines = noteLines.slice(0, 12);
+      let last = noteLines[11];
       while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
-      noteLines[9] = last + "…";
+      noteLines[11] = last + "…";
     }
-    const innerNoteH = 30 + noteLines.length * 27 + 18;
+    const innerNoteH = 30 + noteLines.length * 26 + 16;
     noteH = innerNoteH + 14;
     const nx = cardX + 40, ny = cardY + 86, nw = cardW - 80;
     cRound(ctx, nx, ny, nw, innerNoteH, 14);
@@ -3228,8 +3228,8 @@ async function exportMatchCard(m){
       ctx.fillStyle = CK.accent;
       ctx.fillText(tag, nx + nw - tw - 6, ny + 16);
     }
-    cFont(ctx, 21, 400); ctx.fillStyle = ink2;
-    noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 46 + i * 27));
+    cFont(ctx, 19, 400); ctx.fillStyle = ink2;
+    noteLines.forEach((line, i) => ctx.fillText(line, nx + 20, ny + 44 + i * 26));
   }
 
   const topStart = cardY + 94 + noteH;
@@ -4635,7 +4635,7 @@ function openNoteModal(m){
   const n = readMatchNote(m.id);
   noteDir = n.dir || "";
   const ta = $("#note-text");
-  if(ta) ta.value = (n.text || "").slice(0, 400);
+  if(ta) ta.value = (n.text || "").slice(0, 500);
   updateNoteCount();
   syncNoteDirs();
   const mask = $("#note-mask");
@@ -4649,7 +4649,7 @@ $("#export-match")?.addEventListener("click", () => {
 });
 function updateNoteCount(){
   const ta = $("#note-text"), c = $("#note-count");
-  if(c && ta) c.textContent = `${ta.value.length} / 400`;
+  if(c && ta) c.textContent = `${ta.value.length} / 500`;
 }
 $("#note-text")?.addEventListener("input", updateNoteCount);
 $("#note-dirs")?.addEventListener("click", e => {
@@ -4668,7 +4668,7 @@ $("#note-export")?.addEventListener("click", () => {
   const m = noteMatch;
   if(!m) return;
   const ta = $("#note-text");
-  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 400), dir: noteDir });
+  writeMatchNote(m.id, { text: (ta ? ta.value : "").trim().slice(0, 500), dir: noteDir });
   const mask = $("#note-mask");
   if(mask) mask.hidden = true;
   exportMatchCard(m);
