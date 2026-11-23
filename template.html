@@ -3116,7 +3116,7 @@ async function exportMatchCard(m){
   ctx.textAlign = "left";
 
   // ===== 联赛标签（居中） =====
-  let chipY = 236;
+  let chipY = 210;
   cFont(ctx, 22, 600);
   const chipTxt = m.league || "足球";
   const chipW = ctx.measureText(chipTxt).width + 36;
@@ -3126,7 +3126,7 @@ async function exportMatchCard(m){
   ctx.fillText(chipTxt, (CARD_W - chipW) / 2 + 18, chipY + 10);
 
   // ===== 对阵（严格居中：VS 在画布中线，两队对称排开） =====
-  const teamY = 312;
+  const teamY = 284;
   const CXD = CARD_W / 2;
   cFont(ctx, 40, 600);
   const vsW = ctx.measureText("VS").width;
@@ -3147,7 +3147,7 @@ async function exportMatchCard(m){
   ctx.textAlign = "left";
 
   // ================= 版式计算 =================
-  const TOP = 404, BOTTOM = CARD_H - 164, GAP0 = 46;
+  const TOP = 376, BOTTOM = CARD_H - 150, GAP0 = 44;
   const note = readMatchNote(m.id);
   const noteText = String(note.text || "").trim();
   const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
@@ -3165,11 +3165,12 @@ async function exportMatchCard(m){
     : (userConcl ? "以上为数据参考，最终判断见下方。" : "以上为数据参考。");
   cFont(ctx, 21, 400);
   let shortLines = cWrap(ctx, cardShortSummary(m, hn, an, h, a) + _refTxt, bodyW);
-  if(shortLines.length > 3){
-    shortLines = shortLines.slice(0, 3);
-    let last = shortLines[2];
+  const _maxShort = noteText.length > 500 ? 2 : 3;
+  if(shortLines.length > _maxShort){
+    shortLines = shortLines.slice(0, _maxShort);
+    let last = shortLines[_maxShort - 1];
     while(last.length > 1 && ctx.measureText(last + "…").width > bodyW) last = last.slice(0, -1);
-    shortLines[2] = last + "…";
+    shortLines[_maxShort - 1] = last + "…";
   }
   // 我的判断：22px，段间留白
   let noteLines = [];
@@ -3192,7 +3193,7 @@ async function exportMatchCard(m){
   let noteTextH = noteLines.reduce((n, l) => n + (l ? 36 : 18), 0);
   const conclBoxH = conclLines.length ? conclLines.length * 44 + 52 : 0;
 
-  let hModel = pred && pred.ph != null ? 340 : 0;
+  let hModel = pred && pred.ph != null ? 330 : 0;
   const items = [];
   if(pred && pred.lines && pred.lines["2.5"] != null){
     const _ouI = mainOu(m); const _lnI = _ouI ? _ouI.line : 2.5;
@@ -3202,7 +3203,7 @@ async function exportMatchCard(m){
   if(pred && pred.ah && pred.ah["-0.5"] != null) items.push(["主队 -0.5 覆盖", Math.round(pred.ah["-0.5"] * 100) + "%"]);
   if(pred && pred.corners) items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
   if(pred && pred.corners && pred.corners.over && pred.corners.over["9.5"] != null) items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
-  const hMarket = items.length ? 210 : 0;
+  const hMarket = items.length ? 200 : 0;
 
   const available = BOTTOM - TOP;
   const maxAnalysisH = available - hModel - hMarket - 2 * 40;
