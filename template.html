@@ -2736,7 +2736,7 @@ async function sharePage(){
 }
 
 /* ---------- 图文卡片导出 ---------- */
-const CARD_W = 1350, CARD_H = 2250;
+const CARD_W = 1350, CARD_H = 2025;
 const DAILY_CARD_H = 1350;
 const CK = {
   bg: "#F2F5EF", surface: "#FFFFFF", ink: "#12211A", ink2: "#33463C",
@@ -3111,13 +3111,13 @@ async function exportMatchCard(m){
   cFont(ctx, 16, 500); ctx.fillStyle = muted;
   ctx.fillText("Z H I Q I U   L A B", LX + 110, LY + 48);
   ctx.textAlign = "right";
-  cFont(ctx, 22, 500); ctx.fillStyle = muted;
+  cFont(ctx, 24, 500); ctx.fillStyle = muted;
   ctx.fillText(fullTime(m.date), CARD_W - 72, LY + 8);
   ctx.textAlign = "left";
 
   // ===== 联赛标签（居中） =====
   let chipY = 236;
-  cFont(ctx, 20, 600);
+  cFont(ctx, 22, 600);
   const chipTxt = m.league || "足球";
   const chipW = ctx.measureText(chipTxt).width + 36;
   cRound(ctx, (CARD_W - chipW) / 2, chipY, chipW, 44, 22);
@@ -3147,7 +3147,7 @@ async function exportMatchCard(m){
   ctx.textAlign = "left";
 
   // ================= 版式计算 =================
-  const TOP = 440, BOTTOM = CARD_H - 186, GAP0 = 46;
+  const TOP = 404, BOTTOM = CARD_H - 164, GAP0 = 46;
   const note = readMatchNote(m.id);
   const noteText = String(note.text || "").trim();
   const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
@@ -3163,7 +3163,7 @@ async function exportMatchCard(m){
   const _refTxt = (noteText || dirLabel)
     ? "以上为数据参考，最终判断见上方。"
     : (userConcl ? "以上为数据参考，最终判断见下方。" : "以上为数据参考。");
-  cFont(ctx, 19, 400);
+  cFont(ctx, 21, 400);
   let shortLines = cWrap(ctx, cardShortSummary(m, hn, an, h, a) + _refTxt, bodyW);
   if(shortLines.length > 3){
     shortLines = shortLines.slice(0, 3);
@@ -3174,25 +3174,25 @@ async function exportMatchCard(m){
   // 我的判断：22px，段间留白
   let noteLines = [];
   if(noteText){
-    cFont(ctx, 22, 400);
+    cFont(ctx, 24, 400);
     const paras = noteText.split(/\n+/).map(x => x.trim()).filter(Boolean);
     paras.forEach((para, pi) => {
       if(pi > 0) noteLines.push("");
       cWrap(ctx, para, bodyW - 64).forEach(l => noteLines.push(l));
     });
   }
-  cFont(ctx, 22, 700);
+  cFont(ctx, 28, 700);
   const _conclTxt = "最终方向：" + String(conclusion || "")
     .replace(/^综合判断[：:]\s*/, "")
     .replace(/^(综合来看|综合判断|综合|总体来看|整体来看|综上)[，,：:]\s*/, "");
   const conclLines = _conclTxt ? cWrap(ctx, _conclTxt, bodyW - 64) : [];
-  const dataH = shortLines.length * 30;
+  const dataH = shortLines.length * 34;
   const TITLE_H = 78;
   const hasNote = !!(noteText || dirLabel);
-  let noteTextH = noteLines.reduce((n, l) => n + (l ? 34 : 17), 0);
-  const conclBoxH = conclLines.length ? conclLines.length * 40 + 44 : 0;
+  let noteTextH = noteLines.reduce((n, l) => n + (l ? 36 : 18), 0);
+  const conclBoxH = conclLines.length ? conclLines.length * 44 + 52 : 0;
 
-  let hModel = pred && pred.ph != null ? 330 : 0;
+  let hModel = pred && pred.ph != null ? 340 : 0;
   const items = [];
   if(pred && pred.lines && pred.lines["2.5"] != null){
     const _ouI = mainOu(m); const _lnI = _ouI ? _ouI.line : 2.5;
@@ -3202,23 +3202,23 @@ async function exportMatchCard(m){
   if(pred && pred.ah && pred.ah["-0.5"] != null) items.push(["主队 -0.5 覆盖", Math.round(pred.ah["-0.5"] * 100) + "%"]);
   if(pred && pred.corners) items.push(["期望总角球", Number(pred.corners.exp).toFixed(1)]);
   if(pred && pred.corners && pred.corners.over && pred.corners.over["9.5"] != null) items.push(["大 9.5 角球", Math.round(pred.corners.over["9.5"] * 100) + "%"]);
-  const hMarket = items.length ? 196 : 0;
+  const hMarket = items.length ? 210 : 0;
 
   const available = BOTTOM - TOP;
   const maxAnalysisH = available - hModel - hMarket - 2 * 40;
   // 极端长文：先按最大可用高度压缩我的判断
-  let noteBoxH = hasNote ? noteTextH + 40 : 0;
+  let noteBoxH = hasNote ? noteTextH + 44 : 0;
   let analysisContentH = TITLE_H + noteBoxH + 18 + dataH + (conclLines.length ? 20 + conclBoxH : 0) + 34;
   if(analysisContentH > maxAnalysisH){
     let budget = maxAnalysisH - TITLE_H - 18 - dataH - (conclLines.length ? 20 + conclBoxH : 0) - 34 - 46;
     let used = 0, keep = 0;
-    for(const l of noteLines){ const add = l ? 34 : 17; if(used + add > Math.max(0, budget)) break; used += add; keep++; }
+    for(const l of noteLines){ const add = l ? 36 : 18; if(used + add > Math.max(0, budget)) break; used += add; keep++; }
     noteLines = noteLines.slice(0, Math.max(1, keep));
     let last = noteLines[noteLines.length - 1] || "";
     while(last.length > 1 && ctx.measureText(last + "…").width > bodyW - 64) last = last.slice(0, -1);
     noteLines[noteLines.length - 1] = (last || "") + "…";
-    noteTextH = noteLines.reduce((n, l) => n + (l ? 34 : 17), 0);
-    noteBoxH = hasNote ? noteTextH + 40 : 0;
+    noteTextH = noteLines.reduce((n, l) => n + (l ? 36 : 18), 0);
+    noteBoxH = hasNote ? noteTextH + 44 : 0;
     analysisContentH = TITLE_H + noteBoxH + 18 + dataH + (conclLines.length ? 20 + conclBoxH : 0) + 34;
   }
   // 整版垂直居中 + 均匀间距：不留大片空白
@@ -3233,12 +3233,12 @@ async function exportMatchCard(m){
   if(hModel){
     card(MX, y, W, hModel);
     titleAt("模型预测", MX + 40, y + 30);
-    cFont(ctx, 20, 400); ctx.fillStyle = muted;
+    cFont(ctx, 22, 400); ctx.fillStyle = muted;
     ctx.textAlign = "right";
-    ctx.fillText(`预期进球 ${Number(pred.xgH).toFixed(2)} — ${Number(pred.xgA).toFixed(2)}`, MX + W - 40, y + 34);
+    ctx.fillText(`预期进球 ${Number(pred.xgH).toFixed(2)} — ${Number(pred.xgA).toFixed(2)}`, MX + W - 40, y + 36);
     ctx.textAlign = "left";
     const ps = [pred.ph, pred.pd, pred.pa];
-    const bx = MX + 40, bw = W - 80, barY = y + 94, barH = 16;
+    const bx = MX + 40, bw = W - 80, barY = y + 92, barH = 16;
     let cx = bx;
     ps.forEach((p, i) => {
       ctx.fillStyle = i === 0 ? CK.accent : (i === 1 ? "#DDE7DE" : "#8FA898");
@@ -3248,23 +3248,23 @@ async function exportMatchCard(m){
     const labels = ["主胜", "平", "客胜"];
     labels.forEach((lb, i) => {
       const col = bx + (bw / 3) * i;
-      cFont(ctx, 19, 400); ctx.fillStyle = muted;
-      ctx.fillText(lb, col, y + 148);
-      cFont(ctx, 44, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 176);
+      cFont(ctx, 21, 400); ctx.fillStyle = muted;
+      ctx.fillText(lb, col, y + 146);
+      cFont(ctx, 46, 700); ctx.fillStyle = ink;
+      ctx.fillText(Math.round(ps[i] * 100) + "%", col, y + 174);
     });
     ctx.strokeStyle = "#E6EDE7"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(bx, y + 236); ctx.lineTo(bx + bw, y + 236); ctx.stroke();
-    cFont(ctx, 17, 500); ctx.fillStyle = muted;
+    ctx.beginPath(); ctx.moveTo(bx, y + 238); ctx.lineTo(bx + bw, y + 238); ctx.stroke();
+    cFont(ctx, 20, 500); ctx.fillStyle = muted;
     ctx.fillText("市场综合概率", bx, y + 262);
     const bl = ip ? ps.map((v, i) => (ip[i] == null ? v : ip[i] * 0.7 + v * 0.3)) : ps;
     const mStart = bx + 176, segW = (bw - 176) / 3;
     bl.forEach((v, i) => {
       const x = mStart + segW * i;
-      cFont(ctx, 17, 400); ctx.fillStyle = muted;
-      ctx.fillText(["主", "平", "客"][i], x, y + 264);
-      cFont(ctx, 28, 700); ctx.fillStyle = ink;
-      ctx.fillText(Math.round(v * 100) + "%", x + 28, y + 258);
+      cFont(ctx, 20, 400); ctx.fillStyle = muted;
+      ctx.fillText(["主", "平", "客"][i], x, y + 266);
+      cFont(ctx, 30, 700); ctx.fillStyle = ink;
+      ctx.fillText(Math.round(v * 100) + "%", x + 32, y + 258);
     });
     y += hModel + vGap;
   }
@@ -3277,10 +3277,10 @@ async function exportMatchCard(m){
     const colW = (W - 80) / nCol;
     items.slice(0, 4).forEach((it, i) => {
       const cxx = MX + 40 + colW * i;
-      cFont(ctx, 18, 400); ctx.fillStyle = muted;
-      ctx.fillText(cFit(ctx, it[0], colW - 18), cxx, y + 100);
-      cFont(ctx, 38, 700); ctx.fillStyle = ink;
-      ctx.fillText(it[1], cxx, y + 130);
+      cFont(ctx, 21, 400); ctx.fillStyle = muted;
+      ctx.fillText(cFit(ctx, it[0], colW - 18), cxx, y + 104);
+      cFont(ctx, 40, 700); ctx.fillStyle = ink;
+      ctx.fillText(it[1], cxx, y + 136);
     });
     y += hMarket + vGap;
   }
@@ -3297,34 +3297,34 @@ async function exportMatchCard(m){
     const nx = MX + 40, nw = W - 80;
     cRound(ctx, nx, cy, nw, noteBoxH, 16);
     ctx.fillStyle = "#F2F8F3"; ctx.fill();
-    cFont(ctx, 22, 400); ctx.fillStyle = ink2;
-    let nyy = cy + 20;
+    cFont(ctx, 24, 400); ctx.fillStyle = ink2;
+    let nyy = cy + 22;
     noteLines.forEach(line => {
       if(line) ctx.fillText(line, nx + 22, nyy);
-      nyy += line ? 34 : 17;
+      nyy += line ? 36 : 18;
     });
     cy += noteBoxH + 18;
   }
   // 数据参考
   cFont(ctx, 19, 400); ctx.fillStyle = muted;
-  shortLines.forEach(line => { ctx.fillText(line, MX + 48, cy); cy += 30; });
+  shortLines.forEach(line => { ctx.fillText(line, MX + 48, cy); cy += 34; });
   // 综合判断
   if(conclLines.length){
     cy += 20;
     cRound(ctx, MX + 40, cy, W - 80, conclBoxH, 16);
     ctx.fillStyle = CK.soft; ctx.fill();
-    cFont(ctx, 26, 700); ctx.fillStyle = CK.accent;
-    let cyy = cy + Math.floor((conclBoxH - conclLines.length * 40) / 2) + 5;
-    conclLines.forEach(line => { ctx.fillText(line, MX + 62, cyy); cyy += 40; });
+    cFont(ctx, 28, 700); ctx.fillStyle = CK.accent;
+    let cyy = cy + Math.floor((conclBoxH - conclLines.length * 44) / 2) + 5;
+    conclLines.forEach(line => { ctx.fillText(line, MX + 62, cyy); cyy += 44; });
   }
 
   // ===== 页脚 =====
   ctx.textAlign = "center";
-  cFont(ctx, 17, 400); ctx.fillStyle = muted;
-  ctx.fillText("赔率来自多家机构 · 模型基于近三个赛季攻防数据", CARD_W / 2, CARD_H - 129);
-  ctx.fillText("预测仅供参考，不代表确定结果", CARD_W / 2, CARD_H - 102);
-  cFont(ctx, 18, 600); ctx.fillStyle = CK.accent;
-  ctx.fillText("zhiqiulab.com", CARD_W / 2, CARD_H - 75);
+  cFont(ctx, 19, 400); ctx.fillStyle = muted;
+  ctx.fillText("赔率来自多家机构 · 模型基于近三个赛季攻防数据", CARD_W / 2, CARD_H - 124);
+  ctx.fillText("预测仅供参考，不代表确定结果", CARD_W / 2, CARD_H - 96);
+  cFont(ctx, 20, 600); ctx.fillStyle = CK.accent;
+  ctx.fillText("zhiqiulab.com", CARD_W / 2, CARD_H - 66);
   ctx.textAlign = "left";
 
   window.__lastCardCanvas = cv;
