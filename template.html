@@ -3040,7 +3040,6 @@ function pickUserConclusion(text){
 
 async function exportMatchCard(m){
   await ensureCardFonts();
-  const logo = await ensureCardLogo();
   const cv = document.createElement("canvas");
   cv.width = CARD_W; cv.height = CARD_H;
   const ctx = cv.getContext("2d");
@@ -3090,33 +3089,8 @@ async function exportMatchCard(m){
     ctx.fillText(text, x + 16, y);
   };
 
-  // ===== 页头 =====
-  const LX = 72, LY = 64;
-  if(logo){
-    ctx.save();
-    cRound(ctx, LX, LY, 84, 84, 22);
-    ctx.clip();
-    ctx.drawImage(logo, LX, LY, 84, 84);
-    ctx.restore();
-  } else {
-    cRound(ctx, LX, LY, 84, 84, 22);
-    ctx.fillStyle = CK.accent; ctx.fill();
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    cFont(ctx, 40, 700); ctx.fillStyle = "#fff";
-    ctx.fillText("智", LX + 42, LY + 44);
-    ctx.textAlign = "left"; ctx.textBaseline = "top";
-  }
-  cFont(ctx, 36, 700); ctx.fillStyle = ink;
-  ctx.fillText("智球实验室", LX + 108, LY + 2);
-  cFont(ctx, 16, 500); ctx.fillStyle = muted;
-  ctx.fillText("Z H I Q I U   L A B", LX + 110, LY + 48);
-  ctx.textAlign = "right";
-  cFont(ctx, 24, 500); ctx.fillStyle = muted;
-  ctx.fillText(fullTime(m.date), CARD_W - 72, LY + 8);
-  ctx.textAlign = "left";
-
   // ===== 联赛标签（居中） =====
-  let chipY = 210;
+  let chipY = 60;
   cFont(ctx, 22, 600);
   const chipTxt = m.league || "足球";
   const chipW = ctx.measureText(chipTxt).width + 36;
@@ -3126,7 +3100,7 @@ async function exportMatchCard(m){
   ctx.fillText(chipTxt, (CARD_W - chipW) / 2 + 18, chipY + 10);
 
   // ===== 对阵（严格居中：VS 在画布中线，两队对称排开） =====
-  const teamY = 284;
+  const teamY = 124;
   const CXD = CARD_W / 2;
   cFont(ctx, 40, 600);
   const vsW = ctx.measureText("VS").width;
@@ -3147,7 +3121,7 @@ async function exportMatchCard(m){
   ctx.textAlign = "left";
 
   // ================= 版式计算 =================
-  const TOP = 376, BOTTOM = CARD_H - 150, GAP0 = 44;
+  const TOP = 262, BOTTOM = CARD_H - 140, GAP0 = 44;
   const note = readMatchNote(m.id);
   const noteText = String(note.text || "").trim();
   const DIR_LABEL = { home: "主胜", draw: "平局", away: "客胜", over: "大球", under: "小球" };
