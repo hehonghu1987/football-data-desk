@@ -3792,9 +3792,9 @@ function fixtureRowHtml(f, forceStatus){
   return `<div class="fix-row" data-mid="${esc(f.id)}">
     <div class="fix-time">${fmtTime(f.date)}<button type="button" class="pin-btn${isPinned(f.id) ? " on" : ""}" data-pin="${esc(f.id)}" aria-pressed="${isPinned(f.id) ? "true" : "false"}" title="${isPinned(f.id) ? "取消置顶" : "置顶这场比赛"}" aria-label="置顶比赛">${isPinned(f.id) ? "★" : "☆"}</button></div>
     <div>${leagueChip(f.league)}</div>
-    <a class="fix-team home" href="#/team/${esc(h.id)}">${teamDot(h)}<span class="name">${esc(h.cn || h.name)}</span></a>
+    <a class="fix-team home" href="#/team/${esc(h.id)}">${teamDot(h)}<span class="name">${esc(f.sp?.homeName || h.cn || h.name)}</span></a>
     <div class="fix-vs">VS</div>
-    <a class="fix-team away" href="#/team/${esc(a.id)}"><span class="name">${esc(a.cn || a.name)}</span>${teamDot(a)}</a>
+    <a class="fix-team away" href="#/team/${esc(a.id)}"><span class="name">${esc(f.sp?.awayName || a.cn || a.name)}</span>${teamDot(a)}</a>
     ${predLine}
   </div>`;
 }
@@ -6501,7 +6501,7 @@ function renderMatch(id){
   state.matchId = String(id);
   state.mvSide = "all";
   $("#match-back").href = "#/team/" + encodeURIComponent(h.id);
-  $("#match-back").textContent = "← 返回 " + (h.cn || h.name);
+  $("#match-back").textContent = "← 返回 " + (m.sp?.homeName || h.cn || h.name);
   setShareMeta(`${h.cn || h.name} vs ${a.cn || a.name} · 智球实验室`);
 
   const live = m.state === "in";          // 比分板标记进行中
@@ -6523,7 +6523,7 @@ function renderMatch(id){
       <div class="match-side home">
         <a href="#/team/${esc(h.id)}">${badge(h, "lg")}</a>
         <div>
-          <div class="nm"><a href="#/team/${esc(h.id)}" style="color:inherit;text-decoration:none">${esc(h.cn || h.name)}</a></div>
+          <div class="nm"><a href="#/team/${esc(h.id)}" style="color:inherit;text-decoration:none">${esc(m.sp?.homeName || h.cn || h.name)}</a></div>
           <div class="en">${esc(h.name || "")}${done ? " · 主" : ""}</div>
         </div>
       </div>
@@ -6531,7 +6531,7 @@ function renderMatch(id){
       <div class="match-side away">
         <a href="#/team/${esc(a.id)}">${badge(a, "lg")}</a>
         <div>
-          <div class="nm"><a href="#/team/${esc(a.id)}" style="color:inherit;text-decoration:none">${esc(a.cn || a.name)}</a></div>
+          <div class="nm"><a href="#/team/${esc(a.id)}" style="color:inherit;text-decoration:none">${esc(m.sp?.awayName || a.cn || a.name)}</a></div>
           <div class="en">${esc(a.name || "")}${done ? " · 客" : ""}</div>
         </div>
       </div>
@@ -7480,7 +7480,13 @@ function route(){
   }
   const mm = h.match(/^#\/match\/(.+)$/);
   if(mm){
-    const id = decodeURIComponent(mm[1]);
+    let id = decodeURIComponent(mm[1]);
+    const alias = /^sp-(\d+)$/.exec(id);
+    const canonical = alias && DATA.meta.sportteryAliases?.[alias[1]];
+    if(canonical){
+      id = String(canonical);
+      history.replaceState(null, "", "#/match/" + encodeURIComponent(id));
+    }
     if(MATCH_BY_ID.has(String(id))){
       renderMatch(id);
       window.scrollTo({top: 0, behavior: "auto"});

@@ -2131,7 +2131,11 @@ def merge_books_persist(fixture_rows, ttl_hours=36):
             name = b.get("book")
             if name and name != "北单":
                 cur[name] = b
-        old = (persist.get(fid) or {}).get("books") or {}
+        cached = persist.get(fid) or {}
+        identity = [str(f.get("home")), str(f.get("away"))]
+        old = cached.get("books") or {}
+        if fid.startswith("sp-") and cached.get("teams") != identity:
+            old = {}
         for name, rec in old.items():
             if name == "北单":
                 continue
@@ -2145,7 +2149,7 @@ def merge_books_persist(fixture_rows, ttl_hours=36):
                 cur[name] = b
                 filled += 1
         if cur:
-            kept[fid] = {"date": date, "books": {name: {"b": b, "t": now} for name, b in cur.items()}}
+            kept[fid] = {"date": date, "teams": identity, "books": {name: {"b": b, "t": now} for name, b in cur.items()}}
     # 写入（保留未在当前窗口但仍在 TTL 内的旧场次）
     for fid, rec in persist.items():
         if fid in kept:
@@ -2306,6 +2310,7 @@ def fetch_sporttery():
                 continue
             out.append({
                 "id": str(m.get("matchId")), "date": dt.replace(tzinfo=timezone.utc).isoformat(),
+                "homeId": m.get("homeTeamId"), "awayId": m.get("awayTeamId"),
                 "league": m.get("leagueAbbName") or "", "num": m.get("matchNumStr") or "",
                 "home": m.get("homeTeamAbbName") or "", "homeFull": m.get("homeTeamAllName") or "",
                 "away": m.get("awayTeamAbbName") or "", "awayFull": m.get("awayTeamAllName") or "",
@@ -2329,28 +2334,63 @@ def fetch_sporttery():
 
 
 def _norm_cn(s):
-    s = re.sub(r"[（(].*?[)）]", "", s or "")
+    s = (s or "").translate(str.maketrans({"（": "(", "）": ")"}))
     s = re.sub(r"[·\s\.\-\']", "", s)
     for suf in ("足球俱乐部", "俱乐部", "队", "FC"):
         s = s.replace(suf, "")
     return s.lower()
 
 
-def _name_match(our, abb, full):
+# 明确的跨来源简称，禁止两字模糊匹配导致青年队或同名球队错配。
+_CN_ALIASES = [
+    {"布拉干rb", "布拉干蒂诺", "布拉干蒂诺红牛", "布拉甘蒂诺红牛"},
+    {"比尔森", "比尔森胜利"}, {"比亚韦斯托克", "比亚韦斯托克雅盖隆"},
+    {"博德闪耀", "博多格林特"}, {"葡萄牙体育", "里斯本竞技"},
+    {"莱比锡红牛", "rb莱比锡"}, {"萨巴赫", "萨巴巴"},
+    {"巴黎圣日尔曼", "巴黎圣日耳曼", "巴黎圣曼"}, {"布拉迪斯拉发斯洛万", "布拉迪斯拉发"},
+    {"奥兰多", "奥兰多城"}, {"西雅图", "西雅图海湾人"},
+    {"盐湖城", "皇家盐湖城"}, {"比勒费", "比勒菲尔德"},
+    {"登博思", "邓伯什"}, {"拜仁", "拜仁慕尼黑"},
+    {"西悉尼", "西悉尼流浪者"}, {"阿德莱德", "阿德莱德联"},
+]
+
+def _name_match(our, abb, full=""):
     a = _norm_cn(our)
     if not a:
         return False
-    import difflib
     for cand in (abb, full):
         b = _norm_cn(cand)
         if not b:
             continue
-        if a == b or (len(a) >= 3 and a in b) or (len(b) >= 3 and b in a):
-            return True
-        # 中文缩写/异体字（布拉干RB vs 布拉甘蒂诺红牛）：高相似度也认
-        if len(a) >= 2 and len(b) >= 2 and difflib.SequenceMatcher(None, a, b).ratio() >= 0.5:
+        if a == b or any(a in group and b in group for group in _CN_ALIASES):
             return True
     return False
+
+
+def _domestic_candidates(fixture_rows, teams, source):
+    try:
+        st = datetime.fromisoformat(source["date"].replace("Z", "+00:00"))
+        if st.tzinfo is None:
+            return []
+    except (KeyError, TypeError, ValueError):
+        return []
+    source_league = SP_LEAGUE_MAP.get(source.get("league"), source.get("league"))
+    known_leagues = {lg["label"] for lg in LEAGUES}
+    found = []
+    for f in fixture_rows:
+        if source_league in known_leagues and f.get("league") and f["league"] != source_league:
+            continue
+        try:
+            ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
+            if ft.tzinfo is None or abs((st - ft).total_seconds()) > 30 * 60:
+                continue
+        except (KeyError, TypeError, ValueError):
+            continue
+        h, a = teams.get(str(f.get("home"))) or {}, teams.get(str(f.get("away"))) or {}
+        if (_name_match(h.get("cn") or h.get("name"), source.get("home"), source.get("homeFull"))
+                and _name_match(a.get("cn") or a.get("name"), source.get("away"), source.get("awayFull"))):
+            found.append(f)
+    return found
 
 
 SP_LEAGUE_MAP = {
@@ -2358,8 +2398,8 @@ SP_LEAGUE_MAP = {
     "荷乙": "荷乙", "德乙": "德乙", "英冠": "英冠", "苏超": "苏超",
     "德甲": "德甲", "法甲": "法甲", "西甲": "西甲", "英超": "英超",
     "意甲": "意甲", "葡超": "葡超", "荷甲": "荷甲", "比甲": "比甲",
-    "土超": "土超", "欧冠": "欧冠", "欧联": "欧联杯", "欧国联": "欧国联",
-    "世预赛": "世预赛欧洲区", "欧洲杯": "欧洲杯",
+    "土超": "土超", "欧冠": "欧冠", "欧联": "欧联杯", "欧罗巴": "欧联杯", "欧国联": "欧国联",
+    "世预赛": "世预赛", "欧洲杯": "欧洲杯",
 }
 
 
@@ -2370,7 +2410,9 @@ def _apply_sp_match(f, s):
     hhad = s.get("hhad") or {}
     if not had_ok and not (hhad.get("h") is not None and hhad.get("a") is not None):
         return False
-    f["sp"] = {"had": had if had_ok else None, "hhad": s.get("hhad"), "num": s.get("num"),
+    f.pop("hide", None)
+    f["sp"] = {"id": s.get("id"), "homeName": s.get("homeFull") or s.get("home"),
+               "awayName": s.get("awayFull") or s.get("away"), "had": had if had_ok else None, "hhad": s.get("hhad"), "num": s.get("num"),
                "league": s.get("league"), "ttg": s.get("ttg")}
     if had_ok:
         f.setdefault("books", []).append({"book": "竞彩官方", "m": had})
@@ -2397,18 +2439,15 @@ def _apply_sp_match(f, s):
 
 
 def _sp_find_team(name, full, cn_map):
-    for cand in (name, full):
-        if not cand:
-            continue
-        t = cn_map.get(cand)
-        if t:
-            return t
-    if not name:
-        return None
-    for key, t in cn_map.items():
-        if _name_match(key, name, full or ""):
-            return t
-    return None
+    for label in (full, name):
+        direct = cn_map.get(_norm_cn(label), {})
+        if len(direct) == 1:
+            return next(iter(direct.values()))
+    candidates = {}
+    for label, teams in cn_map.items():
+        if _name_match(label, name, full):
+            candidates.update(teams)
+    return next(iter(candidates.values())) if len(candidates) == 1 else None
 
 
 AF_LEAGUE_IDS = {
@@ -2503,7 +2542,7 @@ def enrich_sp_fixtures(fixture_rows, teams=None, log=log):
                 resp_items = _d.get("response") or []
             except Exception:
                 resp_items = []
-        best = None
+        candidates = {}
         for it in resp_items:
             try:
                 mt = datetime.fromisoformat((it.get("fixture") or {}).get("date", "").replace("Z", "+00:00")).replace(tzinfo=None)
@@ -2520,17 +2559,11 @@ def enrich_sp_fixtures(fixture_rows, teams=None, log=log):
             score = 0.0
             if th.get("name") and ta.get("name"):
                 score = min(_af_team_sim(home_n, th), _af_team_sim(away_n, ta))
-            if score >= 0.55:
-                cand = (0.0 if score >= 0.8 else 1.0, diff, it)
-            elif diff <= 5 * 60:
-                cand = (2.0, diff, it)
-            else:
-                continue
-            if best is None or cand[:2] < best[:2]:
-                best = cand
-        if not best:
+            if score >= 0.8:
+                candidates[(it.get("fixture") or {}).get("id")] = it
+        if len(candidates) != 1:
             continue
-        it = best[2]
+        it = next(iter(candidates.values()))
         afid = str((it.get("fixture") or {}).get("id") or "")
         if not afid:
             continue
@@ -2583,79 +2616,75 @@ def add_sporttery_fixtures(fixture_rows, teams, team_rows, sp_matches, log=log):
     """竞彩在售但 ESPN 赛程里没有的比赛，直接补成 fixture（保证竞彩完整）。"""
     if not sp_matches:
         return 0
-    matched_nums = {f.get("sp", {}).get("num") for f in fixture_rows if f.get("sp")}
+    matched_ids = {str(f["sp"]["id"]) for f in fixture_rows if (f.get("sp") or {}).get("id")}
     cn_map = {}
     for t in team_rows:
         for k in (t.get("cn"), t.get("name"), t.get("short")):
             if k:
-                cn_map.setdefault(k, t)
+                cn_map.setdefault(_norm_cn(k), {})[str(t["id"])] = t
     added = 0
     for sp in sp_matches:
-        if sp.get("num") in matched_nums:
+        if not sp.get("id") or str(sp["id"]) in matched_ids:
             continue
         if not (sp.get("date") and sp.get("home") and sp.get("away")):
             continue
         th = _sp_find_team(sp.get("home"), sp.get("homeFull"), cn_map)
         ta = _sp_find_team(sp.get("away"), sp.get("awayFull"), cn_map)
         if not th:
-            tid = f"sp-{sp.get('id')}-h"
+            tid = f"sp-team-{sp['homeId']}" if sp.get("homeId") else f"sp-{sp['id']}-h"
             th = {"id": tid, "name": sp.get("homeFull") or sp.get("home"), "cn": sp.get("homeFull") or sp.get("home"),
                   "short": sp.get("home"), "count": 0, "cat": "other", "currentLeagues": [], "leagues": []}
             team_rows.append(th)
-            cn_map[th["cn"]] = th
+            cn_map.setdefault(_norm_cn(th["cn"]), {})[tid] = th
         if not ta:
-            tid = f"sp-{sp.get('id')}-a"
+            tid = f"sp-team-{sp['awayId']}" if sp.get("awayId") else f"sp-{sp['id']}-a"
             ta = {"id": tid, "name": sp.get("awayFull") or sp.get("away"), "cn": sp.get("awayFull") or sp.get("away"),
                   "short": sp.get("away"), "count": 0, "cat": "other", "currentLeagues": [], "leagues": []}
             team_rows.append(ta)
-            cn_map[ta["cn"]] = ta
+            cn_map.setdefault(_norm_cn(ta["cn"]), {})[tid] = ta
         f = {
             "id": f"sp-{sp.get('id')}",
             "date": sp["date"],
             "league": SP_LEAGUE_MAP.get(sp.get("league"), sp.get("league") or "竞彩"),
             "home": th["id"], "away": ta["id"],
             "state": "pre", "hs": None, "as": None,
+            "fixtureSource": "sporttery",
         }
         if _apply_sp_match(f, sp):
             fixture_rows.append(f)
+            matched_ids.add(str(sp["id"]))
             added += 1
     if added:
         log(f"  竞彩补充赛程：{added} 场（ESPN 未覆盖的在售比赛）")
     return added
 
 
+def sporttery_aliases(fixtures):
+    """保留已核对的竞彩比赛链接，停售或完场后仍跳到同一个比赛页。"""
+    path = os.path.join(ROOT, "odds_snapshots", "sporttery_fixture_ids.json")
+    try:
+        with open(path, encoding="utf-8") as src:
+            aliases = json.load(src)
+    except FileNotFoundError:
+        aliases = {}
+    updates = {str(f["sp"]["id"]): str(f["id"]) for f in fixtures
+               if (f.get("sp") or {}).get("id") and not str(f["id"]).startswith("sp-")}
+    if any(aliases.get(k) != v for k, v in updates.items()):
+        aliases.update(updates)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as dst:
+            json.dump(aliases, dst, separators=(",", ":"))
+        os.replace(path + ".tmp", path)
+    return aliases
+
+
 def attach_sporttery(fixture_rows, teams, sp_matches):
-    """把竞彩官方盘口挂到对应赛程上（北京时间 + 队名模糊匹配）。"""
-    if not sp_matches:
-        return 0
     hit = 0
-    parsed = []
-    for s in sp_matches:
-        try:
-            parsed.append((datetime.fromisoformat(s["date"].replace("Z", "+00:00")), s))
-        except (TypeError, ValueError):
-            continue
-    for f in fixture_rows:
-        if not f.get("date"):
-            continue
-        try:
-            ft = datetime.fromisoformat(f["date"].replace("Z", "+00:00"))
-        except ValueError:
-            continue
-        h = teams.get(str(f.get("home"))) or {}
-        a = teams.get(str(f.get("away"))) or {}
-        hn, an = h.get("cn") or h.get("name"), a.get("cn") or a.get("name")
-        for st, s in parsed:
-            if abs((st - ft).total_seconds()) > 90 * 60:
-                continue
-            _hm = _name_match(hn, s["home"], s["homeFull"])
-            _am = _name_match(an, s["away"], s["awayFull"])
-            if _hm and _am:
-                if _apply_sp_match(f, s):
-                    hit += 1
-                break
-    if hit:
-        log(f"  竞彩官方盘口：匹配 {hit} 场")
+    for source in sp_matches:
+        candidates = _domestic_candidates(fixture_rows, teams, source)
+        if len(candidates) == 1 and not candidates[0].get("sp"):
+            if _apply_sp_match(candidates[0], source):
+                hit += 1
     return hit
 
 
@@ -5485,6 +5514,7 @@ def main():
         "matchCount": len(match_rows),
         "teamCount": len(team_rows),
         "fixtureCount": len(fixture_rows),
+        "sportteryAliases": sporttery_aliases(fixture_rows),
         "dateMin": min(dates) if dates else None,
         "dateMax": max(dates) if dates else None,
         "source": "公开数据",
