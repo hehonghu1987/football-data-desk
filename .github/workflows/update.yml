@@ -207,6 +207,30 @@ jobs:
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
+        id: pages-package
         with:
           path: dist
-      - uses: actions/deploy-pages@v4
+      - name: 发布本次上传的 Pages 包
+        uses: actions/github-script@v8
+        env:
+          PAGES_ARTIFACT_ID: ${{ steps.pages-package.outputs.artifact_id }}
+        with:
+          script: |
+            const artifactId = Number(process.env.PAGES_ARTIFACT_ID);
+            if (!Number.isSafeInteger(artifactId) || artifactId <= 0) throw new Error("缺少 Pages 包 ID");
+            const { data } = await github.request("POST /repos/{owner}/{repo}/pages/deployments", {
+              ...context.repo, artifact_id: artifactId, pages_build_version: context.sha,
+              oidc_token: await core.getIDToken()
+            });
+            const deployment = data.id || data.status_url?.split("/").pop() || context.sha;
+            for (let attempt = 0; attempt < 60; attempt++) {
+              await new Promise(resolve => setTimeout(resolve, 10000));
+              const status = await github.request("GET /repos/{owner}/{repo}/pages/deployments/{deployment}", {
+                ...context.repo, deployment
+              });
+              if (status.data.status === "succeed") return;
+              if (["deployment_failed", "deployment_cancelled", "deployment_content_failed"].includes(status.data.status)) {
+                throw new Error("Pages 发布失败 " + status.data.status);
+              }
+            }
+            throw new Error("等待 Pages 发布超时");
